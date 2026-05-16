@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     if ((await prisma.aiModel.count()) === 0) await seedLeaderboardData();
 
     // Fetch models with base filter
-    const modelWhere: any = { isActive: true };
+    const modelWhere: Record<string, unknown> = { isActive: true };
     if (provider) modelWhere.provider = provider;
     if (modelType) modelWhere.modelType = modelType;
 
@@ -33,15 +33,15 @@ export async function GET(request: Request) {
     ]);
 
     // Build lookup maps
-    const bmMap: Record<string, any> = {};
+    const bmMap: Record<string, typeof allBenchmarks[number]> = {};
     for (const b of allBenchmarks) {
       if (!bmMap[b.modelId]) bmMap[b.modelId] = b;
     }
-    const prMap: Record<string, any> = {};
+    const prMap: Record<string, typeof allPricing[number]> = {};
     for (const p of allPricing) {
       if (!prMap[p.modelId]) prMap[p.modelId] = p;
     }
-    const mtMap: Record<string, any[]> = {};
+    const mtMap: Record<string, typeof allMetrics[number][]> = {};
     for (const m of allMetrics) {
       if (!mtMap[m.modelId]) mtMap[m.modelId] = [];
       if (mtMap[m.modelId].length < 7) mtMap[m.modelId].push(m);
@@ -100,7 +100,7 @@ export async function GET(request: Request) {
 
     leaderboardCache.set(cacheKey, result);
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Leaderboard API]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -111,7 +111,7 @@ export async function POST() {
     const result = await seedLeaderboardData();
     leaderboardCache.clear();
     return NextResponse.json({ success: true, ...result });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

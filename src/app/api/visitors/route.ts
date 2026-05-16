@@ -26,12 +26,12 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'createdAt'
     const sortOrder = searchParams.get('sortOrder') || 'desc'
 
-    const where: any = {}
+    const where: Record<string, unknown> = {}
     if (status) where.status = status
     if (visitorType) where.visitorType = visitorType
     if (search) { where.OR = [{ name: { contains: search } }, { email: { contains: search } }, { country: { contains: search } }] }
 
-    const orderBy: any = {}; orderBy[sortBy] = sortOrder
+    const orderBy: Record<string, string> = {}; orderBy[sortBy] = sortOrder
 
     const [visitors, total, stats] = await Promise.all([
       db.visitor.findMany({ where, orderBy, skip: (page - 1) * limit, take: limit }),
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ visitors, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }, filters: { status, visitorType, search }, stats: byType })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Visitors API]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -75,7 +75,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (!id) return NextResponse.json({ error: 'Visitor ID is required' }, { status: 400 })
-    const updateData: any = {}
+    const updateData: Record<string, unknown> = {}
     if (status && ['accepted', 'rejected', 'pending'].includes(status)) updateData.status = status
     if (notes !== undefined) updateData.notes = notes
     if (visitorType && ['researcher', 'student', 'professional', 'enterprise', 'developer', 'educator', 'general'].includes(visitorType)) updateData.visitorType = visitorType
@@ -90,7 +90,7 @@ export async function PATCH(request: NextRequest) {
       else if (status === 'rejected') sendVisitorRejectionEmail(visitorBefore.email, visitorBefore.name).catch(() => {})
     }
     return NextResponse.json({ success: true, visitor })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Visitors API PATCH]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -104,7 +104,7 @@ export async function DELETE(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Visitor ID is required' }, { status: 400 })
     await db.visitor.delete({ where: { id } })
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Visitors API DELETE]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

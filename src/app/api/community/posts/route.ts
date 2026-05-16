@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit
 
-    const where: any = {}
+    const where: Record<string, unknown> = {}
     if (type !== 'all') where.type = type
     if (sort === 'featured') where.featured = true
     if (tag) where.tags = { contains: tag } // SQLite simple contains
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    const orderBy: any = sort === 'popular'
+    const orderBy: Record<string, string> = sort === 'popular'
       ? { likes: 'desc' }
       : sort === 'featured'
       ? { createdAt: 'desc' }
