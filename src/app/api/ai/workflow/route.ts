@@ -84,11 +84,74 @@ export async function POST(request: NextRequest) {
       contextInfo = '\n\nThe user wants to automate an analysis workflow.'
     }
 
+    // Build project-level memory context so the copilot "remembers" past work
+    let projectMemory = ''
+    try {
+      const memoryWhere: Record<string, unknown> = {}
+      if (visitorId) memoryWhere.visitorId = visitorId
+      if (body.projectId) memoryWhere.projectId = body.projectId
+
+      // Fetch past decisions for context
+      const pastDecisions = await prisma.decisionRecord.findMany({
+        where: memoryWhere,
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+      })
+
+      // Fetch past pipelines for context
+      const pastPipelines = await prisma.workflowPipeline.findMany({
+        where: memoryWhere,
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      })
+
+      // Fetch user preferences if available
+      let preferences: { skillLevel?: string; preferredLang?: string; theme?: string } | null = null
+      if (visitorId) {
+        const pref = await prisma.userPreference.findUnique({
+          where: { visitorId },
+        })
+        if (pref) {
+          preferences = {
+            skillLevel: pref.skillLevel,
+            preferredLang: pref.preferredLang,
+            theme: pref.theme,
+          }
+        }
+      }
+
+      // Build memory block for AI prompt
+      const memoryParts: string[] = []
+      if (pastDecisions.length > 0) {
+        memoryParts.push(`Past AI-assisted decisions by this user (most recent first):
+${pastDecisions.map((d) => `- [${d.context}] ${d.question} (confidence: ${d.confidence ?? 'N/A'})`).join('\n')}`)
+      }
+      if (pastPipelines.length > 0) {
+        memoryParts.push(`Past analysis pipelines created by this user:
+${pastPipelines.map((p) => `- "${p.name}" (status: ${p.status}, intent: "${p.intent.slice(0, 100)}")`).join('\n')}`)
+      }
+      if (preferences) {
+        memoryParts.push(`User preferences: skill level=${preferences.skillLevel}, language=${preferences.preferredLang}, theme=${preferences.theme}. Tailor complexity accordingly.`)
+      }
+
+      if (memoryParts.length > 0) {
+        projectMemory = `
+
+--- USER HISTORY & CONTEXT ---
+Use this context to generate a context-aware pipeline. Build on past work, avoid redundancy, and match the user's skill level.
+
+${memoryParts.join('\n\n')}
+--- END USER HISTORY ---`
+      }
+    } catch {
+      // Memory fetch failure should not block pipeline generation
+    }
+
     // Call ZAI SDK to generate workflow
     const zai = await ZAI.create()
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'system', content: WORKFLOW_SYSTEM_PROMPT + contextInfo },
+        { role: 'system', content: WORKFLOW_SYSTEM_PROMPT + contextInfo + projectMemory },
         { role: 'user', content: intent.trim() },
       ],
     })
