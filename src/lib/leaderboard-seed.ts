@@ -1,4 +1,4 @@
-import { prisma } from './db';
+import { db as prisma } from './db';
 
 const SEED_MODELS = [
   { name:'GPT-4o', provider:'OpenAI', description:'Multimodal flagship with vision, audio, and text. Best-in-class reasoning.', modelType:'multimodal', contextWindow:128000, parameters:'~1.8T MoE', releaseDate:'2024-05-13', websiteUrl:'https://openai.com/gpt-4o',

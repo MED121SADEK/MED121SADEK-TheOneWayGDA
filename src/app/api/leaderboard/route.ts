@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db as prisma } from '@/lib/db';
 import { leaderboardCache } from '@/lib/cache';
 import { seedLeaderboardData } from '@/lib/leaderboard-seed';
 
