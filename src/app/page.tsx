@@ -41,7 +41,7 @@ import {
   Send, Bot, User, FileText, Copy, ChevronDown, Languages,
   LayoutDashboard, Settings, LogOut, MoreHorizontal, Database,
   TrendingUp, PieChart, FileSpreadsheet, ClipboardList, PenLine, ShieldCheck,
-  Mail, ExternalLink,
+  Mail, ExternalLink, Instagram,
 } from 'lucide-react'
 import { UpdateBanner } from '@/components/update-banner'
 
@@ -692,6 +692,14 @@ export default function Home() {
               <span className="text-muted-foreground">|</span>
               <a href="https://www.linkedin.com/in/mohammed-essadek-549a17229" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
                 <ExternalLink className="size-3.5" /> LinkedIn
+              </a>
+              <span className="text-muted-foreground">|</span>
+              <a href="https://www.instagram.com/the_one_way_community/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
+                <Instagram className="size-3.5" /> Instagram
+              </a>
+              <span className="text-muted-foreground">|</span>
+              <a href="https://www.tiktok.com/@the1way1" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
+                <ExternalLink className="size-3.5" /> TikTok
               </a>
             </div>
           </div>
