@@ -1,6 +1,9 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ============================================
+# The One-Way — AI Model Comparison Platform
+# .gitignore
+# ============================================
 
-# dependencies
+# ---------- Dependencies ----------
 node_modules
 /.pnp
 .pnp.*
@@ -10,53 +13,94 @@ node_modules
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# ---------- Next.js ----------
 /.next/
 /out/
 
-# production
+# ---------- Production ----------
 /build
 
-# misc
-.DS_Store
-*.pem
+# ---------- Testing ----------
+/coverage
+/__tests__/coverage
+.nyc_output
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-
-# typescript
+# ---------- TypeScript ----------
 *.tsbuildinfo
 next-env.d.ts
-local-*
-.claude
-.z-ai-config
-*.log
-dev.log
-dev.out.log
-test
-prompt
 
-server.log
+# ---------- Environment Variables ----------
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
 
-# Database files
+# ---------- Vercel ----------
+.vercel
+
+# ---------- Database (SQLite / Prisma) ----------
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
 db/
+prisma/migrations/migration_lock.toml
 
-# Skills directory
-/skills/
+# ---------- Logs ----------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dev.log
+dev.out.log
+server.log
+
+# ---------- OS / Editor Files ----------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.pem
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+
+# ---------- AI / Internal Config ----------
+.claude
+.z-ai-config
+prompt
+skills/
+
+# ---------- Debug / Temp ----------
+test
+local-*
+.cache/
+tmp/
+temp/
+*.bak
+*.tmp
+
+# ---------- Caddy ----------
+Caddyfile
+
+# ---------- Docker (optional) ----------
+docker-compose.override.yml
+
+# ---------- Search indexing ----------
+.csearchindex
+
+# ---------- Lock files (keep package-lock, ignore others) ----------
+yarn.lock
+pnpm-lock.yaml
