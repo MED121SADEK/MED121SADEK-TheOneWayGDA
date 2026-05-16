@@ -1,0 +1,9 @@
+▲ Next.js 16.1.3 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://21.0.19.10:3000
+- Environments: .env
+
+✓ Starting...
+✓ Ready in 720ms
+⚠ Cross origin request detected from preview-chat-20cec134-ed3e-46e0-a099-1e4a89b20572.space-z.ai to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
