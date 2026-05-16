@@ -25,6 +25,7 @@ import {
   TrendingUp, Link2, Image as ImageIcon, Filter, Loader2,
   MoreHorizontal, ArrowLeft, Sparkles, Check, Copy,
   Mail, RefreshCw, Bell, Pin, Zap, Brain, Beaker, Lightbulb,
+  Megaphone, FileText, Award, Activity, Eye, BarChart3, Rss,
 } from 'lucide-react'
 
 /* ─── Types ─── */
@@ -88,6 +89,28 @@ function parseTags(tags: string | null | undefined): string[] {
 function truncate(text: string, len: number): string {
   if (text.length <= len) return text
   return text.slice(0, len) + '...'
+}
+
+/* ─── Post Type Helper ─── */
+function getPostTypeInfo(type: string): { label: string; icon: any; bg: string; border: string; text: string } {
+  switch (type) {
+    case 'auto':
+      return { label: 'Auto', icon: Sparkles, bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400' }
+    case 'digest':
+      return { label: 'Daily Digest', icon: FileText, bg: 'bg-violet-500/10', border: 'border-violet-500/30', text: 'text-violet-400' }
+    case 'user_highlight':
+      return { label: 'Community Picks', icon: Award, bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400' }
+    case 'news':
+      return { label: 'AI News', icon: Newspaper, bg: 'bg-sky-500/10', border: 'border-sky-500/30', text: 'text-sky-400' }
+    default:
+      return { label: 'Community', icon: Users, bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400' }
+  }
+}
+
+function getCategoryFromTags(tags: string[]): string {
+  if (tags.includes('Research')) return 'Research'
+  if (tags.includes('Innovation')) return 'Innovation'
+  return 'AI'
 }
 
 /* ─── MAIN PAGE ─── */
@@ -427,11 +450,28 @@ export default function CommunityPage() {
     return result
   })()
 
-  // Top Stories: featured posts with most likes from last 24h
+  // Pinned Daily Digest — show at top of feed
+  const pinnedDigest = posts.find(p => p.type === 'digest' && p.featured)
+
+  // Community Picks — highlight posts
+  const communityPicks = posts.filter(p => p.type === 'user_highlight' && p.featured)
+
+  // Top Stories: featured posts (excluding digests/highlights) with most likes
   const topStories = posts
-    .filter(p => p.featured || p.likes >= 3)
+    .filter(p => !['digest', 'user_highlight'].includes(p.type) && (p.featured || p.likes >= 3))
     .sort((a, b) => b.likes - a.likes)
     .slice(0, 5)
+
+  // Total engagement stats
+  const totalStats = posts.reduce((acc, p) => ({
+    likes: acc.likes + (p.likes || 0),
+    comments: acc.comments + (p.comments || 0),
+    reposts: acc.reposts + (p.reposts || 0),
+    saves: acc.saves + (p.saves || 0),
+  }), { likes: 0, comments: 0, reposts: 0, saves: 0 })
+
+  // Feed posts: exclude pinned digest from main feed (it's shown separately at top)
+  const feedPosts = filteredPosts.filter(p => !(p.type === 'digest' && p.featured))
 
   /* ─── RENDER ─── */
   return (
@@ -575,6 +615,79 @@ export default function CommunityPage() {
           </div>
         )}
 
+        {/* Live engagement bar */}
+        {activeTab === 'all' && !searchQuery && (
+          <div className="flex items-center gap-4 mb-4 px-3 py-2 rounded-lg bg-card/40 border border-border/20 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1"><Activity className="size-3 text-emerald-500" /> <span className="font-medium text-foreground">{posts.length}</span> posts</span>
+            <span className="flex items-center gap-1"><Heart className="size-3 text-rose-400" /> <span className="font-medium text-foreground">{totalStats.likes}</span></span>
+            <span className="flex items-center gap-1"><MessageCircle className="size-3 text-blue-400" /> <span className="font-medium text-foreground">{totalStats.comments}</span></span>
+            <span className="flex items-center gap-1"><Repeat2 className="size-3 text-emerald-400" /> <span className="font-medium text-foreground">{totalStats.reposts}</span></span>
+            <span className="flex items-center gap-1"><Bookmark className="size-3 text-amber-400" /> <span className="font-medium text-foreground">{totalStats.saves}</span></span>
+            <span className="ml-auto flex items-center gap-1 text-emerald-500"><Rss className="size-3" /> Auto-publishing active</span>
+          </div>
+        )}
+
+        {/* Pinned Daily Digest — always at top */}
+        {pinnedDigest && activeTab !== 'saved' && !searchQuery && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 rounded-xl border-2 border-violet-500/30 bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-indigo-500/10 overflow-hidden"
+          >
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-violet-500/10 border-b border-violet-500/20">
+              <FileText className="size-4 text-violet-400" />
+              <h3 className="text-sm font-bold text-violet-300">Daily Digest</h3>
+              <Pin className="size-3 text-violet-400 ml-0.5" />
+              <Badge className="ml-auto text-[9px] bg-violet-500/20 text-violet-300 border-violet-500/30 hover:bg-violet-500/30">
+                Pinned
+              </Badge>
+              <span className="text-[10px] text-muted-foreground">{timeAgo(pinnedDigest.createdAt)}</span>
+            </div>
+            <div className="px-4 py-3">
+              <h4 className="text-sm font-semibold mb-1.5">{pinnedDigest.title}</h4>
+              <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-6">{pinnedDigest.content}</p>
+              <div className="flex items-center gap-3 mt-3 text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-1"><Heart className="size-3" /> {pinnedDigest.likes}</span>
+                <span className="flex items-center gap-1"><MessageCircle className="size-3" /> {pinnedDigest.comments}</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Community Picks Banner */}
+        {communityPicks.length > 0 && activeTab === 'all' && categoryFilter === 'all' && !searchQuery && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 rounded-xl border border-amber-500/20 bg-gradient-to-r from-amber-500/5 via-orange-500/5 to-rose-500/5 p-4"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Award className="size-4 text-amber-400" />
+              <h3 className="text-sm font-semibold text-amber-300">Community Picks</h3>
+              <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20">
+                Top Posts
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {communityPicks.slice(0, 2).map(pick => (
+                <div key={pick.id} className="flex gap-3 p-2.5 rounded-lg bg-card/60 border border-border/30">
+                  <div className="size-8 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                    <Award className="size-4 text-amber-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium line-clamp-2 leading-snug">{pick.title}</p>
+                    <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                      <span>{pick.likes} likes</span>
+                      <span>{pick.comments} comments</span>
+                      <span>{timeAgo(pick.createdAt)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         {/* Top Stories Banner — show when on 'all' tab with no search/category filter */}
         {activeTab === 'all' && categoryFilter === 'all' && !searchQuery && topStories.length >= 3 && (
           <motion.div
@@ -638,7 +751,7 @@ export default function CommunityPage() {
         ) : (
           <div className="space-y-4">
             <AnimatePresence>
-              {filteredPosts.map((post, i) => (
+              {feedPosts.map((post, i) => (
                 <motion.div
                   key={post.id}
                   initial={{ opacity: 0, y: 15 }}
@@ -876,21 +989,36 @@ function PostCard({
   const tags = parseTags(post.tags)
   const isOwnPost = session && session.email === post.author
   const displayName = post.authorName || post.author.split('@')[0]
+  const postTypeInfo = getPostTypeInfo(post.type)
+  const PostTypeIcon = postTypeInfo.icon
+  const isDigest = post.type === 'digest'
+  const isHighlight = post.type === 'user_highlight'
+  const isAuto = post.type === 'auto'
+  const category = getCategoryFromTags(tags)
+
+  // Card styling based on post type
+  const cardClass = isDigest
+    ? 'border-violet-500/30 shadow-sm shadow-violet-500/5'
+    : isHighlight
+    ? 'border-amber-500/30 shadow-sm shadow-amber-500/5'
+    : isAuto
+    ? 'border-blue-500/20 shadow-sm shadow-blue-500/3'
+    : post.featured
+    ? 'border-primary/30 shadow-sm shadow-primary/5'
+    : 'border-border/40'
 
   return (
-    <div className={`rounded-xl border bg-card/80 backdrop-blur-sm overflow-hidden transition-all hover:border-border/80 ${post.featured ? 'border-primary/30 shadow-sm shadow-primary/5' : 'border-border/40'}`}>
+    <div className={`rounded-xl border bg-card/80 backdrop-blur-sm overflow-hidden transition-all hover:border-border/80 ${cardClass}`}>
       {/* Header */}
       <div className="px-4 sm:px-5 pt-4 sm:pt-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             {/* Avatar */}
             <div className={`size-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-              post.type === 'news'
-                ? 'bg-primary/10 text-primary'
-                : 'bg-accent/20 text-accent'
+              postTypeInfo.bg
             }`}>
-              {post.type === 'news' ? (
-                <Sparkles className="size-4" />
+              {(isAuto || post.type === 'news') ? (
+                <PostTypeIcon className="size-4" />
               ) : (
                 displayName.charAt(0).toUpperCase()
               )}
@@ -898,32 +1026,24 @@ function PostCard({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-semibold">{displayName}</span>
-                {post.featured && (
+                {/* Post type badge */}
+                <Badge variant="outline" className={`gap-0.5 px-1.5 py-0 text-[10px] ${postTypeInfo.bg} ${postTypeInfo.border} ${postTypeInfo.text}`}>
+                  <PostTypeIcon className="size-2.5" /> {postTypeInfo.label}
+                </Badge>
+                {post.featured && !isDigest && (
                   <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[10px] border-primary/30 text-primary bg-primary/5">
                     <Pin className="size-2.5" /> Featured
                   </Badge>
                 )}
-                {post.type === 'news' && (
-                  <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[10px] border-blue-500/30 text-blue-400 bg-blue-500/5">
-                    <Newspaper className="size-2.5" /> AI News
-                  </Badge>
-                )}
                 {/* Category Badge: AI | Research | Innovation */}
-                {tags.includes('AI') && !tags.includes('Research') && !tags.includes('Innovation') && post.type === 'news' && (
-                  <Badge variant="outline" className="gap-0.5 px-1.5 py-0 text-[9px] border-blue-500/20 text-blue-300 bg-blue-500/5">
-                    <Brain className="size-2" /> AI
-                  </Badge>
-                )}
-                {tags.includes('Research') && (
-                  <Badge variant="outline" className="gap-0.5 px-1.5 py-0 text-[9px] border-purple-500/20 text-purple-300 bg-purple-500/5">
-                    <Beaker className="size-2" /> Research
-                  </Badge>
-                )}
-                {tags.includes('Innovation') && (
-                  <Badge variant="outline" className="gap-0.5 px-1.5 py-0 text-[9px] border-amber-500/20 text-amber-300 bg-amber-500/5">
-                    <Lightbulb className="size-2" /> Innovation
-                  </Badge>
-                )}
+                <Badge variant="outline" className={`gap-0.5 px-1.5 py-0 text-[9px] ${
+                  category === 'Research' ? 'border-purple-500/20 text-purple-300 bg-purple-500/5'
+                  : category === 'Innovation' ? 'border-amber-500/20 text-amber-300 bg-amber-500/5'
+                  : 'border-blue-500/20 text-blue-300 bg-blue-500/5'
+                }`}>
+                  {category === 'Research' ? <Beaker className="size-2" /> : category === 'Innovation' ? <Lightbulb className="size-2" /> : <Brain className="size-2" />}
+                  {category}
+                </Badge>
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                 <span>{timeAgo(post.createdAt)}</span>
