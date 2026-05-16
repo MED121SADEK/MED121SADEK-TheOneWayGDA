@@ -199,6 +199,11 @@ export default function Home() {
     reader.readAsText(file)
   }
 
+  const handleMobileWorkspace = () => {
+    store.setView('workspace')
+    setMobileOpen(false)
+  }
+
   const handleExportCSV = () => {
     const csv = store.exportCSV()
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -390,7 +395,7 @@ export default function Home() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {localeNames.map(l => (
+                {localeNames.map((l) => (
                   <SelectItem key={l} value={l} className="text-xs">{t(`lang.${l}`)}</SelectItem>
                 ))}
               </SelectContent>
@@ -862,8 +867,16 @@ export default function Home() {
               { label: t('nav.comparison'), href: '#comparison' },
               { label: t('nav.workspace'), href: '#demo' },
               { label: t('nav.pricing'), href: '#pricing' },
-            ].map(l => (
-              <button key={l.href} onClick={() => scrollTo(l.href)} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">{l.label}</button>
+              { label: t('nav.about'), href: '/about' },
+              { label: t('nav.security'), href: '/privacy' },
+              { label: t('nav.updates'), href: '/updates' },
+              { label: t('nav.tutorials'), href: '/tutorials' },
+            ].map((l) => (
+              l.href.startsWith('/') ? (
+                <Link key={l.href} href={l.href} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">{l.label}</Link>
+              ) : (
+                <button key={l.href} onClick={() => scrollTo(l.href)} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">{l.label}</button>
+              )
             ))}
           </div>
           <div className="hidden md:flex items-center gap-3">
@@ -882,10 +895,13 @@ export default function Home() {
                   <SelectTrigger className="h-9 text-xs"><Globe className="size-3.5 mr-1" /><SelectValue /></SelectTrigger>
                   <SelectContent>{localeNames.map(l => <SelectItem key={l} value={l} className="text-xs">{t(`lang.${l}`)}</SelectItem>)}</SelectContent>
                 </Select>
-                {[{ label: t('nav.features'), href: '#features' }, { label: t('nav.comparison'), href: '#comparison' }, { label: t('nav.workspace'), href: '#demo' }, { label: t('nav.pricing'), href: '#pricing' }].map(l => (
-                  <button key={l.href} onClick={() => scrollTo(l.href)} className="text-left text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2">{l.label}</button>
-                ))}
-                <Button className="mt-4 rounded-full" onClick={() => { store.setView('workspace'); setMobileOpen(false) }}>{t('nav.workspace')} <ArrowRight className="size-4" /></Button>
+                {[{ label: t('nav.features'), href: '#features' }, { label: t('nav.comparison'), href: '#comparison' }, { label: t('nav.workspace'), href: '#demo' }, { label: t('nav.pricing'), href: '#pricing' }, { label: t('nav.about'), href: '/about' }, { label: t('nav.security'), href: '/privacy' }, { label: t('nav.updates'), href: '/updates' }, { label: t('nav.tutorials'), href: '/tutorials' }].map((l) => (
+                  l.href.startsWith('/') ? (
+                    <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)} className="text-left text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2">{l.label}</Link>
+                  ) : (
+                    <button key={l.href} onClick={() => scrollTo(l.href)} className="text-left text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2">{l.label}</button>
+                  )
+                ))
               </div>
             </SheetContent>
           </Sheet>
@@ -1102,10 +1118,18 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <div className="mt-12 pt-8 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="mt-8 pt-8 border-t border-border/50 flex flex-col items-center gap-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-emerald-500" />
+              <span className="text-xs text-muted-foreground">GDPR · SOC 2 · ISO 27001 · HIPAA Compliant</span>
+            </div>
+          </div>
+          <div className="mt-4 pt-6 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">{t('footer.copyright')}</p>
             <div className="flex items-center gap-4">
-              <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.privacy')}</button>
+              <Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('nav.about')}</Link>
+              <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.privacy')}</Link>
+              <span className="text-muted-foreground">|</span>
               <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.terms')}</button>
             </div>
           </div>
