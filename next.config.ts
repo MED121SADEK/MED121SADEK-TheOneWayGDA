@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // output: "standalone", // Disabled for Prisma engine compatibility
+  output: "standalone",
   typescript: {
     ignoreBuildErrors: false,
   },

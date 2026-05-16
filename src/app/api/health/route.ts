@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { healthMonitor, getDependencyHealth } from '@/lib/monitor'
+import { healthLog } from '@/lib/api-logger'
 
 /**
  * Enhanced Health Check API — comprehensive system monitoring
@@ -7,6 +8,7 @@ import { healthMonitor, getDependencyHealth } from '@/lib/monitor'
  * security posture, maintenance status, and actionable recommendations.
  */
 export async function GET() {
+  const end = healthLog.start('GET')
   const startTime = Date.now()
 
   try {
@@ -17,6 +19,8 @@ export async function GET() {
     const responseTime = Date.now() - startTime
 
     healthMonitor.trackMetric('response_time', responseTime, 'ms')
+
+    end(200)
 
     return NextResponse.json({
       ...report,
@@ -57,6 +61,7 @@ export async function GET() {
   } catch (error: any) {
     healthMonitor.trackRequest(false)
     healthMonitor.logError(`Health check failed: ${error.message}`, 'health-api', 'high')
+    end(503, error)
 
     return NextResponse.json({
       status: 'error',
