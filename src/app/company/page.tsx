@@ -12,8 +12,9 @@ import {
   BookOpen, Mail, ArrowLeft, Award, MapPin, Clock, TrendingUp,
   Star, Target, Handshake, FileCheck, Lock, CheckCircle, Zap,
   Briefcase, Newspaper, Rocket, ChevronRight, Eye, Sparkles,
-  Calendar, Building, User, Banknote, FileText, Crown, ExternalLink, Instagram,
+  Calendar, Building, User, Banknote, FileText, Crown, ExternalLink,
 } from 'lucide-react'
+import { LinkedInIcon, InstagramIcon, TikTokIcon } from '@/components/BrandIcons'
 
 const fadeUp = { hidden: { opacity: 0, y: 30 }, visible: (i: number = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' } }) }
 const stagger = { visible: { transition: { staggerChildren: 0.08 } } }
@@ -473,30 +474,30 @@ export default function CompanyPage() {
                   </div>
                 </a>
                 <a href="https://www.linkedin.com/in/mohammed-essadek-549a17229" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-6 rounded-xl bg-card border border-primary/20 hover:border-primary/40 transition-all duration-300 group">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <ExternalLink className="size-6 text-primary" />
+                  <div className="w-12 h-12 rounded-xl bg-[#0A66C2]/10 flex items-center justify-center flex-shrink-0">
+                    <LinkedInIcon size={24} className="text-[#0A66C2]" />
                   </div>
                   <div className="text-left">
                     <p className="text-xs text-muted-foreground mb-1">LinkedIn</p>
-                    <p className="text-sm font-semibold group-hover:text-primary transition-colors">Mohammed Essadek</p>
+                    <p className="text-sm font-semibold group-hover:text-[#0A66C2] transition-colors">Mohammed Essadek</p>
                   </div>
                 </a>
                 <a href="https://www.instagram.com/the_one_way_community/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-6 rounded-xl bg-card border border-primary/20 hover:border-primary/40 transition-all duration-300 group">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Instagram className="size-6 text-primary" />
+                  <div className="w-12 h-12 rounded-xl bg-[#E4405F]/10 flex items-center justify-center flex-shrink-0">
+                    <InstagramIcon size={24} className="text-[#E4405F]" />
                   </div>
                   <div className="text-left">
                     <p className="text-xs text-muted-foreground mb-1">Instagram</p>
-                    <p className="text-sm font-semibold group-hover:text-primary transition-colors">@the_one_way_community</p>
+                    <p className="text-sm font-semibold group-hover:text-[#E4405F] transition-colors">@the_one_way_community</p>
                   </div>
                 </a>
                 <a href="https://www.tiktok.com/@the1way1" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-6 rounded-xl bg-card border border-primary/20 hover:border-primary/40 transition-all duration-300 group">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <ExternalLink className="size-6 text-primary" />
+                  <div className="w-12 h-12 rounded-xl bg-[#ff0050]/10 flex items-center justify-center flex-shrink-0">
+                    <TikTokIcon size={24} className="text-[#ff0050]" />
                   </div>
                   <div className="text-left">
                     <p className="text-xs text-muted-foreground mb-1">TikTok</p>
-                    <p className="text-sm font-semibold group-hover:text-primary transition-colors">@the1way1</p>
+                    <p className="text-sm font-semibold group-hover:text-[#ff0050] transition-colors">@the1way1</p>
                   </div>
                 </a>
               </div>
