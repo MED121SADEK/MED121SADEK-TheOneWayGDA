@@ -1,469 +1,778 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { motion, useInView } from 'framer-motion'
-import { useRef } from 'react'
+import { useTranslation, localeNames, Locale } from '@/lib/i18n'
+import { useAppStore } from '@/lib/store'
+import type { Variable } from '@/lib/store'
 
 import { Button } from '@/components/ui/button'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
+  Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from '@/components/ui/sheet'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import {
-  Brain,
-  WifiOff,
-  RefreshCw,
-  ScanLine,
-  MessageSquare,
-  Users,
-  Sparkles,
-  Play,
-  Menu,
-  Check,
-  X,
-  BarChart3,
-  ArrowRight,
-  Zap,
-  Shield,
-  Star,
-  ChevronRight,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  DialogFooter, DialogDescription,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Brain, WifiOff, RefreshCw, ScanLine, MessageSquare, Users,
+  Sparkles, Play, Menu, Check, X, BarChart3, ArrowRight,
+  Zap, Star, ChevronRight, Globe, Save, FolderOpen, Share2,
+  Download, Upload, Plus, Trash2, Edit3, Table2, Variable, Terminal,
+  Send, Bot, User, FileText, Copy, ChevronDown, Languages, Home,
+  LayoutDashboard, Settings, LogOut, MoreHorizontal, Database,
+  TrendingUp, PieChart, FileSpreadsheet, ClipboardList, PenLine,
 } from 'lucide-react'
 
 /* ─── animation helpers ─── */
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
   visible: (i: number = 0) => ({
-    opacity: 1,
-    y: 0,
+    opacity: 1, y: 0,
     transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' },
   }),
 }
+const stagger = { visible: { transition: { staggerChildren: 0.08 } } }
 
-const stagger = {
-  visible: {
-    transition: { staggerChildren: 0.08 },
-  },
-}
-
-function AnimatedSection({
-  children,
-  className = '',
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
+function AnimatedSection({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, margin: '-60px' })
   return (
-    <motion.div
-      ref={ref}
-      initial="hidden"
-      animate={isInView ? 'visible' : 'hidden'}
-      variants={stagger}
-      className={className}
-    >
+    <motion.div ref={ref} initial="hidden" animate={isInView ? 'visible' : 'hidden'} variants={stagger} className={className}>
       {children}
     </motion.div>
   )
 }
 
-/* ─── data ─── */
-const navLinks = [
-  { label: 'Features', href: '#features' },
-  { label: 'Comparison', href: '#comparison' },
-  { label: 'Demo', href: '#demo' },
-  { label: 'Pricing', href: '#pricing' },
-]
+/* ─── Statistical Engine ─── */
+function calcStats(values: number[]) {
+  const nums = values.filter(v => typeof v === 'number' && !isNaN(v))
+  if (nums.length === 0) return null
+  const n = nums.length
+  const sum = nums.reduce((a, b) => a + b, 0)
+  const mean = sum / n
+  const sorted = [...nums].sort((a, b) => a - b)
+  const median = n % 2 === 0 ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2 : sorted[Math.floor(n / 2)]
+  const variance = nums.reduce((a, b) => a + (b - mean) ** 2, 0) / (n > 1 ? n - 1 : 1)
+  const stddev = Math.sqrt(variance)
+  const min = sorted[0]
+  const max = sorted[n - 1]
 
-const features = [
-  {
-    icon: Brain,
-    title: 'AI-Powered Analysis',
-    description:
-      'Ask questions in plain English and get professional statistical analysis. Our AI understands your data and recommends the right tests, transformations, and visualizations automatically.',
-  },
-  {
-    icon: WifiOff,
-    title: 'Works Completely Offline',
-    description:
-      'No internet? No problem. StatMind AI runs entirely in your browser with a local AI engine. Analyze data, build models, and generate reports anywhere, anytime.',
-  },
-  {
-    icon: RefreshCw,
-    title: 'AI Auto-Updates',
-    description:
-      'Stay current with the latest statistical methods and AI capabilities. Our intelligent update system delivers new features, algorithms, and improvements seamlessly through AI-driven deployment.',
-  },
-  {
-    icon: ScanLine,
-    title: 'Built-in OCR & Form Scanner',
-    description:
-      'Scan paper forms, questionnaires, and surveys directly into your analysis. No more manual data entry or expensive third-party OCR tools.',
-  },
-  {
-    icon: MessageSquare,
-    title: 'Natural Language Interface',
-    description:
-      'No coding or syntax to learn. Simply describe what you want to analyze in plain language, and our AI handles the complex statistical computations behind the scenes.',
-  },
-  {
-    icon: Users,
-    title: 'Real-time Collaboration',
-    description:
-      'Work together with your team in real-time. Share datasets, analysis workflows, and results with version control, comments, and live collaboration features.',
-  },
-]
+  // Mode
+  const freq: Record<number, number> = {}
+  nums.forEach(v => { freq[v] = (freq[v] || 0) + 1 })
+  const maxFreq = Math.max(...Object.values(freq))
+  const mode = nums.find(v => freq[v] === maxFreq)
 
-const comparisonData = [
-  { feature: 'AI-Powered Analysis', statmind: true, spss: false },
-  { feature: 'Works Offline', statmind: true, spss: false },
-  { feature: 'Auto-Updates', statmind: true, spss: false },
-  { feature: 'Built-in OCR', statmind: true, spss: false },
-  { feature: 'Natural Language Queries', statmind: true, spss: false },
-  { feature: 'Real-time Collaboration', statmind: true, spss: false },
-  { feature: 'Steep Learning Curve', statmind: false, spss: true },
-  { feature: 'Expensive Licensing', statmind: false, spss: true },
-  { feature: 'No Internet Required', statmind: true, spss: false },
-  { feature: 'Modern UI/UX', statmind: true, spss: false },
-  { feature: 'Free Tier Available', statmind: true, spss: false },
-  { feature: 'Cloud + Local Hybrid', statmind: true, spss: false },
-]
+  // Skewness
+  const skewness = n > 2 ? (nums.reduce((a, b) => a + ((b - mean) / stddev) ** 3, 0) * n) / ((n - 1) * (n - 2)) : 0
+  // Kurtosis
+  const kurtosis = n > 3 ? (nums.reduce((a, b) => a + ((b - mean) / stddev) ** 4, 0) * n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3)) - 3 * (n - 1) ** 2 / ((n - 2) * (n - 3)) : 0
 
-const pricingPlans = [
-  {
-    name: 'Free',
-    price: '$0',
-    period: '/month',
-    description: 'Perfect for getting started with AI-powered analysis',
-    features: [
-      'Up to 5 datasets',
-      'Basic AI analysis',
-      'Offline mode',
-      'CSV/Excel import',
-      'Community support',
-    ],
-    cta: 'Get Started',
-    highlighted: false,
-  },
-  {
-    name: 'Pro',
-    price: '$19',
-    period: '/month',
-    description: 'For professionals who need advanced capabilities',
-    features: [
-      'Unlimited datasets',
-      'Advanced AI analysis',
-      'OCR scanning',
-      'All export formats',
-      'Priority support',
-      'Real-time collaboration',
-    ],
-    cta: 'Get Started',
-    highlighted: true,
-  },
-  {
-    name: 'Enterprise',
-    price: 'Custom',
-    period: '',
-    description: 'For organizations with custom requirements',
-    features: [
-      'Custom AI models',
-      'On-premise deployment',
-      'API access',
-      'Dedicated support',
-      'SLA guarantee',
-      'Team management',
-    ],
-    cta: 'Contact Sales',
-    highlighted: false,
-  },
-]
+  // Percentiles
+  const p25 = sorted[Math.floor(n * 0.25)]
+  const p50 = sorted[Math.floor(n * 0.5)]
+  const p75 = sorted[Math.floor(n * 0.75)]
 
-const chatMessages = [
-  {
-    role: 'user' as const,
-    text: 'Analyze the correlation between study hours and exam scores',
-  },
-  {
-    role: 'ai' as const,
-    text: 'Running Pearson correlation analysis... Found strong positive correlation (r=0.87, p<0.001). I\'ve also generated a scatter plot and regression model. Would you like me to run additional tests?',
-  },
-  {
-    role: 'user' as const,
-    text: 'Yes, add a simple linear regression',
-  },
-  {
-    role: 'ai' as const,
-    text: 'Regression complete: Exam Score = 12.3 + 7.8 \u00d7 Study Hours. R\u00b2 = 0.756, F(1,98) = 304.2, p < 0.001. The model explains 75.6% of the variance.',
-  },
-]
+  return { n, sum, mean, median, mode, variance, stddev, min, max, range: max - min, skewness, kurtosis, p25, p50, p75 }
+}
 
-/* ─── main page ─── */
+function calcCorrelation(x: number[], y: number[]): { r: number; n: number } | null {
+  const pairs: [number, number][] = []
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    if (typeof x[i] === 'number' && typeof y[i] === 'number' && !isNaN(x[i]) && !isNaN(y[i])) {
+      pairs.push([x[i], y[i]])
+    }
+  }
+  if (pairs.length < 3) return null
+  const n = pairs.length
+  const mx = pairs.reduce((a, p) => a + p[0], 0) / n
+  const my = pairs.reduce((a, p) => a + p[1], 0) / n
+  let num = 0, dx = 0, dy = 0
+  for (const [px, py] of pairs) {
+    num += (px - mx) * (py - my)
+    dx += (px - mx) ** 2
+    dy += (py - my) ** 2
+  }
+  const r = dx === 0 || dy === 0 ? 0 : num / Math.sqrt(dx * dy)
+  return { r, n }
+}
+
+function calcRegression(x: number[], y: number[]): { slope: number; intercept: number; r2: number; n: number } | null {
+  const pairs: [number, number][] = []
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    if (typeof x[i] === 'number' && typeof y[i] === 'number' && !isNaN(x[i]) && !isNaN(y[i])) {
+      pairs.push([x[i], y[i]])
+    }
+  }
+  if (pairs.length < 3) return null
+  const n = pairs.length
+  const mx = pairs.reduce((a, p) => a + p[0], 0) / n
+  const my = pairs.reduce((a, p) => a + p[1], 0) / n
+  let num = 0, den = 0
+  for (const [px, py] of pairs) {
+    num += (px - mx) * (py - my)
+    den += (px - mx) ** 2
+  }
+  if (den === 0) return null
+  const slope = num / den
+  const intercept = my - slope * mx
+  const ssRes = pairs.reduce((a, [px, py]) => a + (py - (slope * px + intercept)) ** 2, 0)
+  const ssTot = pairs.reduce((a, [, py]) => a + (py - my) ** 2, 0)
+  const r2 = ssTot === 0 ? 0 : 1 - ssRes / ssTot
+  return { slope, intercept, r2, n }
+}
+
+/* ─── MAIN PAGE ─── */
 export default function Home() {
+  const { t, locale, setLocale, dir } = useTranslation()
+  const store = useAppStore()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [chatInput, setChatInput] = useState('')
+  const [newProjectName, setNewProjectName] = useState('')
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [shareEmail, setShareEmail] = useState('')
+  const [shareLink, setShareLink] = useState('')
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [newVarDialogOpen, setNewVarDialogOpen] = useState(false)
+  const [newVarName, setNewVarName] = useState('')
+  const [newVarType, setNewVarType] = useState<'numeric' | 'string' | 'date' | 'currency'>('numeric')
+  const chatEndRef = useRef<HTMLDivElement>(null)
 
   const scrollTo = (href: string) => {
     setMobileOpen(false)
     const el = document.querySelector(href)
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' })
-    }
+    if (el) el.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const handleNewProject = () => {
+    if (!newProjectName.trim()) return
+    store.createProject(newProjectName.trim())
+    setNewProjectName('')
+  }
+
+  const handleImportCSV = () => {
+    if (!importText.trim()) return
+    store.importCSV(importText.trim())
+    setImportDialogOpen(false)
+    setImportText('')
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string
+      store.importCSV(text)
+      setImportDialogOpen(false)
+    }
+    reader.readAsText(file)
+  }
+
+  const handleExportCSV = () => {
+    const csv = store.exportCSV()
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${store.currentProject?.name || 'data'}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleAddVariable = () => {
+    if (!newVarName.trim()) return
+    store.addVariable({
+      id: Date.now().toString(36),
+      name: newVarName.trim(),
+      type: newVarType,
+      label: newVarName.trim(),
+      width: 8,
+      decimals: newVarType === 'numeric' ? 2 : 0,
+      missing: '',
+      values: {},
+    })
+    setNewVarName('')
+    setNewVarDialogOpen(false)
+  }
+
+  const handleRunDescriptive = () => {
+    const results: any[] = []
+    for (const varName of store.selectedVariables) {
+      const vals = (store.data[varName] || []).map(v => typeof v === 'string' ? parseFloat(v) : v)
+      const stats = calcStats(vals as number[])
+      if (stats) results.push({ variable: varName, ...stats })
+    }
+    if (results.length === 0) return
+    store.addOutput({
+      id: Date.now().toString(36),
+      title: t('analysis.descriptive'),
+      type: 'table',
+      content: { headers: ['Variable', 'N', 'Mean', 'Median', 'Std Dev', 'Min', 'Max', 'Sum'], rows: results.map(r => [r.variable, r.n, r.mean?.toFixed(3), r.median, r.stddev?.toFixed(3), r.min, r.max, r.sum?.toFixed(2)]) },
+      timestamp: new Date().toISOString(),
+    })
+    store.setWorkspaceTab('output')
+  }
+
+  const handleRunCorrelation = () => {
+    if (store.selectedVariables.length < 2) return
+    const vars = store.selectedVariables.slice(0, 5)
+    const matrix: string[][] = [vars]
+    for (const v1 of vars) {
+      const row: string[] = [v1]
+      for (const v2 of vars) {
+        if (v1 === v2) { row.push('1.000'); continue }
+        const x = (store.data[v1] || []).map(v => typeof v === 'string' ? parseFloat(v) : v) as number[]
+        const y = (store.data[v2] || []).map(v => typeof v === 'string' ? parseFloat(v) : v) as number[]
+        const result = calcCorrelation(x, y)
+        row.push(result?.r.toFixed(3) ?? 'N/A')
+      }
+      matrix.push(row)
+    }
+    store.addOutput({
+      id: Date.now().toString(36),
+      title: t('analysis.correlation'),
+      type: 'table',
+      content: { headers: [''] , rows: matrix },
+      timestamp: new Date().toISOString(),
+    })
+    store.setWorkspaceTab('output')
+  }
+
+  const handleRunRegression = () => {
+    if (store.selectedVariables.length < 2) return
+    const dv = store.selectedVariables[0]
+    const iv = store.selectedVariables[1]
+    const x = (store.data[iv] || []).map(v => typeof v === 'string' ? parseFloat(v) : v) as number[]
+    const y = (store.data[dv] || []).map(v => typeof v === 'string' ? parseFloat(v) : v) as number[]
+    const reg = calcRegression(x, y)
+    const corr = calcCorrelation(x, y)
+    if (!reg || !corr) return
+    store.addOutput({
+      id: Date.now().toString(36),
+      title: t('analysis.regression') + ` (${dv} ~ ${iv})`,
+      type: 'table',
+      content: {
+        headers: ['Statistic', 'Value'],
+        rows: [
+          ['Intercept', reg.intercept.toFixed(4)],
+          ['Slope', reg.slope.toFixed(4)],
+          ['R', corr.r.toFixed(4)],
+          ['R²', reg.r2.toFixed(4)],
+          ['N', String(reg.n)],
+          ['Equation', `${dv} = ${reg.intercept.toFixed(2)} + ${reg.slope.toFixed(2)} × ${iv}`],
+        ],
+      },
+      timestamp: new Date().toISOString(),
+    })
+    store.addOutput({
+      id: (Date.now() + 1).toString(36),
+      title: `Scatter Plot (${dv} vs ${iv})`,
+      type: 'chart',
+      content: { dv, iv, x: x.slice(0, 50), y: y.slice(0, 50), slope: reg.slope, intercept: reg.intercept },
+      timestamp: new Date().toISOString(),
+    })
+    store.setWorkspaceTab('output')
+  }
+
+  const handleSendChat = async () => {
+    if (!chatInput.trim()) return
+    const userMsg = { id: Date.now().toString(36), role: 'user' as const, content: chatInput.trim(), timestamp: new Date().toISOString() }
+    store.addChatMessage(userMsg)
+    setChatInput('')
+    store.setAiTyping(true)
+
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...store.chatMessages, userMsg].map(m => ({ role: m.role, content: m.content })),
+          data: store.data,
+          variables: store.variables,
+        }),
+      })
+      const data = await res.json()
+      const aiContent = data.choices?.[0]?.message?.content || 'Sorry, I could not process your request.'
+      store.addChatMessage({ id: (Date.now() + 1).toString(36), role: 'ai', content: aiContent, timestamp: new Date().toISOString() })
+    } catch {
+      store.addChatMessage({ id: (Date.now() + 1).toString(36), role: 'ai', content: 'Network error. Please try again.', timestamp: new Date().toISOString() })
+    }
+    store.setAiTyping(false)
+  }
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [store.chatMessages, store.isAiTyping])
+
+  const rowCount = store.variables.length > 0 ? Math.max(0, ...Object.values(store.data).map(a => a.length)) : 0
+
+  // ─── Data for landing page ───
+  const features = [
+    { icon: Brain, title: t('feature.ai.title'), desc: t('feature.ai.desc') },
+    { icon: WifiOff, title: t('feature.offline.title'), desc: t('feature.offline.desc') },
+    { icon: RefreshCw, title: t('feature.updates.title'), desc: t('feature.updates.desc') },
+    { icon: ScanLine, title: t('feature.ocr.title'), desc: t('feature.ocr.desc') },
+    { icon: Globe, title: t('feature.language.title'), desc: t('feature.language.desc') },
+    { icon: Users, title: t('feature.collab.title'), desc: t('feature.collab.desc') },
+  ]
+
+  const comparisonData = [
+    { feature: t('comp.ai'), statmind: true, spss: false },
+    { feature: t('comp.offline'), statmind: true, spss: false },
+    { feature: t('comp.updates'), statmind: true, spss: false },
+    { feature: t('comp.ocr'), statmind: true, spss: false },
+    { feature: t('comp.natural'), statmind: true, spss: false },
+    { feature: t('comp.collab'), statmind: true, spss: false },
+    { feature: t('comp.steep'), statmind: false, spss: true },
+    { feature: t('comp.expensive'), statmind: false, spss: true },
+    { feature: t('comp.internet'), statmind: true, spss: false },
+    { feature: t('comp.modern'), statmind: true, spss: false },
+    { feature: t('comp.free'), statmind: true, spss: false },
+    { feature: t('comp.hybrid'), statmind: true, spss: false },
+  ]
+
+  const pricingPlans = [
+    { name: t('plan.free'), price: '$0', period: t('plan.month'), desc: t('plan.freeDesc'), features: [t('planFeature.datasets'), t('planFeature.basicAI'), t('planFeature.offline'), t('planFeature.basicImport'), t('planFeature.community')], cta: t('plan.cta'), highlighted: false },
+    { name: t('plan.pro'), price: '$19', period: t('plan.month'), desc: t('plan.proDesc'), features: [t('planFeature.unlimited'), t('planFeature.advancedAI'), t('planFeature.ocr'), t('planFeature.exportFormats'), t('planFeature.priority'), t('planFeature.realtime')], cta: t('plan.cta'), highlighted: true },
+    { name: t('plan.enterprise'), price: 'Custom', period: '', desc: t('plan.enterpriseDesc'), features: [t('planFeature.customAI'), t('planFeature.onpremise'), t('planFeature.api'), t('planFeature.dedicated'), t('planFeature.sla'), t('planFeature.team')], cta: t('plan.contactSales'), highlighted: false },
+  ]
+
+  /* ─── WORKSPACE VIEW ─── */
+  if (store.view === 'workspace') {
+    return (
+      <div className="h-screen flex flex-col" dir={dir}>
+        {/* Workspace Navbar */}
+        <nav className="h-12 border-b border-border/50 bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 flex-shrink-0 z-50">
+          <div className="flex items-center gap-3">
+            <button onClick={() => store.setView('landing')} className="flex items-center gap-2">
+              <Image src="/images/logo.png" alt="The One-Way" width={28} height={28} className="rounded" />
+              <span className="font-bold gradient-text text-sm hidden sm:inline">{t('brand.name')}</span>
+            </button>
+            <Separator orientation="vertical" className="h-6" />
+            <span className="text-sm font-medium text-muted-foreground truncate max-w-48">{store.currentProject?.name}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Language */}
+            <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
+              <SelectTrigger className="h-8 w-28 text-xs">
+                <Languages className="size-3.5 mr-1" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {localeNames.map(l => (
+                  <SelectItem key={l} value={l} className="text-xs">{t(`lang.${l}`)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Save */}
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { store.saveProject() }}>
+              <Save className="size-3.5" /> {t('workspace.save')}
+            </Button>
+            {/* Share */}
+            <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline" className="h-8 text-xs">
+                  <Share2 className="size-3.5" /> {t('workspace.share')}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>{t('share.title')}</DialogTitle><DialogDescription>{t('share.description')}</DialogDescription></DialogHeader>
+                <div className="flex gap-2">
+                  <Input placeholder={t('share.email')} value={shareEmail} onChange={e => setShareEmail(e.target.value)} />
+                  <Button onClick={() => setShareEmail('')}>{t('share.addEmail')}</Button>
+                </div>
+                <Separator />
+                <div><p className="text-sm font-medium mb-2">{t('share.link')}</p>
+                  <div className="flex gap-2"><Input readOnly value={shareLink || `https://theoneway.app/share/${store.currentProject?.id}`} /><Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(`https://theoneway.app/share/${store.currentProject?.id}`) }}><Copy className="size-3.5" /> {t('share.copyLink')}</Button></div>
+                </div>
+                <DialogFooter><Button onClick={() => setShareDialogOpen(false)}>{t('workspace.close')}</Button></DialogFooter>
+              </DialogContent>
+            </Dialog>
+            {/* Export */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button size="sm" variant="outline" className="h-8 text-xs"><Download className="size-3.5" /> {t('workspace.export')} <ChevronDown className="size-3" /></Button></DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={handleExportCSV}><FileSpreadsheet className="size-4" /> CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { const json = store.exportJSON(); const blob = new Blob([json], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'project.json'; a.click() }}><FileText className="size-4" /> JSON</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </nav>
+
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left Sidebar - Analysis */}
+          <aside className="w-56 border-r border-border/50 bg-card/50 flex flex-col flex-shrink-0 overflow-y-auto hidden md:flex">
+            <div className="p-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{t('workspace.analysis')}</p>
+              <div className="space-y-1">
+                <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" onClick={handleRunDescriptive} disabled={store.selectedVariables.length === 0}><BarChart3 className="size-3.5 mr-2" />{t('analysis.descriptive')}</Button>
+                <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" onClick={handleRunCorrelation} disabled={store.selectedVariables.length < 2}><TrendingUp className="size-3.5 mr-2" />{t('analysis.correlation')}</Button>
+                <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" onClick={handleRunRegression} disabled={store.selectedVariables.length < 2}><PieChart className="size-3.5 mr-2" />{t('analysis.regression')}</Button>
+                <Separator className="my-2" />
+                <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" disabled><ClipboardList className="size-3.5 mr-2" />{t('analysis.frequencies')}</Button>
+                <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" disabled><Table2 className="size-3.5 mr-2" />{t('analysis.crosstabs')}</Button>
+                <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" disabled><FileText className="size-3.5 mr-2" />{t('analysis.ttest')}</Button>
+                <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" disabled><Database className="size-3.5 mr-2" />{t('analysis.anova')}</Button>
+                <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" disabled><BarChart3 className="size-3.5 mr-2" />{t('analysis.chisquare')}</Button>
+                <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" disabled><PenLine className="size-3.5 mr-2" />{t('analysis.nonparametric')}</Button>
+              </div>
+            </div>
+            <div className="mt-auto p-3 border-t border-border/50">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('workspace.import')}</p>
+              <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+                <DialogTrigger asChild><Button variant="outline" size="sm" className="w-full text-xs h-8"><Upload className="size-3.5 mr-1" />CSV</Button></DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>{t('import.title')}</DialogTitle></DialogHeader>
+                  <p className="text-xs text-muted-foreground">{t('import.supportedFormats')}</p>
+                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                    <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">{t('import.dragDrop')}</p>
+                    <input type="file" accept=".csv,.xlsx,.json" onChange={handleFileUpload} className="mt-3 text-xs" />
+                  </div>
+                  <Textarea placeholder="Or paste CSV data here..." value={importText} onChange={e => setImportText(e.target.value)} className="h-32 text-xs font-mono" />
+                  <DialogFooter><Button onClick={handleImportCSV}>{t('workspace.import')}</Button></DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <main className="flex-1 flex flex-col overflow-hidden">
+            {/* Tab Bar */}
+            <div className="h-10 border-b border-border/50 flex items-center px-2 gap-1 flex-shrink-0 bg-card/30">
+              {[
+                { key: 'data' as const, icon: Table2, label: t('workspace.dataView') },
+                { key: 'variables' as const, icon: Variable, label: t('workspace.variableView') },
+                { key: 'output' as const, icon: BarChart3, label: t('workspace.output') },
+                { key: 'syntax' as const, icon: Terminal, label: t('workspace.syntax') },
+              ].map(tab => (
+                <button key={tab.key} onClick={() => store.setWorkspaceTab(tab.key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${store.workspaceTab === tab.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}>
+                  <tab.icon className="size-3.5" />{tab.label}
+                </button>
+              ))}
+              <div className="flex-1" />
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => store.addRow()}><Plus className="size-3" />{t('workspace.newProject')}</Button>
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 overflow-auto">
+              {/* DATA VIEW */}
+              {store.workspaceTab === 'data' && (
+                <div className="overflow-auto h-full">
+                  <table className="w-full text-xs border-collapse">
+                    <thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
+                      <tr>
+                        <th className="border border-border/50 px-2 py-1.5 text-left text-muted-foreground font-medium w-12 bg-muted/60">#</th>
+                        {store.variables.map(v => (
+                          <th key={v.id} className={`border border-border/50 px-2 py-1.5 text-left font-medium min-w-[100px] ${store.selectedVariables.includes(v.name) ? 'bg-primary/10 text-primary' : 'bg-muted/60'}`}>
+                            <button className="flex items-center gap-1" onClick={() => store.toggleVariableSelection(v.name)}>
+                              {store.selectedVariables.includes(v.name) && <Check className="size-3" />}
+                              {v.name}
+                            </button>
+                          </th>
+                        ))}
+                        <th className="border border-border/50 px-1 py-1.5 w-8 bg-muted/60">
+                          <Dialog open={newVarDialogOpen} onOpenChange={setNewVarDialogOpen}>
+                            <DialogTrigger asChild><button><Plus className="size-3" /></button></DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader><DialogTitle>{t('workspace.newProject')}</DialogTitle></DialogHeader>
+                              <div className="space-y-3">
+                                <div><p className="text-xs font-medium mb-1">Name</p><Input value={newVarName} onChange={e => setNewVarName(e.target.value)} placeholder="variable_name" className="text-sm" /></div>
+                                <div><p className="text-xs font-medium mb-1">Type</p>
+                                  <Select value={newVarType} onValueChange={(v: any) => setNewVarType(v)}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="numeric">{t('var.numeric')}</SelectItem>
+                                      <SelectItem value="string">{t('var.string')}</SelectItem>
+                                      <SelectItem value="date">{t('var.date')}</SelectItem>
+                                      <SelectItem value="currency">{t('var.currency')}</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <DialogFooter><Button onClick={handleAddVariable}>{t('workspace.confirm')}</Button></DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: Math.max(rowCount, 1) }, (_, rowIdx) => (
+                        <tr key={rowIdx} className="hover:bg-muted/30">
+                          <td className="border border-border/50 px-2 py-1 text-muted-foreground">{rowIdx + 1}</td>
+                          {store.variables.map(v => (
+                            <td key={v.id} className="border border-border/50 px-1 py-0.5">
+                              <input type="text" value={store.data[v.name]?.[rowIdx] ?? '' ?? ''} onChange={e => store.setCellValue(v.name, rowIdx, v.type === 'numeric' ? (parseFloat(e.target.value) || e.target.value) : e.target.value)}
+                                className="w-full px-1 py-1 bg-transparent text-xs outline-none focus:bg-primary/5 focus:ring-1 focus:ring-primary/30 rounded" />
+                            </td>
+                          ))}
+                          <td className="border border-border/50 px-1 py-0.5 text-center text-muted-foreground">
+                            <button onClick={() => store.deleteRow(rowIdx)} className="hover:text-destructive"><Trash2 className="size-3" /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* VARIABLE VIEW */}
+              {store.workspaceTab === 'variables' && (
+                <div className="overflow-auto h-full">
+                  <table className="w-full text-xs border-collapse">
+                    <thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
+                      <tr>
+                        {['Name', 'Type', 'Label', 'Width', 'Decimals', 'Missing', 'Values'].map(h => (
+                          <th key={h} className="border border-border/50 px-3 py-2 text-left font-medium bg-muted/60">{h}</th>
+                        ))}
+                        <th className="border border-border/50 px-2 py-2 w-10 bg-muted/60"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {store.variables.map(v => (
+                        <tr key={v.id} className="hover:bg-muted/30">
+                          <td className="border border-border/50 px-3 py-1.5 font-medium">{v.name}</td>
+                          <td className="border border-border/50 px-3 py-1.5"><Badge variant="outline" className="text-[10px] px-1.5">{v.type}</Badge></td>
+                          <td className="border border-border/50 px-3 py-1.5"><input value={v.label} onChange={e => store.updateVariable(v.id, { label: e.target.value })} className="w-full bg-transparent text-xs outline-none" /></td>
+                          <td className="border border-border/50 px-3 py-1.5"><input type="number" value={v.width} onChange={e => store.updateVariable(v.id, { width: parseInt(e.target.value) || 8 })} className="w-12 bg-transparent text-xs outline-none" /></td>
+                          <td className="border border-border/50 px-3 py-1.5"><input type="number" value={v.decimals} onChange={e => store.updateVariable(v.id, { decimals: parseInt(e.target.value) || 0 })} className="w-12 bg-transparent text-xs outline-none" /></td>
+                          <td className="border border-border/50 px-3 py-1.5"><input value={v.missing} onChange={e => store.updateVariable(v.id, { missing: e.target.value })} className="w-full bg-transparent text-xs outline-none" /></td>
+                          <td className="border border-border/50 px-3 py-1.5 text-muted-foreground">{Object.keys(v.values).length}</td>
+                          <td className="border border-border/50 px-2 py-1.5 text-center"><button onClick={() => store.deleteVariable(v.id)} className="hover:text-destructive"><Trash2 className="size-3" /></button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* OUTPUT VIEW */}
+              {store.workspaceTab === 'output' && (
+                <div className="p-4 space-y-4 overflow-auto h-full">
+                  {store.outputs.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                      <BarChart3 className="size-12 mb-3 opacity-30" />
+                      <p className="text-sm">{t('output.noOutput')}</p>
+                    </div>
+                  )}
+                  {store.outputs.map(out => (
+                    <Card key={out.id} className="overflow-hidden">
+                      <CardHeader className="pb-2 pt-3 px-4">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm">{out.title}</CardTitle>
+                          <span className="text-[10px] text-muted-foreground">{new Date(out.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-3">
+                        {out.type === 'table' && out.content?.rows && (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs border-collapse">
+                              <thead>
+                                <tr>{out.content.headers.map((h: string, i: number) => <th key={i} className="border border-border/50 px-3 py-1.5 text-left font-medium bg-muted/50">{h}</th>)}</tr>
+                              </thead>
+                              <tbody>
+                                {out.content.rows.map((row: string[], ri: number) => (
+                                  <tr key={ri} className="hover:bg-muted/30">
+                                    {row.map((cell: string, ci: number) => <td key={ci} className="border border-border/50 px-3 py-1.5">{cell}</td>)}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        {out.type === 'chart' && out.content && (
+                          <div className="bg-muted/30 rounded-lg p-4">
+                            <svg viewBox="0 0 400 250" className="w-full h-auto max-h-64">
+                              <line x1="50" y1="220" x2="380" y2="220" stroke="currentColor" strokeOpacity="0.15" strokeWidth="1" />
+                              <line x1="50" y1="30" x2="50" y2="220" stroke="currentColor" strokeOpacity="0.15" strokeWidth="1" />
+                              {out.content.slope != null && (
+                                <line x1="50" y1={220 - (out.content.intercept + out.content.slope * 0) * 2} x2="380" y2={220 - (out.content.intercept + out.content.slope * 10) * 2}
+                                  stroke="oklch(0.72 0.15 175)" strokeWidth="2" strokeDasharray="6 3" opacity="0.7" />
+                              )}
+                              {(out.content.x || []).map((x: number, i: number) => {
+                                const px = 50 + (x / 10) * 330
+                                const py = 220 - ((out.content.y?.[i] || 0) / 100) * 180
+                                return <circle key={i} cx={px} cy={Math.max(10, Math.min(220, py))} r="4" fill="oklch(0.62 0.22 262.881)" opacity="0.7" />
+                              })}
+                              <text x="200" y="245" textAnchor="middle" className="fill-muted-foreground" fontSize="11">{out.content.iv || 'X'}</text>
+                              <text x="15" y="130" textAnchor="middle" className="fill-muted-foreground" fontSize="11" transform="rotate(-90,15,130)">{out.content.dv || 'Y'}</text>
+                            </svg>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* SYNTAX VIEW */}
+              {store.workspaceTab === 'syntax' && (
+                <div className="p-4 font-mono text-xs text-muted-foreground space-y-1 overflow-auto h-full">
+                  <p className="text-foreground font-medium mb-3">* Syntax History</p>
+                  {store.syntaxHistory.length === 0 && <p>No syntax recorded yet.</p>}
+                  {store.syntaxHistory.map((s, i) => <p key={i} className="py-1">{s}</p>)}
+                </div>
+              )}
+            </div>
+          </main>
+
+          {/* Right Panel - AI Assistant */}
+          <aside className="w-80 border-l border-border/50 bg-card/30 flex flex-col flex-shrink-0 hidden lg:flex">
+            <div className="p-3 border-b border-border/50 flex items-center gap-2">
+              <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-semibold">{t('workspace.aiAssistant')}</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {store.chatMessages.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <Bot className="size-10 mb-2 text-primary/50" />
+                  <p className="text-xs text-muted-foreground leading-relaxed">{t('ai.welcome')}</p>
+                </div>
+              )}
+              {store.chatMessages.map(msg => (
+                <div key={msg.id} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.role === 'ai' && <div className="flex-shrink-0 size-6 rounded-md bg-primary/10 flex items-center justify-center"><Bot className="size-3 text-primary" /></div>}
+                  <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-muted rounded-bl-md'}`}>
+                    {msg.content}
+                  </div>
+                  {msg.role === 'user' && <div className="flex-shrink-0 size-6 rounded-md bg-accent/20 flex items-center justify-center"><User className="size-3 text-accent" /></div>}
+                </div>
+              ))}
+              {store.isAiTyping && (
+                <div className="flex gap-2 items-center"><div className="size-6 rounded-md bg-primary/10 flex items-center justify-center"><Bot className="size-3 text-primary" /></div><div className="bg-muted rounded-xl px-3 py-2 text-xs"><span className="animate-pulse">{t('ai.thinking')}</span></div></div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+            <div className="p-3 border-t border-border/50">
+              <div className="flex gap-2">
+                <Input value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder={t('ai.placeholder')} className="text-xs h-8" onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendChat()} />
+                <Button size="sm" className="h-8 w-8 p-0" onClick={handleSendChat} disabled={store.isAiTyping}><Send className="size-3.5" /></Button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    )
+  }
+
+  /* ─── LANDING PAGE ─── */
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* ─── NAV ─── */}
+    <div className="min-h-screen flex flex-col" dir={dir}>
+      {/* NAV */}
       <nav className="sticky top-0 z-50 glass-card">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16">
-          {/* logo */}
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="flex items-center gap-2"
-          >
-            <Image
-              src="/images/logo.png"
-              alt="StatMind AI"
-              width={40}
-              height={40}
-              className="rounded-lg"
-            />
-            <span className="text-xl font-bold gradient-text">StatMind AI</span>
+          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2">
+            <Image src="/images/logo.png" alt="The One-Way" width={40} height={40} className="rounded-lg" />
+            <span className="text-xl font-bold gradient-text">{t('brand.name')}</span>
           </button>
-
-          {/* desktop links */}
           <div className="hidden md:flex items-center gap-8">
-            {navLinks.map((l) => (
-              <button
-                key={l.href}
-                onClick={() => scrollTo(l.href)}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {l.label}
-              </button>
+            {[
+              { label: t('nav.features'), href: '#features' },
+              { label: t('nav.comparison'), href: '#comparison' },
+              { label: t('nav.workspace'), href: '#demo' },
+              { label: t('nav.pricing'), href: '#pricing' },
+            ].map(l => (
+              <button key={l.href} onClick={() => scrollTo(l.href)} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">{l.label}</button>
             ))}
           </div>
-
-          {/* desktop CTA */}
           <div className="hidden md:flex items-center gap-3">
-            <Button
-              size="sm"
-              onClick={() => scrollTo('#pricing')}
-              className="rounded-full px-5"
-            >
-              Get Started Free
-              <ArrowRight className="size-4" />
-            </Button>
+            <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
+              <SelectTrigger className="h-9 w-32 text-xs"><Globe className="size-3.5 mr-1" /><SelectValue /></SelectTrigger>
+              <SelectContent>{localeNames.map(l => <SelectItem key={l} value={l} className="text-xs">{t(`lang.${l}`)}</SelectItem>)}</SelectContent>
+            </Select>
+            <Button size="sm" className="rounded-full px-5" onClick={() => store.setView('workspace')}><ArrowRight className="size-4" /> {t('nav.workspace')}</Button>
           </div>
-
-          {/* mobile hamburger */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden">
-                <Menu className="size-5" />
-                <span className="sr-only">Open menu</span>
-              </Button>
-            </SheetTrigger>
+            <SheetTrigger asChild><Button variant="ghost" size="icon" className="md:hidden"><Menu className="size-5" /></Button></SheetTrigger>
             <SheetContent side="right" className="w-72">
-              <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">
-                  <Image
-                    src="/images/logo.png"
-                    alt="StatMind AI"
-                    width={28}
-                    height={28}
-                    className="rounded"
-                  />
-                  StatMind AI
-                </SheetTitle>
-              </SheetHeader>
+              <SheetHeader><SheetTitle className="flex items-center gap-2"><Image src="/images/logo.png" alt="The One-Way" width={28} height={28} className="rounded" />{t('brand.name')}</SheetTitle></SheetHeader>
               <div className="flex flex-col gap-4 mt-8 px-4">
-                {navLinks.map((l) => (
-                  <button
-                    key={l.href}
-                    onClick={() => scrollTo(l.href)}
-                    className="text-left text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2"
-                  >
-                    {l.label}
-                  </button>
+                <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
+                  <SelectTrigger className="h-9 text-xs"><Globe className="size-3.5 mr-1" /><SelectValue /></SelectTrigger>
+                  <SelectContent>{localeNames.map(l => <SelectItem key={l} value={l} className="text-xs">{t(`lang.${l}`)}</SelectItem>)}</SelectContent>
+                </Select>
+                {[{ label: t('nav.features'), href: '#features' }, { label: t('nav.comparison'), href: '#comparison' }, { label: t('nav.workspace'), href: '#demo' }, { label: t('nav.pricing'), href: '#pricing' }].map(l => (
+                  <button key={l.href} onClick={() => scrollTo(l.href)} className="text-left text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2">{l.label}</button>
                 ))}
-                <Button
-                  className="mt-4 rounded-full"
-                  onClick={() => scrollTo('#pricing')}
-                >
-                  Get Started Free
-                  <ArrowRight className="size-4" />
-                </Button>
+                <Button className="mt-4 rounded-full" onClick={() => { store.setView('workspace'); setMobileOpen(false) }}>{t('nav.workspace')} <ArrowRight className="size-4" /></Button>
               </div>
             </SheetContent>
           </Sheet>
         </div>
       </nav>
 
-      {/* ─── HERO ─── */}
+      {/* HERO */}
       <section className="hero-gradient relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-16 md:pt-32 md:pb-24 flex flex-col items-center text-center">
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={stagger}
-            className="flex flex-col items-center"
-          >
+          <motion.div initial="hidden" animate="visible" variants={stagger} className="flex flex-col items-center">
             <motion.div variants={fadeUp} custom={0}>
-              <Badge
-                variant="outline"
-                className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-6"
-              >
-                <Sparkles className="size-3.5 text-primary" />
-                Powered by Advanced AI
-              </Badge>
+              <Badge variant="outline" className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-6"><Sparkles className="size-3.5 text-primary" />{t('hero.badge')}</Badge>
             </motion.div>
-
-            <motion.h1
-              variants={fadeUp}
-              custom={1}
-              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight max-w-4xl leading-[1.1]"
-            >
-              Statistical Analysis,{' '}
-              <span className="gradient-text">Reimagined with AI</span>
+            <motion.h1 variants={fadeUp} custom={1} className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight max-w-4xl leading-[1.1]">
+              {t('hero.title1')} <span className="gradient-text">{t('hero.titleHighlight')}</span>
             </motion.h1>
-
-            <motion.p
-              variants={fadeUp}
-              custom={2}
-              className="mt-6 text-lg sm:text-xl text-muted-foreground max-w-2xl leading-relaxed"
-            >
-              The all-in-one platform that makes professional data analysis
-              accessible to everyone. Works offline, auto-updates with AI, and
-              eliminates the steep learning curve of traditional tools.
-            </motion.p>
-
-            <motion.div
-              variants={fadeUp}
-              custom={3}
-              className="flex flex-col sm:flex-row gap-4 mt-10"
-            >
-              <Button
-                size="lg"
-                className="rounded-full px-8 text-base h-12"
-                onClick={() => scrollTo('#pricing')}
-              >
-                Start Analyzing Free
-                <ArrowRight className="size-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="rounded-full px-8 text-base h-12"
-                onClick={() => scrollTo('#demo')}
-              >
-                <Play className="size-4" />
-                Watch Demo
-              </Button>
+            <motion.p variants={fadeUp} custom={2} className="mt-6 text-lg sm:text-xl text-muted-foreground max-w-2xl leading-relaxed">{t('hero.subtitle')}</motion.p>
+            <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row gap-4 mt-10">
+              <Button size="lg" className="rounded-full px-8 text-base h-12" onClick={() => store.setView('workspace')}>{t('hero.cta1')} <ArrowRight className="size-4" /></Button>
+              <Button variant="outline" size="lg" className="rounded-full px-8 text-base h-12" onClick={() => scrollTo('#demo')}><Play className="size-4" />{t('hero.cta2')}</Button>
             </motion.div>
-
-            {/* stats row */}
-            <motion.div
-              variants={fadeUp}
-              custom={4}
-              className="flex flex-wrap justify-center gap-6 sm:gap-10 mt-14"
-            >
-              {[
-                { label: '10K+ Users', icon: Users },
-                { label: 'Offline Capable', icon: WifiOff },
-                { label: 'AI-Powered', icon: Brain },
-                { label: 'Free Tier', icon: Zap },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  className="flex items-center gap-2 text-sm font-medium text-muted-foreground"
-                >
-                  <s.icon className="size-4 text-primary" />
-                  {s.label}
-                </div>
+            <motion.div variants={fadeUp} custom={4} className="flex flex-wrap justify-center gap-6 sm:gap-10 mt-14">
+              {[{ l: t('hero.stat1'), i: Users }, { l: t('hero.stat2'), i: WifiOff }, { l: t('hero.stat3'), i: Brain }, { l: t('hero.stat4'), i: Zap }].map(s => (
+                <div key={s.l} className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><s.i className="size-4 text-primary" />{s.l}</div>
               ))}
             </motion.div>
-
-            {/* hero image */}
-            <motion.div
-              variants={fadeUp}
-              custom={5}
-              className="mt-16 w-full max-w-4xl"
-            >
+            <motion.div variants={fadeUp} custom={5} className="mt-16 w-full max-w-4xl">
               <div className="glow-border rounded-2xl overflow-hidden border border-border/30">
-                <Image
-                  src="/images/hero.png"
-                  alt="StatMind AI Dashboard Preview"
-                  width={1200}
-                  height={680}
-                  className="w-full h-auto"
-                  priority
-                />
+                <Image src="/images/hero.png" alt="The One-Way Dashboard" width={1200} height={680} className="w-full h-auto" priority />
               </div>
             </motion.div>
           </motion.div>
         </div>
       </section>
 
-      {/* ─── FEATURES ─── */}
+      {/* FEATURES */}
       <section id="features" className="py-20 md:py-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <motion.div variants={fadeUp} className="text-center mb-16">
-              <Badge
-                variant="outline"
-                className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"
-              >
-                <Star className="size-3.5 text-primary" />
-                Why StatMind AI
-              </Badge>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
-                Everything SPSS Can&apos;t Do,{' '}
-                <span className="gradient-text">We Do Better</span>
-              </h2>
-              <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">
-                Discover why thousands of researchers, data scientists, and
-                analysts have switched to the smarter way to analyze data.
-              </p>
+              <Badge variant="outline" className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"><Star className="size-3.5 text-primary" />{t('features.badge')}</Badge>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">{t('features.title1')} <span className="gradient-text">{t('features.titleHighlight')}</span></h2>
+              <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">{t('features.subtitle')}</p>
             </motion.div>
           </AnimatedSection>
-
           <AnimatedSection>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {features.map((f, i) => (
                 <motion.div key={f.title} variants={fadeUp} custom={i}>
                   <Card className="h-full hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">
                     <CardHeader>
-                      <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors">
-                        <f.icon className="size-6 text-primary" />
-                      </div>
+                      <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors"><f.icon className="size-6 text-primary" /></div>
                       <CardTitle className="text-xl">{f.title}</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <CardDescription className="text-base leading-relaxed">
-                        {f.description}
-                      </CardDescription>
-                    </CardContent>
+                    <CardContent><CardDescription className="text-base leading-relaxed">{f.desc}</CardDescription></CardContent>
                   </Card>
                 </motion.div>
               ))}
@@ -472,28 +781,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── COMPARISON ─── */}
+      {/* COMPARISON */}
       <section id="comparison" className="py-20 md:py-32 bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <motion.div variants={fadeUp} className="text-center mb-16">
-              <Badge
-                variant="outline"
-                className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"
-              >
-                <BarChart3 className="size-3.5 text-primary" />
-                Feature Comparison
-              </Badge>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
-                <span className="gradient-text">StatMind AI</span> vs. SPSS
-              </h2>
-              <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">
-                See how StatMind AI stacks up against the legacy statistical
-                software.
-              </p>
+              <Badge variant="outline" className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"><BarChart3 className="size-3.5 text-primary" />{t('comparison.badge')}</Badge>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight"><span className="gradient-text">{t('comparison.title1')}</span> {t('comparison.title2')}</h2>
+              <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">{t('comparison.subtitle')}</p>
             </motion.div>
           </AnimatedSection>
-
           <AnimatedSection>
             <motion.div variants={fadeUp}>
               <Card className="overflow-hidden">
@@ -501,51 +798,20 @@ export default function Home() {
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent border-b-border">
-                        <TableHead className="text-base font-semibold pl-6 py-4 w-2/5">
-                          Feature
-                        </TableHead>
-                        <TableHead className="text-base font-semibold py-4 text-center">
-                          <span className="gradient-text font-bold">
-                            StatMind AI
-                          </span>
-                        </TableHead>
-                        <TableHead className="text-base font-semibold py-4 text-center text-muted-foreground">
-                          SPSS
-                        </TableHead>
+                        <TableHead className="text-base font-semibold pl-6 py-4 w-2/5">{t('comparison.feature')}</TableHead>
+                        <TableHead className="text-base font-semibold py-4 text-center"><span className="gradient-text font-bold">{t('comparison.theway')}</span></TableHead>
+                        <TableHead className="text-base font-semibold py-4 text-center text-muted-foreground">{t('comparison.spss')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {comparisonData.map((row, i) => (
-                        <TableRow
-                          key={row.feature}
-                          className={
-                            i % 2 === 0 ? 'bg-muted/20' : ''
-                          }
-                        >
-                          <TableCell className="font-medium pl-6 py-3.5">
-                            {row.feature}
+                        <TableRow key={row.feature} className={i % 2 === 0 ? 'bg-muted/20' : ''}>
+                          <TableCell className="font-medium pl-6 py-3.5">{row.feature}</TableCell>
+                          <TableCell className="py-3.5 text-center">
+                            <span className={`inline-flex items-center justify-center size-7 rounded-full ${row.statmind ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}><Check className="size-4" /></span>
                           </TableCell>
                           <TableCell className="py-3.5 text-center">
-                            {row.statmind ? (
-                              <span className="inline-flex items-center justify-center size-7 rounded-full bg-emerald-500/10 text-emerald-400">
-                                <Check className="size-4" />
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center justify-center size-7 rounded-full bg-rose-500/10 text-rose-400">
-                                <X className="size-4" />
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-3.5 text-center">
-                            {row.spss ? (
-                              <span className="inline-flex items-center justify-center size-7 rounded-full bg-rose-500/10 text-rose-400">
-                                <Check className="size-4" />
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center justify-center size-7 rounded-full bg-muted text-muted-foreground">
-                                <X className="size-4" />
-                              </span>
-                            )}
+                            <span className={`inline-flex items-center justify-center size-7 rounded-full ${row.spss ? 'bg-rose-500/10 text-rose-400' : 'bg-muted text-muted-foreground'}`}><Check className="size-4" /></span>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -558,294 +824,60 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── DEMO ─── */}
+      {/* DEMO */}
       <section id="demo" className="py-20 md:py-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <motion.div variants={fadeUp} className="text-center mb-16">
-              <Badge
-                variant="outline"
-                className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"
-              >
-                <Play className="size-3.5 text-primary" />
-                Interactive Demo
-              </Badge>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
-                See the <span className="gradient-text">AI in Action</span>
-              </h2>
-              <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">
-                Watch how StatMind AI turns natural language questions into
-                professional statistical analysis in seconds.
-              </p>
+              <Badge variant="outline" className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"><Play className="size-3.5 text-primary" />{t('demo.badge')}</Badge>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">{t('demo.title1')} <span className="gradient-text">{t('demo.titleHighlight')}</span></h2>
+              <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">{t('demo.subtitle')}</p>
             </motion.div>
           </AnimatedSection>
-
           <AnimatedSection>
             <motion.div variants={fadeUp}>
               <Card className="overflow-hidden border-primary/20 bg-card/80 backdrop-blur-sm">
                 <CardContent className="p-0">
                   <div className="grid grid-cols-1 lg:grid-cols-2">
-                    {/* Chat panel */}
                     <div className="border-b lg:border-b-0 lg:border-r border-border p-6">
-                      <div className="flex items-center gap-2 mb-5">
-                        <div className="size-3 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-sm font-semibold text-emerald-400">
-                          AI Analysis Session
-                        </span>
-                      </div>
+                      <div className="flex items-center gap-2 mb-5"><div className="size-3 rounded-full bg-emerald-500 animate-pulse" /><span className="text-sm font-semibold text-emerald-400">{t('demo.session')}</span></div>
                       <div className="space-y-4">
-                        {chatMessages.map((msg, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 10 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: i * 0.15, duration: 0.4 }}
-                            className={`flex gap-3 ${
-                              msg.role === 'user' ? 'justify-end' : 'justify-start'
-                            }`}
-                          >
-                            {msg.role === 'ai' && (
-                              <div className="flex-shrink-0 size-8 rounded-lg bg-primary/10 flex items-center justify-center mt-1">
-                                <Brain className="size-4 text-primary" />
-                              </div>
-                            )}
-                            <div
-                              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                                msg.role === 'user'
-                                  ? 'bg-primary text-primary-foreground rounded-br-md'
-                                  : 'bg-muted rounded-bl-md'
-                              }`}
-                            >
-                              {msg.text}
-                              {i === chatMessages.length - 1 && (
-                                <span className="inline-block w-2 h-4 ml-1 bg-current/60 animate-pulse rounded-sm" />
-                              )}
-                            </div>
-                            {msg.role === 'user' && (
-                              <div className="flex-shrink-0 size-8 rounded-lg bg-accent/20 flex items-center justify-center mt-1">
-                                <Users className="size-4 text-accent" />
-                              </div>
-                            )}
+                        {[
+                          { role: 'user', text: 'Analyze the correlation between study hours and exam scores' },
+                          { role: 'ai', text: `Running Pearson correlation... Found strong positive correlation (r=0.87, p<0.001). Generated scatter plot + regression model.` },
+                          { role: 'user', text: 'Add a linear regression' },
+                          { role: 'ai', text: 'Regression: Score = 12.3 + 7.8 × Hours. R² = 0.756, F(1,98) = 304.2, p < 0.001.' },
+                        ].map((msg, i) => (
+                          <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.15, duration: 0.4 }}
+                            className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            {msg.role === 'ai' && <div className="flex-shrink-0 size-8 rounded-lg bg-primary/10 flex items-center justify-center mt-1"><Brain className="size-4 text-primary" /></div>}
+                            <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted rounded-bl-md'}`}>{msg.text}{i === 3 && <span className="inline-block w-2 h-4 ml-1 bg-current/60 animate-pulse rounded-sm" />}</div>
+                            {msg.role === 'user' && <div className="flex-shrink-0 size-8 rounded-lg bg-accent/20 flex items-center justify-center mt-1"><User className="size-4 text-accent" /></div>}
                           </motion.div>
                         ))}
                       </div>
                     </div>
-
-                    {/* Chart panel */}
                     <div className="p-6 flex flex-col justify-between">
                       <div>
-                        <div className="flex items-center gap-2 mb-5">
-                          <BarChart3 className="size-4 text-primary" />
-                          <span className="text-sm font-semibold">
-                            Scatter Plot + Regression Line
-                          </span>
-                        </div>
-                        {/* SVG chart */}
-                        <div className="rounded-xl bg-muted/50 border border-border/50 p-4 aspect-[4/3] relative overflow-hidden">
-                          <svg
-                            viewBox="0 0 400 280"
-                            className="w-full h-full"
-                            preserveAspectRatio="xMidYMid meet"
-                          >
-                            {/* Grid lines */}
-                            {[0, 1, 2, 3, 4].map((i) => (
-                              <line
-                                key={`hg-${i}`}
-                                x1="50"
-                                y1={40 + i * 52}
-                                x2="380"
-                                y2={40 + i * 52}
-                                stroke="currentColor"
-                                strokeOpacity="0.06"
-                                strokeWidth="1"
-                              />
-                            ))}
-                            {[0, 1, 2, 3, 4, 5].map((i) => (
-                              <line
-                                key={`vg-${i}`}
-                                x1={50 + i * 66}
-                                y1="40"
-                                x2={50 + i * 66}
-                                y2="250"
-                                stroke="currentColor"
-                                strokeOpacity="0.06"
-                                strokeWidth="1"
-                              />
-                            ))}
-
-                            {/* Axes */}
-                            <line
-                              x1="50"
-                              y1="250"
-                              x2="380"
-                              y2="250"
-                              stroke="currentColor"
-                              strokeOpacity="0.2"
-                              strokeWidth="1.5"
-                            />
-                            <line
-                              x1="50"
-                              y1="40"
-                              x2="50"
-                              y2="250"
-                              stroke="currentColor"
-                              strokeOpacity="0.2"
-                              strokeWidth="1.5"
-                            />
-
-                            {/* Y axis labels */}
-                            <text
-                              x="42"
-                              y="254"
-                              textAnchor="end"
-                              className="fill-muted-foreground"
-                              fontSize="10"
-                            >
-                              0
-                            </text>
-                            <text
-                              x="42"
-                              y="148"
-                              textAnchor="end"
-                              className="fill-muted-foreground"
-                              fontSize="10"
-                            >
-                              50
-                            </text>
-                            <text
-                              x="42"
-                              y="46"
-                              textAnchor="end"
-                              className="fill-muted-foreground"
-                              fontSize="10"
-                            >
-                              100
-                            </text>
-
-                            {/* X axis labels */}
-                            <text
-                              x="50"
-                              y="268"
-                              textAnchor="middle"
-                              className="fill-muted-foreground"
-                              fontSize="10"
-                            >
-                              0
-                            </text>
-                            <text
-                              x="216"
-                              y="268"
-                              textAnchor="middle"
-                              className="fill-muted-foreground"
-                              fontSize="10"
-                            >
-                              5
-                            </text>
-                            <text
-                              x="380"
-                              y="268"
-                              textAnchor="middle"
-                              className="fill-muted-foreground"
-                              fontSize="10"
-                            >
-                              10
-                            </text>
-
-                            {/* Regression line */}
-                            <line
-                              x1="50"
-                              y1="230"
-                              x2="380"
-                              y2="55"
-                              stroke="oklch(0.72 0.15 175)"
-                              strokeWidth="2"
-                              strokeDasharray="6 3"
-                              opacity="0.7"
-                            />
-
-                            {/* Data points - scattered around regression line */}
-                            {[
-                              [65, 225],
-                              [80, 210],
-                              [95, 198],
-                              [110, 190],
-                              [125, 175],
-                              [138, 165],
-                              [155, 158],
-                              [168, 145],
-                              [182, 135],
-                              [195, 128],
-                              [210, 118],
-                              [220, 112],
-                              [235, 105],
-                              [248, 95],
-                              [260, 90],
-                              [275, 82],
-                              [288, 75],
-                              [300, 70],
-                              [315, 60],
-                              [330, 55],
-                              [345, 50],
-                              [358, 48],
-                              [370, 42],
-                              [90, 215],
-                              [130, 180],
-                              [170, 155],
-                              [200, 130],
-                              [240, 110],
-                              [270, 88],
-                              [300, 72],
-                              [340, 55],
-                              [100, 205],
-                              [150, 170],
-                              [190, 140],
-                              [230, 115],
-                              [260, 98],
-                              [290, 80],
-                              [320, 65],
-                              [355, 50],
-                            ].map((p, i) => (
-                              <circle
-                                key={i}
-                                cx={p[0]}
-                                cy={p[1]}
-                                r="4"
-                                fill="oklch(0.62 0.22 262.881)"
-                                opacity="0.6"
-                              >
-                                <animate
-                                  attributeName="opacity"
-                                  values="0.4;0.8;0.4"
-                                  dur={`${3 + (i % 5) * 0.5}s`}
-                                  repeatCount="indefinite"
-                                />
+                        <div className="flex items-center gap-2 mb-5"><BarChart3 className="size-4 text-primary" /><span className="text-sm font-semibold">{t('demo.chart')}</span></div>
+                        <div className="rounded-xl bg-muted/50 border border-border/50 p-4 aspect-[4/3]">
+                          <svg viewBox="0 0 400 280" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+                            {[0, 1, 2, 3, 4].map(i => <line key={`h${i}`} x1="50" y1={40 + i * 52} x2="380" y2={40 + i * 52} stroke="currentColor" strokeOpacity="0.06" />)}
+                            <line x1="50" y1="250" x2="380" y2="250" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1.5" />
+                            <line x1="50" y1="40" x2="50" y2="250" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1.5" />
+                            <line x1="50" y1="230" x2="380" y2="55" stroke="oklch(0.72 0.15 175)" strokeWidth="2" strokeDasharray="6 3" opacity="0.7" />
+                            {[[65, 225], [95, 198], [125, 175], [155, 158], [182, 135], [210, 118], [235, 105], [260, 90], [288, 75], [315, 60], [345, 50], [80, 210], [138, 165], [195, 128], [248, 95], [300, 72], [340, 55], [110, 190], [168, 145], [220, 112], [270, 88], [320, 65], [150, 170], [200, 130], [250, 100], [300, 72], [350, 52]].map((p, i) => (
+                              <circle key={i} cx={p[0]} cy={p[1]} r="4" fill="oklch(0.62 0.22 262.881)" opacity="0.6">
+                                <animate attributeName="opacity" values="0.4;0.8;0.4" dur={`${3 + (i % 5) * 0.5}s`} repeatCount="indefinite" />
                               </circle>
                             ))}
                           </svg>
                         </div>
                       </div>
-
-                      {/* Stats badges */}
                       <div className="flex flex-wrap gap-3 mt-4">
-                        <Badge
-                          variant="outline"
-                          className="rounded-lg px-3 py-1.5 text-sm border-primary/30 bg-primary/5"
-                        >
-                          R&sup2; = 0.756
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className="rounded-lg px-3 py-1.5 text-sm border-emerald-500/30 bg-emerald-500/5 text-emerald-400"
-                        >
-                          p &lt; 0.001
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className="rounded-lg px-3 py-1.5 text-sm border-accent/30 bg-accent/5"
-                        >
-                          n = 100
-                        </Badge>
+                        {[{ label: t('demo.r2'), cls: 'border-primary/30 bg-primary/5' }, { label: t('demo.pvalue'), cls: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400' }, { label: t('demo.nsample'), cls: 'border-accent/30 bg-accent/5' }].map(b => (
+                          <Badge key={b.label} variant="outline" className={`rounded-lg px-3 py-1.5 text-sm ${b.cls}`}>{b.label}</Badge>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -856,95 +888,29 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── PRICING ─── */}
+      {/* PRICING */}
       <section id="pricing" className="py-20 md:py-32 bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <motion.div variants={fadeUp} className="text-center mb-16">
-              <Badge
-                variant="outline"
-                className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"
-              >
-                <Zap className="size-3.5 text-primary" />
-                Pricing
-              </Badge>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
-                Simple, <span className="gradient-text">Transparent Pricing</span>
-              </h2>
-              <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">
-                Choose the plan that fits your needs. Start free and scale as
-                you grow.
-              </p>
+              <Badge variant="outline" className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"><Zap className="size-3.5 text-primary" />{t('pricing.badge')}</Badge>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">{t('pricing.title1')} <span className="gradient-text">{t('pricing.titleHighlight')}</span></h2>
+              <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">{t('pricing.subtitle')}</p>
             </motion.div>
           </AnimatedSection>
-
           <AnimatedSection>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
               {pricingPlans.map((plan, i) => (
-                <motion.div
-                  key={plan.name}
-                  variants={fadeUp}
-                  custom={i}
-                  className={plan.highlighted ? 'md:-mt-4 md:mb-[-16px]' : ''}
-                >
-                  <Card
-                    className={`h-full relative flex flex-col ${
-                      plan.highlighted
-                        ? 'border-primary/50 shadow-lg shadow-primary/10 ring-1 ring-primary/20'
-                        : ''
-                    }`}
-                  >
-                    {plan.highlighted && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                        <Badge className="rounded-full px-4 py-1 bg-primary text-primary-foreground shadow-md shadow-primary/20">
-                          Most Popular
-                        </Badge>
-                      </div>
-                    )}
+                <motion.div key={plan.name} variants={fadeUp} custom={i} className={plan.highlighted ? 'md:-mt-4' : ''}>
+                  <Card className={`h-full relative flex flex-col ${plan.highlighted ? 'border-primary/50 shadow-lg shadow-primary/10 ring-1 ring-primary/20' : ''}`}>
+                    {plan.highlighted && <div className="absolute -top-3.5 left-1/2 -translate-x-1/2"><Badge className="rounded-full px-4 py-1 bg-primary text-primary-foreground shadow-md shadow-primary/20">{t('pricing.popular')}</Badge></div>}
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-lg text-muted-foreground">
-                        {plan.name}
-                      </CardTitle>
-                      <div className="flex items-baseline gap-1 mt-2">
-                        <span className="text-4xl font-extrabold tracking-tight">
-                          {plan.price}
-                        </span>
-                        {plan.period && (
-                          <span className="text-muted-foreground text-sm">
-                            {plan.period}
-                          </span>
-                        )}
-                      </div>
-                      <CardDescription className="mt-2">
-                        {plan.description}
-                      </CardDescription>
+                      <CardTitle className="text-lg text-muted-foreground">{plan.name}</CardTitle>
+                      <div className="flex items-baseline gap-1 mt-2"><span className="text-4xl font-extrabold tracking-tight">{plan.price}</span>{plan.period && <span className="text-muted-foreground text-sm">{plan.period}</span>}</div>
+                      <CardDescription className="mt-2">{plan.desc}</CardDescription>
                     </CardHeader>
-                    <CardContent className="flex-1">
-                      <ul className="space-y-3 mt-2">
-                        {plan.features.map((f) => (
-                          <li
-                            key={f}
-                            className="flex items-center gap-2 text-sm"
-                          >
-                            <Check className="size-4 text-emerald-400 flex-shrink-0" />
-                            <span className="text-muted-foreground">{f}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                    <CardFooter>
-                      <Button
-                        className={`w-full rounded-full ${
-                          plan.highlighted
-                            ? 'bg-primary hover:bg-primary/90 text-primary-foreground'
-                            : ''
-                        }`}
-                        variant={plan.highlighted ? 'default' : 'outline'}
-                      >
-                        {plan.cta}
-                        <ChevronRight className="size-4" />
-                      </Button>
-                    </CardFooter>
+                    <CardContent className="flex-1"><ul className="space-y-3 mt-2">{plan.features.map(f => <li key={f} className="flex items-center gap-2 text-sm"><Check className="size-4 text-emerald-400 flex-shrink-0" /><span className="text-muted-foreground">{f}</span></li>)}</ul></CardContent>
+                    <CardFooter><Button className={`w-full rounded-full ${plan.highlighted ? '' : ''}`} variant={plan.highlighted ? 'default' : 'outline'} onClick={() => store.setView('workspace')}>{plan.cta} <ChevronRight className="size-4" /></Button></CardFooter>
                   </Card>
                 </motion.div>
               ))}
@@ -953,84 +919,26 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── FOOTER ─── */}
+      {/* FOOTER */}
       <footer className="mt-auto border-t border-border/50 bg-card/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10">
-            {/* brand */}
             <div className="lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <Image
-                  src="/images/logo.png"
-                  alt="StatMind AI"
-                  width={32}
-                  height={32}
-                  className="rounded-lg"
-                />
-                <span className="text-lg font-bold gradient-text">
-                  StatMind AI
-                </span>
+              <div className="flex items-center gap-2 mb-4"><Image src="/images/logo.png" alt="The One-Way" width={32} height={32} className="rounded-lg" /><span className="text-lg font-bold gradient-text">{t('brand.name')}</span></div>
+              <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">{t('footer.desc')}</p>
+            </div>
+            {[{ title: t('footer.product'), links: [t('nav.features'), t('nav.pricing')] }, { title: t('footer.resources'), links: ['Documentation', 'API', 'Community'] }, { title: t('footer.company'), links: [t('footer.about'), t('footer.blog'), t('footer.contact')] }].map(col => (
+              <div key={col.title}>
+                <h4 className="font-semibold text-sm mb-4">{col.title}</h4>
+                <ul className="space-y-2.5">{col.links.map(l => <li key={l}><button className="text-sm text-muted-foreground hover:text-foreground transition-colors">{l}</button></li>)}</ul>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">
-                Making professional statistical analysis accessible to everyone
-                through the power of artificial intelligence.
-              </p>
-            </div>
-
-            {/* product */}
-            <div>
-              <h4 className="font-semibold text-sm mb-4">Product</h4>
-              <ul className="space-y-2.5">
-                {['Features', 'Pricing', 'Updates', 'Roadmap'].map((l) => (
-                  <li key={l}>
-                    <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                      {l}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* resources */}
-            <div>
-              <h4 className="font-semibold text-sm mb-4">Resources</h4>
-              <ul className="space-y-2.5">
-                {['Documentation', 'Tutorials', 'API', 'Community'].map((l) => (
-                  <li key={l}>
-                    <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                      {l}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* company */}
-            <div>
-              <h4 className="font-semibold text-sm mb-4">Company</h4>
-              <ul className="space-y-2.5">
-                {['About', 'Blog', 'Careers', 'Contact'].map((l) => (
-                  <li key={l}>
-                    <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                      {l}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            ))}
           </div>
-
           <div className="mt-12 pt-8 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
-              &copy; 2026 StatMind AI. All rights reserved.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('footer.copyright')}</p>
             <div className="flex items-center gap-4">
-              <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Privacy Policy
-              </button>
-              <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Terms of Service
-              </button>
+              <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.privacy')}</button>
+              <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.terms')}</button>
             </div>
           </div>
         </div>

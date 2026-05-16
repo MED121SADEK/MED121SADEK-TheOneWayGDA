@@ -30,3 +30,16 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  data        String
+  variables   String
+  outputs     String?
+  shared      Boolean  @default(false)
+  sharedWith  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
