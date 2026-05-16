@@ -20,13 +20,13 @@ import { createHmac } from 'crypto'
 
 const EMAIL_SECRET = process.env.EMAIL_ACTION_SECRET || 'oneway-email-secret-2025'
 
-export function generateActionToken(userId: string, action: 'approve' | 'reject'): string {
+export function generateActionToken(userId: string, action: 'approve' | 'reject' | 'reset'): string {
   const payload = `${userId}:${action}:${Date.now()}`
   const signature = createHmac('sha256', EMAIL_SECRET).update(payload).digest('hex')
   return Buffer.from(`${payload}:${signature}`).toString('base64url')
 }
 
-export function verifyActionToken(token: string): { userId: string; action: 'approve' | 'reject'; valid: boolean } {
+export function verifyActionToken(token: string): { userId: string; action: 'approve' | 'reject' | 'reset'; valid: boolean } {
   try {
     const decoded = Buffer.from(token, 'base64url').toString('utf-8')
     const [payload, signature] = decoded.split(':')
@@ -36,7 +36,7 @@ export function verifyActionToken(token: string): { userId: string; action: 'app
     if (parts.length < 3) return { userId: '', action: 'approve', valid: false }
 
     const userId = parts[0]
-    const action = parts[1] as 'approve' | 'reject'
+    const action = parts[1] as 'approve' | 'reject' | 'reset'
     const timestamp = parseInt(parts[2])
 
     // Check token expiry (24 hours)
@@ -234,4 +234,58 @@ export interface VisitorNotificationData {
 
 export async function sendVisitorNotification(_data: VisitorNotificationData): Promise<boolean> {
   return true
+}
+
+// ═══════════════════════════════════════════════════════════
+// Email 4: Password Reset
+// ═══════════════════════════════════════════════════════════
+
+export async function sendPasswordResetEmail(
+  userEmail: string,
+  userName: string,
+  resetToken: string
+): Promise<boolean> {
+  try {
+    const transporter = getTransporter()
+    const displayName = userName || userEmail
+    const subject = `[TheOneWayGDA] Reset Your Password`
+    const resetUrl = `${SITE_URL}/auth/reset-password?token=${resetToken}`
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+<tr><td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:28px 32px;">
+<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Reset Your Password</h1>
+<p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">TheOneWayGDA Platform</p>
+</td></tr>
+<tr><td style="padding:28px 32px;">
+<p style="margin:0 0 8px;color:#1e293b;font-size:16px;font-weight:600;">Hi ${displayName},</p>
+<p style="margin:0 0 20px;color:#334155;font-size:14px;line-height:1.7;">We received a request to reset your password. Click the button below to choose a new password. This link will expire in <strong>1 hour</strong>.</p>
+
+<div style="background:#f0f0ff;border:1px solid #e0e0ff;border-radius:12px;padding:14px 18px;margin-bottom:24px;">
+<p style="margin:0;color:#4338ca;font-size:13px;font-weight:600;">Security Notice</p>
+<p style="margin:6px 0 0;color:#4338ca;font-size:12px;line-height:1.6;">If you did not request this password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+</div>
+
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<a href="${resetUrl}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;border-radius:10px;font-size:15px;font-weight:600;">Reset Password</a>
+</td></tr></table>
+
+<p style="margin:16px 0 0;color:#94a3b8;font-size:12px;text-align:center;line-height:1.5;">If the button doesn't work, copy and paste this link into your browser:<br/>
+<a href="${resetUrl}" style="color:#6366f1;word-break:break-all;">${resetUrl}</a></p>
+
+</td></tr>
+<tr><td style="padding:16px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;">
+<p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; AI-Powered Statistical Analysis Platform</p>
+</td></tr></table></td></tr></table></body></html>`
+
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: userEmail, subject, html })
+    console.log(`[Email] Password reset email sent to ${userEmail}`)
+    return true
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'An error occurred'
+    console.error('[Email] Failed to send password reset email:', message)
+    return false
+  }
 }

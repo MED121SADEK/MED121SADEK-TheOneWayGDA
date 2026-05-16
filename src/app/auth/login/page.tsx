@@ -259,7 +259,10 @@ export default function LoginPage() {
                         </p>
                       </div>
 
-                      <div className="flex items-center justify-center pt-1">
+                      <div className="flex items-center justify-between pt-1">
+                        <Link href="/auth/forgot-password" className="text-xs text-primary hover:underline font-medium">
+                          Forgot password?
+                        </Link>
                         <Badge variant="outline" className="text-[10px] gap-1 border-primary/20 text-primary/60">
                           <Shield className="size-2.5" />
                           AES-256 Encrypted

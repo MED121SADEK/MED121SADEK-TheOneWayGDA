@@ -70,3 +70,29 @@ Stage Summary:
 - Pending users cannot access the platform
 - Admins can approve/reject at /admin/approvals
 - Rejected users can be re-approved by admins
+---
+Task ID: 1
+Agent: Main Agent
+Task: Reset founder password + implement Forgot Password feature
+
+Work Log:
+- Read auth.ts to understand SHA-256 password hashing (salt:hash format)
+- Generated new password hash for "Sadekmed2025" using same algorithm
+- Updated password directly in Neon PostgreSQL via `prisma db execute`
+- Added `resetToken` and `resetTokenExpiry` fields to User model in schema.prisma
+- Pushed schema migration to Neon database
+- Created `/api/auth/forgot-password` API route (POST: validates email, generates token, sends reset email)
+- Created `/api/auth/reset-password` API route (POST: validates token, updates password, clears token)
+- Added `sendPasswordResetEmail()` function to `src/lib/email.ts` with professional HTML template
+- Created `/auth/forgot-password` page with email form and success state
+- Created `/auth/reset-password` page with new password form, strength indicator, show/hide toggle
+- Added "Forgot password?" link to login page
+- Fixed Vercel build by regenerating Prisma client with new schema fields
+- Deployed successfully to production
+
+Stage Summary:
+- Password reset: msad41855@gmail.com password set back to "Sadekmed2025"
+- New pages: /auth/forgot-password, /auth/reset-password
+- New APIs: /api/auth/forgot-password, /api/auth/reset-password
+- New email: Password reset email with 1-hour expiry token
+- Deployed: https://theonewaygda.vercel.app
