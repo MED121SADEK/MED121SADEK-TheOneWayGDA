@@ -8,6 +8,7 @@ import { EmailGate } from "@/components/EmailGate";
 import AiCopilot from "@/components/ai/AiCopilot";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import { AppProviders } from "@/components/providers";
+import { PageTransition } from "@/components/page-transition";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -89,7 +90,7 @@ export default function RootLayout({
             <ServiceWorkerRegistrar />
             <EmailGate />
             <GdprConsent />
-            {children}
+            <PageTransition>{children}</PageTransition>
             <AiCopilot />
             <Toaster />
           </AppProviders>

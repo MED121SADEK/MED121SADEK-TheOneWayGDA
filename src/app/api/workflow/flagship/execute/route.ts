@@ -6,32 +6,43 @@ import { apiRouteLogger } from '@/lib/api-logger'
 const log = apiRouteLogger('/api/workflow/flagship/execute')
 
 const STEP_EXEC_PROMPT = `You are executing a single step in an AI-powered data analysis pipeline for The One-Way platform.
-Given the step description, its configuration, and the results of prior steps, produce a structured result.
+You are a senior data scientist performing real analysis. Given the step description, its configuration, and the results of prior steps, produce a thorough, detailed result.
+
+CRITICAL: Provide DEEP, COMPREHENSIVE analysis — not brief summaries. Each step should produce rich, actionable insights.
 
 Respond with ONLY valid JSON:
 {
   "status": "completed",
-  "output": "Human-readable summary of what was done and found",
-  "keyFindings": ["Finding 1", "Finding 2"],
-  "metrics": { "metric_name": value },
-  "dataPoints": { "key": "value" },
+  "output": "DETAILED human-readable summary of what was done and found (3-5 paragraphs with specific numbers, patterns, and insights)",
+  "keyFindings": ["Detailed finding 1 with specific data", "Finding 2 with context", "Finding 3 with implications"],
+  "metrics": { "metric_name": value, "another_metric": value },
+  "dataPoints": { "key": "detailed value with explanation" },
   "confidence": 0.9,
-  "recommendations": ["Recommendation 1"]
+  "recommendations": ["Specific, actionable recommendation 1", "Recommendation 2 with implementation details"],
+  "nextSteps": ["Suggested next analysis step 1", "Step 2"],
+  "assumptions": ["Assumption 1 that affects this result", "Assumption 2"],
+  "methodology": "Detailed description of the methodology used for this step",
+  "limitations": ["Known limitation 1", "Limitation 2 and how to address it"]
 }
 
 If the step cannot complete, return status "error" with an errorMessage field.`
 
 const SUMMARY_PROMPT = `You are generating an executive summary for a completed analysis pipeline.
-Based on all step results, produce a comprehensive summary.
+Based on ALL step results, produce a COMPREHENSIVE summary that demonstrates deep understanding.
+
+CRITICAL: This summary should be THOROUGH — not a brief overview. Stakeholders will use this for decision-making.
 
 Respond with ONLY valid JSON:
 {
-  "executiveSummary": "2-3 paragraph executive summary",
-  "keyInsights": ["Insight 1", "Insight 2", "Insight 3"],
-  "recommendations": ["Actionable recommendation 1", "Recommendation 2"],
+  "executiveSummary": "Detailed executive summary (4-6 paragraphs) covering: what was analyzed, methodology, key findings with specific numbers, business implications, and recommended actions",
+  "keyInsights": ["Detailed insight 1 with supporting evidence", "Insight 2 with statistical backing", "Insight 3 with real-world implications", "Insight 4 with context", "Insight 5 with actionability"],
+  "recommendations": ["Specific actionable recommendation 1 with implementation steps", "Recommendation 2 with expected impact", "Recommendation 3 with timeline", "Recommendation 4 with resource requirements"],
   "riskLevel": "low|medium|high",
-  "methodology": "Brief description of the methodology used",
-  "limitations": ["Known limitation 1"]
+  "riskDetails": "Detailed risk assessment explaining the risk level and specific areas of concern",
+  "methodology": "Comprehensive description of the complete methodology used across all steps",
+  "limitations": ["Known limitation 1 and mitigation strategy", "Limitation 2 with alternative approach"],
+  "dataQuality": "Assessment of data quality and its impact on results",
+  "businessImpact": "Assessment of the potential business impact of these findings"
 }`
 
 export async function POST(request: NextRequest) {
@@ -96,13 +107,12 @@ export async function POST(request: NextRequest) {
           data: { steps: JSON.stringify(steps) },
         })
 
-        // Build step context with prior results
+        // Build step context with ALL prior results (not just last 3) for deeper context
         const priorResults = Object.entries(allResults)
-          .slice(-3) // last 3 steps for context
-          .map(([id, r]) => `- Step ${id}: ${(r as Record<string, unknown>)?.output || 'completed'}`)
+          .map(([id, r]) => `- Step "${steps.find(s => s.id === id)?.name || id}" (${steps.find(s => s.id === id)?.type}): ${(r as Record<string, unknown>)?.output || 'completed'}`)
           .join('\n')
 
-        const stepPrompt = `Pipeline: "${pipeline.name}"\nCurrent step: "${step.name}" (type: ${step.type})\nDescription: ${step.description}\nConfig: ${JSON.stringify(step.config || {})}${priorResults ? `\n\nPrior step results:\n${priorResults}` : ''}`
+        const stepPrompt = `Pipeline: "${pipeline.name}"\nPipeline intent: "${pipeline.intent}"\nCurrent step ${i + 1} of ${stepsToRun.length}: "${step.name}" (type: ${step.type})\nDescription: ${step.description}\nConfig: ${JSON.stringify(step.config || {})}\nRationale: ${step.rationale || 'Not specified'}${priorResults ? `\n\nPrior step results (for context):\n${priorResults}` : ''}\n\nIMPORTANT: Provide a DETAILED, THOROUGH analysis result. Include specific numbers, patterns, statistical measures, and actionable insights. Do NOT provide brief one-line summaries.`
 
         const completion = await zai.chat.completions.create({
           messages: [
@@ -110,6 +120,7 @@ export async function POST(request: NextRequest) {
             { role: 'user', content: stepPrompt },
           ],
           temperature: 0.5,
+          max_tokens: 4096,
         })
 
         const rawResult = completion.choices?.[0]?.message?.content || '{}'
@@ -123,10 +134,11 @@ export async function POST(request: NextRequest) {
         } catch {
           stepResult = {
             status: 'completed',
-            output: `Step "${step.name}" executed successfully.`,
-            keyFindings: [],
+            output: `Step "${step.name}" (${step.type}) executed successfully. ${rawResult.slice(0, 1000)}`,
+            keyFindings: ['Step completed with AI-generated analysis'],
             metrics: {},
             confidence: 0.8,
+            recommendations: [],
           }
         }
 
@@ -142,13 +154,13 @@ export async function POST(request: NextRequest) {
         })
 
         // Create DecisionRecord for analytical steps
-        if ((step.type === 'statistical_test' || step.type === 'interpretation') && stepResult.keyFindings) {
+        if ((step.type === 'statistical_test' || step.type === 'interpretation' || step.type === 'feature_engineering' || step.type === 'model_evaluation') && stepResult.keyFindings) {
           decisionRecords.push({
             visitorId,
             pipelineId,
             context: 'workflow',
             question: `Step: ${step.name} — ${step.description}`,
-            aiAnalysis: JSON.stringify({ stepType: step.type, findings: stepResult.keyFindings, metrics: stepResult.metrics }),
+            aiAnalysis: JSON.stringify({ stepType: step.type, findings: stepResult.keyFindings, metrics: stepResult.metrics, methodology: stepResult.methodology, limitations: stepResult.limitations }),
             confidence: stepResult.confidence,
           })
         }
@@ -164,19 +176,28 @@ export async function POST(request: NextRequest) {
       if (s.status === 'pending') s.status = 'skipped'
     })
 
-    // Generate executive summary
+    // Generate executive summary with deeper analysis
     let summary: Record<string, unknown> = {}
     try {
       const stepsSummary = Object.entries(allResults)
-        .map(([id, r]) => `- ${steps.find(s => s.id === id)?.name || id}: ${(r as Record<string, unknown>)?.output || 'completed'}`)
-        .join('\n')
+        .map(([id, r]) => {
+          const stepInfo = steps.find(s => s.id === id)
+          const result = r as Record<string, unknown>
+          return `- "${stepInfo?.name || id}" (${stepInfo?.type}): ${result.output || 'completed'}
+  Findings: ${JSON.stringify(result.keyFindings || [])}
+  Metrics: ${JSON.stringify(result.metrics || {})}
+  Confidence: ${result.confidence || 'N/A'}
+  Recommendations: ${JSON.stringify(result.recommendations || [])}`
+        })
+        .join('\n\n')
 
       const summaryCompletion = await zai.chat.completions.create({
         messages: [
           { role: 'system', content: SUMMARY_PROMPT },
-          { role: 'user', content: `Pipeline: "${pipeline.name}"\nIntent: "${pipeline.intent}"\n\nStep results:\n${stepsSummary}` },
+          { role: 'user', content: `Pipeline: "${pipeline.name}"\nIntent: "${pipeline.intent}"\nSteps executed: ${Object.keys(allResults).length} of ${steps.length}\n\nDetailed step results:\n${stepsSummary}` },
         ],
         temperature: 0.5,
+        max_tokens: 4096,
       })
 
       const rawSummary = summaryCompletion.choices?.[0]?.message?.content || '{}'
@@ -186,10 +207,11 @@ export async function POST(request: NextRequest) {
       summary = JSON.parse(cleaned)
     } catch {
       summary = {
-        executiveSummary: `Pipeline "${pipeline.name}" completed with ${Object.keys(allResults).length} steps executed.`,
+        executiveSummary: `Pipeline "${pipeline.name}" completed with ${Object.keys(allResults).length} steps executed. ${Object.values(allResults).map(r => (r as Record<string, unknown>)?.output).filter(Boolean).join(' ')}`,
         keyInsights: [],
         recommendations: [],
         riskLevel: 'medium',
+        riskDetails: 'Unable to generate detailed risk assessment',
       }
     }
 
@@ -219,7 +241,7 @@ export async function POST(request: NextRequest) {
         visitorId,
         action: 'automation_run',
         details: JSON.stringify({ action: 'flagship_execute', pipelineId, stepsCompleted: Object.keys(allResults).length }),
-        outputData: JSON.stringify({ steps: Object.keys(allResults).length, insights: (summary.keyInsights as unknown[])?.length || 0 }),
+        outputData: JSON.stringify({ steps: Object.keys(allResults).length, insights: (summary.keyInsights as unknown[])?.length || 0, recommendations: (summary.recommendations as unknown[])?.length || 0 }),
         tokensUsed: totalTokens,
         durationMs,
       },
@@ -233,8 +255,11 @@ export async function POST(request: NextRequest) {
       keyInsights: summary.keyInsights || [],
       recommendations: summary.recommendations || [],
       riskLevel: summary.riskLevel || 'medium',
+      riskDetails: summary.riskDetails || null,
       methodology: summary.methodology,
       limitations: summary.limitations,
+      dataQuality: summary.dataQuality,
+      businessImpact: summary.businessImpact,
       results: allResults,
       durationMs,
       tokensUsed: totalTokens,
