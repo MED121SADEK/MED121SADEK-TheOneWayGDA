@@ -122,7 +122,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code fences):
           ],
         },
       ],
-    })
+    } as any)
 
     const content = completion.choices?.[0]?.message?.content
     if (!content) {

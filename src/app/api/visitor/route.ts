@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       create: { email: normalizedEmail, name: name?.trim() || null, visitorType: validatedType, ipAddress: ip !== 'unknown' ? ip : null, userAgent, path, country, language },
     })
 
-    const isNew = result.createdAt.getTime() === result.updatedAt.getTime()
+    const isNew = result.createdAt.getTime() === result.lastSeen.getTime()
     if (isNew) {
       sendVisitorNotification({ name: name?.trim() || null, email: normalizedEmail, visitorType: validatedType, country, language, ipAddress: ip !== 'unknown' ? ip : null, userAgent, path }).catch(() => {})
     }

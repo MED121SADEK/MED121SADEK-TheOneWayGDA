@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 
 // Lightweight animation variants
-const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.2, ease: 'easeOut' } }
+const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.2, ease: 'easeOut' as const } }
 const fadeIn = { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.15 } }
 
 const SESSION_KEY = 'oneway-visitor-session'

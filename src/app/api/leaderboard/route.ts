@@ -18,26 +18,42 @@ export async function GET(request: Request) {
     const cached = leaderboardCache.get(cacheKey);
     if (cached) return NextResponse.json({ ...cached, fromCache: true });
 
-    // Auto-seed if empty
     if ((await prisma.aiModel.count()) === 0) await seedLeaderboardData();
 
-    const where: any = { isActive: true, BenchmarkScores: { some: { benchmark, version: 'latest' } } };
-    if (provider) where.provider = provider;
-    if (modelType) where.modelType = modelType;
+    // Fetch models with base filter
+    const modelWhere: any = { isActive: true };
+    if (provider) modelWhere.provider = provider;
+    if (modelType) modelWhere.modelType = modelType;
 
-    const models = await prisma.aiModel.findMany({
-      where,
-      include: {
-        BenchmarkScores: { where: { benchmark, version: 'latest' }, select: { score: true, maxScore: true, source: true } },
-        ModelPricing: { where: { isActive: true }, select: { inputPrice: true, outputPrice: true, batchInputPrice: true, batchOutputPrice: true }, take: 1 },
-        LiveMetrics: { where: { status: 'success' }, select: { latencyMs: true, tps: true, testedAt: true }, orderBy: { testedAt: 'desc' }, take: 7 },
-      },
-    });
+    const [models, allBenchmarks, allPricing, allMetrics] = await Promise.all([
+      prisma.aiModel.findMany({ where: modelWhere }),
+      prisma.benchmarkScore.findMany({ where: { benchmark, version: 'latest' } }),
+      prisma.modelPricing.findMany({ where: { isActive: true }, orderBy: { updatedAt: 'desc' } }),
+      prisma.liveMetric.findMany({ where: { status: 'success' }, orderBy: { testedAt: 'desc' } }),
+    ]);
 
-    const leaderboard = models.map(model => {
-      const bm = model.BenchmarkScores[0];
-      const pr = model.ModelPricing[0];
-      const mt = model.LiveMetrics;
+    // Build lookup maps
+    const bmMap: Record<string, any> = {};
+    for (const b of allBenchmarks) {
+      if (!bmMap[b.modelId]) bmMap[b.modelId] = b;
+    }
+    const prMap: Record<string, any> = {};
+    for (const p of allPricing) {
+      if (!prMap[p.modelId]) prMap[p.modelId] = p;
+    }
+    const mtMap: Record<string, any[]> = {};
+    for (const m of allMetrics) {
+      if (!mtMap[m.modelId]) mtMap[m.modelId] = [];
+      if (mtMap[m.modelId].length < 7) mtMap[m.modelId].push(m);
+    }
+
+    // Filter models that have benchmark data for the selected benchmark
+    const modelsWithBenchmarks = models.filter(m => bmMap[m.id]);
+
+    const leaderboard = modelsWithBenchmarks.map(model => {
+      const bm = bmMap[model.id];
+      const pr = prMap[model.id];
+      const mt = mtMap[model.id] || [];
       return {
         id: model.id, name: model.name, provider: model.provider, description: model.description,
         modelType: model.modelType, contextWindow: model.contextWindow, parameters: model.parameters,
@@ -79,7 +95,7 @@ export async function GET(request: Request) {
         currentBenchmark: benchmark, currentProvider: provider, currentModelType: modelType,
       },
       pagination: { page, limit, total: leaderboard.length, totalPages: Math.ceil(leaderboard.length / limit) },
-      meta: { totalModels: await prisma.aiModel.count({ where: { isActive: true } }), lastUpdated: new Date().toISOString() },
+      meta: { totalModels: models.length, lastUpdated: new Date().toISOString() },
     };
 
     leaderboardCache.set(cacheKey, result);

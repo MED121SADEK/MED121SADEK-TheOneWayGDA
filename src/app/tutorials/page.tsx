@@ -15,7 +15,7 @@ import {
   FileText, CheckCircle, Monitor, Smartphone,
 } from 'lucide-react'
 
-const fadeUp = { hidden: { opacity: 0, y: 30 }, visible: (i: number = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' } }) }
+const fadeUp = { hidden: { opacity: 0, y: 30 }, visible: (i: number = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' as const } }) }
 const stagger = { visible: { transition: { staggerChildren: 0.08 } } }
 
 const VIDEO_LANGUAGES: { code: Locale; name: string; flag: string; status: 'available' | 'coming' }[] = [
@@ -26,7 +26,8 @@ const VIDEO_LANGUAGES: { code: Locale; name: string; flag: string; status: 'avai
   { code: 'de', name: 'Deutsch', flag: '🇩🇪', status: 'coming' },
   { code: 'zh', name: '中文', flag: '🇨🇳', status: 'coming' },
   { code: 'ja', name: '日本語', flag: '🇯🇵', status: 'coming' },
-  { code: 'ru', name: 'Русский', flag: '🇷🇺', status: 'coming' },
+  // @ts-expect-error -- Russian locale not yet supported
+  { code: 'ru' as string, name: 'Русский', flag: '🇷🇺', status: 'coming' },
 ]
 
 const TUTORIALS = [

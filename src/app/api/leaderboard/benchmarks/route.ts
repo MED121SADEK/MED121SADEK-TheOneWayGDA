@@ -20,16 +20,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ model, scores });
     }
 
-    const benchmarks = await prisma.benchmarkScore.findMany({
-      where: { version: 'latest' }, include: { AIModel: { select: { name: true, provider: true } } },
-      orderBy: [{ benchmark: 'asc' }, { score: 'desc' }],
-    });
+    const [benchmarks, models] = await Promise.all([
+      prisma.benchmarkScore.findMany({
+        where: { version: 'latest' },
+        orderBy: [{ benchmark: 'asc' }, { score: 'desc' }],
+      }),
+      prisma.aiModel.findMany({ select: { id: true, name: true, provider: true } }),
+    ]);
+
+    const modelMap = Object.fromEntries(models.map(m => [m.id, m]));
 
     const grouped: Record<string, any[]> = {};
     for (const b of benchmarks) {
       if (!grouped[b.benchmark]) grouped[b.benchmark] = [];
+      const model = modelMap[b.modelId];
       grouped[b.benchmark].push({
-        modelId: b.modelId, modelName: b.AIModel.name, provider: b.AIModel.provider,
+        modelId: b.modelId, modelName: model?.name || 'Unknown', provider: model?.provider || 'Unknown',
         score: b.score, maxScore: b.maxScore, normalized: parseFloat(((b.score / b.maxScore) * 100).toFixed(1)), source: b.source,
       });
     }
