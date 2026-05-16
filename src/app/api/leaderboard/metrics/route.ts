@@ -77,7 +77,7 @@ export async function GET(request: Request) {
     const result = { metrics: summary, period: { days, since: since.toISOString() }, lastUpdated: new Date().toISOString() };
     metricsCache.set(cacheKey, result);
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     metricsCache.clear();
     leaderboardCache.clear();
     return NextResponse.json({ success: true, tested: results.length, results });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

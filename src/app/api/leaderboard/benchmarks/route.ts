@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     const result = { benchmarks: summary, meta: { totalBenchmarks: summary.length, lastUpdated: new Date().toISOString() } };
     benchmarkCache.set(cacheKey, result);
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

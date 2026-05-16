@@ -95,9 +95,8 @@ export function EmailGate() {
 
         if (data.status === 'accepted') {
           setVisitorStatus('accepted')
-          setStep('accepted')
-          // Auto-dismiss accepted returning visitors
-          setTimeout(() => { setIsExiting(true); setTimeout(() => setIsGateVisible(false), 200) }, 800)
+          // Instantly dismiss for returning accepted visitors — no flash
+          setIsGateVisible(false)
         } else if (data.status === 'rejected') {
           setVisitorStatus('rejected')
           setStep('rejected')

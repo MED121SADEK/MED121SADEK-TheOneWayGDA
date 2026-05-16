@@ -375,8 +375,9 @@ export async function POST(request: NextRequest) {
         rowsChecked: numCols,
       },
     })
-  } catch (error: any) {
-    console.error('Validate API error:', error.message)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error'
+    console.error('Validate API error:', message)
     return NextResponse.json(
       { error: 'Validation failed. Please check your data format.' },
       { status: 500 }

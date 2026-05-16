@@ -162,8 +162,8 @@ export default function WorkspacePage() {
               <div>
                 <p className="text-sm font-medium mb-2">{t('share.link')}</p>
                 <div className="flex gap-2">
-                  <Input readOnly value={h.shareLink || `https://TheOneWayGDA.app/share/${h.store.currentProject?.id}`} />
-                  <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(`https://TheOneWayGDA.app/share/${h.store.currentProject?.id}`)}>
+                  <Input readOnly value={h.shareLink || `${typeof window !== 'undefined' ? window.location.origin : ''}/workspace`} />
+                  <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(`${typeof window !== 'undefined' ? window.location.origin : ''}/workspace`)}>
                     <Copy className="size-3.5" /> {t('share.copyLink')}
                   </Button>
                 </div>

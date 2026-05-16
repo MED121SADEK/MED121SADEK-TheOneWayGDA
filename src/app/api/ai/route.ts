@@ -27,8 +27,9 @@ Respond in a helpful, concise manner. When performing calculations, show your wo
     })
 
     return NextResponse.json(completion)
-  } catch (error: any) {
-    console.error('AI API error:', error.message)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error'
+    console.error('AI API error:', message)
     return NextResponse.json(
       { error: 'Failed to get AI response' },
       { status: 500 }

@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
     const byType: Record<string, { total: number; pending: number; accepted: number; rejected: number }> = {}
     for (const s of stats) {
       if (!byType[s.visitorType]) byType[s.visitorType] = { total: 0, pending: 0, accepted: 0, rejected: 0 }
-      byType[s.visitorType].total = s.count
-      byType[s.visitorType][s.status as 'pending' | 'accepted' | 'rejected'] = s.count
+      byType[s.visitorType].total = Number(s.count)
+      byType[s.visitorType][s.status as 'pending' | 'accepted' | 'rejected'] = Number(s.count)
     }
 
     return NextResponse.json({ visitors, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }, filters: { status, visitorType, search }, stats: byType })
