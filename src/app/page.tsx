@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -20,30 +20,17 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
-  DialogFooter, DialogDescription,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  Brain, WifiOff, RefreshCw, ScanLine, MessageSquare, Users,
-  Sparkles, Play, Menu, Check, X, BarChart3, ArrowRight,
-  Zap, Star, ChevronRight, Globe, Save, FolderOpen, Share2,
-  Download, Upload, Plus, Trash2, Edit3, Table2, Variable, Terminal,
-  Send, Bot, User, FileText, Copy, ChevronDown, Languages,
-  LayoutDashboard, Settings, LogOut, MoreHorizontal, Database,
-  TrendingUp, PieChart, FileSpreadsheet, ClipboardList, PenLine, ShieldCheck,
-  Mail, ExternalLink,
+  Brain, WifiOff, RefreshCw, ScanLine, Users,
+  Sparkles, Play, Menu, Check, BarChart3, ArrowRight,
+  Zap, Star, ChevronRight, Globe, User, ChevronDown, Database,
+  TrendingUp, ShieldCheck, Mail,
 } from 'lucide-react'
-import { UpdateBanner } from '@/components/update-banner'
 import { LinkedInIcon, InstagramIcon, TikTokIcon } from '@/components/BrandIcons'
 
 /* ─── animation helpers ─── */
@@ -66,285 +53,18 @@ function AnimatedSection({ children, className = '' }: { children: React.ReactNo
   )
 }
 
-/* ─── Statistical Engine ─── */
-function calcStats(values: number[]) {
-  const nums = values.filter(v => typeof v === 'number' && !isNaN(v))
-  if (nums.length === 0) return null
-  const n = nums.length
-  const sum = nums.reduce((a, b) => a + b, 0)
-  const mean = sum / n
-  const sorted = [...nums].sort((a, b) => a - b)
-  const median = n % 2 === 0 ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2 : sorted[Math.floor(n / 2)]
-  const variance = nums.reduce((a, b) => a + (b - mean) ** 2, 0) / (n > 1 ? n - 1 : 1)
-  const stddev = Math.sqrt(variance)
-  const min = sorted[0]
-  const max = sorted[n - 1]
-
-  // Mode
-  const freq: Record<number, number> = {}
-  nums.forEach(v => { freq[v] = (freq[v] || 0) + 1 })
-  const maxFreq = Math.max(...Object.values(freq))
-  const mode = nums.find(v => freq[v] === maxFreq)
-
-  // Skewness
-  const skewness = n > 2 ? (nums.reduce((a, b) => a + ((b - mean) / stddev) ** 3, 0) * n) / ((n - 1) * (n - 2)) : 0
-  // Kurtosis
-  const kurtosis = n > 3 ? (nums.reduce((a, b) => a + ((b - mean) / stddev) ** 4, 0) * n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3)) - 3 * (n - 1) ** 2 / ((n - 2) * (n - 3)) : 0
-
-  // Percentiles
-  const p25 = sorted[Math.floor(n * 0.25)]
-  const p50 = sorted[Math.floor(n * 0.5)]
-  const p75 = sorted[Math.floor(n * 0.75)]
-
-  return { n, sum, mean, median, mode, variance, stddev, min, max, range: max - min, skewness, kurtosis, p25, p50, p75 }
-}
-
-function calcCorrelation(x: number[], y: number[]): { r: number; n: number } | null {
-  const pairs: [number, number][] = []
-  for (let i = 0; i < Math.min(x.length, y.length); i++) {
-    if (typeof x[i] === 'number' && typeof y[i] === 'number' && !isNaN(x[i]) && !isNaN(y[i])) {
-      pairs.push([x[i], y[i]])
-    }
-  }
-  if (pairs.length < 3) return null
-  const n = pairs.length
-  const mx = pairs.reduce((a, p) => a + p[0], 0) / n
-  const my = pairs.reduce((a, p) => a + p[1], 0) / n
-  let num = 0, dx = 0, dy = 0
-  for (const [px, py] of pairs) {
-    num += (px - mx) * (py - my)
-    dx += (px - mx) ** 2
-    dy += (py - my) ** 2
-  }
-  const r = dx === 0 || dy === 0 ? 0 : num / Math.sqrt(dx * dy)
-  return { r, n }
-}
-
-function calcRegression(x: number[], y: number[]): { slope: number; intercept: number; r2: number; n: number } | null {
-  const pairs: [number, number][] = []
-  for (let i = 0; i < Math.min(x.length, y.length); i++) {
-    if (typeof x[i] === 'number' && typeof y[i] === 'number' && !isNaN(x[i]) && !isNaN(y[i])) {
-      pairs.push([x[i], y[i]])
-    }
-  }
-  if (pairs.length < 3) return null
-  const n = pairs.length
-  const mx = pairs.reduce((a, p) => a + p[0], 0) / n
-  const my = pairs.reduce((a, p) => a + p[1], 0) / n
-  let num = 0, den = 0
-  for (const [px, py] of pairs) {
-    num += (px - mx) * (py - my)
-    den += (px - mx) ** 2
-  }
-  if (den === 0) return null
-  const slope = num / den
-  const intercept = my - slope * mx
-  const ssRes = pairs.reduce((a, [px, py]) => a + (py - (slope * px + intercept)) ** 2, 0)
-  const ssTot = pairs.reduce((a, [, py]) => a + (py - my) ** 2, 0)
-  const r2 = ssTot === 0 ? 0 : 1 - ssRes / ssTot
-  return { slope, intercept, r2, n }
-}
-
 /* ─── MAIN PAGE ─── */
 export default function Home() {
   const { t, locale, setLocale, dir } = useTranslation()
   const store = useAppStore()
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [chatInput, setChatInput] = useState('')
-  const [newProjectName, setNewProjectName] = useState('')
-  const [shareDialogOpen, setShareDialogOpen] = useState(false)
-  const [shareEmail, setShareEmail] = useState('')
-  const [shareLink, setShareLink] = useState('')
-  const [importDialogOpen, setImportDialogOpen] = useState(false)
-  const [importText, setImportText] = useState('')
-  const [newVarDialogOpen, setNewVarDialogOpen] = useState(false)
-  const [newVarName, setNewVarName] = useState('')
-  const [newVarType, setNewVarType] = useState<'numeric' | 'string' | 'date' | 'currency'>('numeric')
-  const chatEndRef = useRef<HTMLDivElement>(null)
-  // Scan & Fill state
-  const [scanDialogOpen, setScanDialogOpen] = useState(false)
-  const [cleanDialogOpen, setCleanDialogOpen] = useState(false)
-  const [validateDialogOpen, setValidateDialogOpen] = useState(false)
-  const [scanFile, setScanFile] = useState<File | null>(null)
-  const [scanPreview, setScanPreview] = useState<string | null>(null)
-  const [editedFields, setEditedFields] = useState<Record<string, string>>({})
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const batchInputRef = useRef<HTMLInputElement>(null)
 
   const scrollTo = (href: string) => {
     setMobileOpen(false)
     const el = document.querySelector(href)
     if (el) el.scrollIntoView({ behavior: 'smooth' })
   }
-
-  const handleNewProject = () => {
-    if (!newProjectName.trim()) return
-    store.createProject(newProjectName.trim())
-    setNewProjectName('')
-  }
-
-  const handleImportCSV = () => {
-    if (!importText.trim()) return
-    store.importCSV(importText.trim())
-    setImportDialogOpen(false)
-    setImportText('')
-  }
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string
-      store.importCSV(text)
-      setImportDialogOpen(false)
-    }
-    reader.readAsText(file)
-  }
-
-  const handleMobileWorkspace = () => {
-    store.setView('workspace')
-    setMobileOpen(false)
-  }
-
-  const handleExportCSV = () => {
-    const csv = store.exportCSV()
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${store.currentProject?.name || 'data'}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const handleAddVariable = () => {
-    if (!newVarName.trim()) return
-    store.addVariable({
-      id: Date.now().toString(36),
-      name: newVarName.trim(),
-      type: newVarType,
-      label: newVarName.trim(),
-      width: 8,
-      decimals: newVarType === 'numeric' ? 2 : 0,
-      missing: '',
-      values: {},
-    })
-    setNewVarName('')
-    setNewVarDialogOpen(false)
-  }
-
-  const handleRunDescriptive = () => {
-    const results: any[] = []
-    for (const varName of store.selectedVariables) {
-      const vals = (store.data[varName] || []).map(v => typeof v === 'string' ? parseFloat(v) : v)
-      const stats = calcStats(vals as number[])
-      if (stats) results.push({ variable: varName, ...stats })
-    }
-    if (results.length === 0) return
-    store.addOutput({
-      id: Date.now().toString(36),
-      title: t('analysis.descriptive'),
-      type: 'table',
-      content: { headers: ['Variable', 'N', 'Mean', 'Median', 'Std Dev', 'Min', 'Max', 'Sum'], rows: results.map(r => [r.variable, r.n, r.mean?.toFixed(3), r.median, r.stddev?.toFixed(3), r.min, r.max, r.sum?.toFixed(2)]) },
-      timestamp: new Date().toISOString(),
-    })
-    store.setWorkspaceTab('output')
-  }
-
-  const handleRunCorrelation = () => {
-    if (store.selectedVariables.length < 2) return
-    const vars = store.selectedVariables.slice(0, 5)
-    const matrix: string[][] = [vars]
-    for (const v1 of vars) {
-      const row: string[] = [v1]
-      for (const v2 of vars) {
-        if (v1 === v2) { row.push('1.000'); continue }
-        const x = (store.data[v1] || []).map(v => typeof v === 'string' ? parseFloat(v) : v) as number[]
-        const y = (store.data[v2] || []).map(v => typeof v === 'string' ? parseFloat(v) : v) as number[]
-        const result = calcCorrelation(x, y)
-        row.push(result?.r.toFixed(3) ?? 'N/A')
-      }
-      matrix.push(row)
-    }
-    store.addOutput({
-      id: Date.now().toString(36),
-      title: t('analysis.correlation'),
-      type: 'table',
-      content: { headers: [''] , rows: matrix },
-      timestamp: new Date().toISOString(),
-    })
-    store.setWorkspaceTab('output')
-  }
-
-  const handleRunRegression = () => {
-    if (store.selectedVariables.length < 2) return
-    const dv = store.selectedVariables[0]
-    const iv = store.selectedVariables[1]
-    const x = (store.data[iv] || []).map(v => typeof v === 'string' ? parseFloat(v) : v) as number[]
-    const y = (store.data[dv] || []).map(v => typeof v === 'string' ? parseFloat(v) : v) as number[]
-    const reg = calcRegression(x, y)
-    const corr = calcCorrelation(x, y)
-    if (!reg || !corr) return
-    store.addOutput({
-      id: Date.now().toString(36),
-      title: t('analysis.regression') + ` (${dv} ~ ${iv})`,
-      type: 'table',
-      content: {
-        headers: ['Statistic', 'Value'],
-        rows: [
-          ['Intercept', reg.intercept.toFixed(4)],
-          ['Slope', reg.slope.toFixed(4)],
-          ['R', corr.r.toFixed(4)],
-          ['R²', reg.r2.toFixed(4)],
-          ['N', String(reg.n)],
-          ['Equation', `${dv} = ${reg.intercept.toFixed(2)} + ${reg.slope.toFixed(2)} × ${iv}`],
-        ],
-      },
-      timestamp: new Date().toISOString(),
-    })
-    store.addOutput({
-      id: (Date.now() + 1).toString(36),
-      title: `Scatter Plot (${dv} vs ${iv})`,
-      type: 'chart',
-      content: { dv, iv, x: x.slice(0, 50), y: y.slice(0, 50), slope: reg.slope, intercept: reg.intercept },
-      timestamp: new Date().toISOString(),
-    })
-    store.setWorkspaceTab('output')
-  }
-
-  const handleSendChat = async () => {
-    if (!chatInput.trim()) return
-    const userMsg = { id: Date.now().toString(36), role: 'user' as const, content: chatInput.trim(), timestamp: new Date().toISOString() }
-    store.addChatMessage(userMsg)
-    setChatInput('')
-    store.setAiTyping(true)
-
-    try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...store.chatMessages, userMsg].map(m => ({ role: m.role, content: m.content })),
-          data: store.data,
-          variables: store.variables,
-        }),
-      })
-      const data = await res.json()
-      const aiContent = data.choices?.[0]?.message?.content || 'Sorry, I could not process your request.'
-      store.addChatMessage({ id: (Date.now() + 1).toString(36), role: 'ai', content: aiContent, timestamp: new Date().toISOString() })
-    } catch {
-      store.addChatMessage({ id: (Date.now() + 1).toString(36), role: 'ai', content: 'Network error. Please try again.', timestamp: new Date().toISOString() })
-    }
-    store.setAiTyping(false)
-  }
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [store.chatMessages, store.isAiTyping])
-
-  const rowCount = store.variables.length > 0 ? Math.max(0, ...Object.values(store.data).map(a => a.length)) : 0
 
   // ─── Data for landing page ───
   const features = [
@@ -375,6 +95,12 @@ export default function Home() {
     { name: t('plan.free'), price: '$0', period: t('plan.month'), desc: t('plan.freeDesc'), features: [t('planFeature.datasets'), t('planFeature.basicAI'), t('planFeature.offline'), t('planFeature.basicImport'), t('planFeature.community')], cta: t('plan.cta'), highlighted: false },
     { name: t('plan.pro'), price: '$19', period: t('plan.month'), desc: t('plan.proDesc'), features: [t('planFeature.unlimited'), t('planFeature.advancedAI'), t('planFeature.ocr'), t('planFeature.exportFormats'), t('planFeature.priority'), t('planFeature.realtime')], cta: t('plan.cta'), highlighted: true },
     { name: t('plan.enterprise'), price: 'Custom', period: '', desc: t('plan.enterpriseDesc'), features: [t('planFeature.customAI'), t('planFeature.onpremise'), t('planFeature.api'), t('planFeature.dedicated'), t('planFeature.sla'), t('planFeature.team')], cta: t('plan.contactSales'), highlighted: false },
+  ]
+
+  const footerColumns = [
+    { title: t('footer.product'), links: [{ label: t('nav.features'), href: '#features' }, { label: t('nav.pricing'), href: '#pricing' }, { label: t('nav.workspace'), href: '/workspace' }] },
+    { title: t('footer.resources'), links: [{ label: t('footer.documentation'), href: '/tutorials' }, { label: t('footer.api'), href: '/leaderboard' }, { label: t('nav.community') || 'Community', href: '/community' }] },
+    { title: t('footer.company'), links: [{ label: t('footer.about'), href: '/about' }, { label: t('footer.blog'), href: '/updates' }, { label: t('footer.contact'), href: '/company' }] },
   ]
 
   /* ─── WORKSPACE VIEW → redirect to /workspace route ─── */
@@ -500,7 +226,7 @@ export default function Home() {
             </motion.div>
             {/* Trust bar */}
             <motion.div variants={fadeUp} custom={5} className="relative z-10 mt-12">
-              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest mb-4">Trusted by researchers worldwide</p>
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest mb-4">{t('hero.trustedBy')}</p>
               <div className="flex items-center justify-center gap-8 sm:gap-12 opacity-30">
                 {[Brain, BarChart3, Globe, Database, TrendingUp].map((Icon, idx) => (
                   <Icon key={idx} className="size-6 sm:size-7" />
@@ -567,7 +293,7 @@ export default function Home() {
                     <TableHeader>
                       <TableRow className="hover:bg-transparent border-b-border">
                         <TableHead className="text-base font-semibold pl-6 py-4 w-2/5">{t('comparison.feature')}</TableHead>
-                        <TableHead className="text-base font-semibold py-4 text-center"><span className="gradient-text-premium font-bold">{t('comparison.theway')}</span> <Badge variant="outline" className="ml-1.5 px-1.5 py-0 text-[10px] rounded-full border-emerald-500/30 bg-emerald-500/5 text-emerald-400">Recommended</Badge></TableHead>
+                        <TableHead className="text-base font-semibold py-4 text-center"><span className="gradient-text-premium font-bold">{t('comparison.theway')}</span> <Badge variant="outline" className="ml-1.5 px-1.5 py-0 text-[10px] rounded-full border-emerald-500/30 bg-emerald-500/5 text-emerald-400">{t('comparison.recommended')}</Badge></TableHead>
                         <TableHead className="text-base font-semibold py-4 text-center text-muted-foreground">{t('comparison.spss')}</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -701,11 +427,11 @@ export default function Home() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-chart-3/8 to-chart-2/5" />
         <div className="absolute inset-0 dot-pattern opacity-30" />
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">Ready to <span className="gradient-text-premium">transform</span> your research?</motion.h2>
-          <motion.p variants={fadeUp} custom={1} className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto">Join thousands of researchers who have already made the switch to smarter, faster data analysis.</motion.p>
+          <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">{t('cta.title1')} <span className="gradient-text-premium">{t('cta.titleHighlight')}</span> {t('cta.title2')}</motion.h2>
+          <motion.p variants={fadeUp} custom={1} className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto">{t('cta.subtitle')}</motion.p>
           <motion.div variants={fadeUp} custom={2} className="flex flex-col sm:flex-row gap-4 mt-8 justify-center">
-            <Button size="lg" className="btn-glow rounded-full px-8 text-base h-12 font-semibold" onClick={() => store.setView('workspace')}>Get Started Free <ArrowRight className="size-4" /></Button>
-            <Button variant="outline" size="lg" className="rounded-full px-8 text-base h-12" onClick={() => scrollTo('#pricing')}>View Pricing</Button>
+            <Button size="lg" className="btn-glow rounded-full px-8 text-base h-12 font-semibold" onClick={() => store.setView('workspace')}>{t('cta.getStarted')} <ArrowRight className="size-4" /></Button>
+            <Button variant="outline" size="lg" className="rounded-full px-8 text-base h-12" onClick={() => scrollTo('#pricing')}>{t('cta.viewPricing')}</Button>
           </motion.div>
         </div>
       </section>
@@ -718,17 +444,25 @@ export default function Home() {
               <div className="flex items-center gap-2 mb-4"><Image src="/images/logo.png" alt="TheOneWayGDA" width={32} height={32} className="rounded-lg" /><span className="text-lg font-bold gradient-text-premium">{t('brand.name')}</span></div>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mt-3">{t('footer.desc')}</p>
             </div>
-            {[{ title: t('footer.product'), links: [t('nav.features'), t('nav.pricing')] }, { title: t('footer.resources'), links: ['Documentation', 'API', 'Community'] }, { title: t('footer.company'), links: [t('footer.about'), t('footer.blog'), t('footer.contact')] }].map(col => (
+            {footerColumns.map(col => (
               <div key={col.title}>
                 <h4 className="font-semibold text-sm mb-4">{col.title}</h4>
-                <ul className="space-y-2.5">{col.links.map(l => <li key={l}><button className="text-sm text-muted-foreground hover:text-foreground transition-colors">{l}</button></li>)}</ul>
+                <ul className="space-y-2.5">{col.links.map(l => (
+                  <li key={l.href}>
+                    {l.href.startsWith('/') ? (
+                      <Link href={l.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">{l.label}</Link>
+                    ) : (
+                      <button onClick={() => scrollTo(l.href)} className="text-sm text-muted-foreground hover:text-foreground transition-colors">{l.label}</button>
+                    )}
+                  </li>
+                ))}</ul>
               </div>
             ))}
           </div>
           <div className="mt-8 pt-8 border-t border-border/50 flex flex-col items-center gap-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="size-4 text-emerald-500" />
-              <span className="text-xs text-muted-foreground">GDPR · SOC 2 · ISO 27001 · HIPAA Compliant</span>
+              <span className="text-xs text-muted-foreground">{t('footer.compliance')}</span>
             </div>
             <div className="flex items-center gap-3 mt-3">
               <a href="mailto:msad41855@gmail.com" className="size-9 rounded-lg border border-border/50 bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/30 transition-all">
