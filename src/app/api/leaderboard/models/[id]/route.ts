@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const model = await prisma.aIModel.findUnique({
+    const model = await prisma.aiModel.findUnique({
       where: { id },
       include: {
         BenchmarkScores: { where: { version: 'latest' }, orderBy: { score: 'desc' } },

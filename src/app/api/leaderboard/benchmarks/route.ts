@@ -12,11 +12,11 @@ export async function GET(request: Request) {
     const cached = benchmarkCache.get(cacheKey);
     if (cached) return NextResponse.json({ ...cached, fromCache: true });
 
-    if ((await prisma.aIModel.count()) === 0) await seedLeaderboardData();
+    if ((await prisma.aiModel.count()) === 0) await seedLeaderboardData();
 
     if (modelId) {
       const scores = await prisma.benchmarkScore.findMany({ where: { modelId, version: 'latest' }, orderBy: { score: 'desc' } });
-      const model = await prisma.aIModel.findUnique({ where: { id: modelId } });
+      const model = await prisma.aiModel.findUnique({ where: { id: modelId } });
       return NextResponse.json({ model, scores });
     }
 
