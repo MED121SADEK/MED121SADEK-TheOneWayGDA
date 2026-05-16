@@ -191,3 +191,28 @@ Stage Summary:
 - News auto-fetched on page visit + daily cron + 30min auto-refresh
 - Company matching automatically tags news with relevant companies
 - Production URL: https://theonewaygda.vercel.app/updates
+---
+Task ID: 3
+Agent: Main Agent
+Task: Upgrade AI News Hub — expand companies DB, enhance search queries, improve API, redesign page
+
+Work Log:
+- Expanded AI companies database from 40 to 90+ companies across 9 countries (USA, China, India, Japan, South Korea, Singapore, UAE, Indonesia, France/Germany)
+- Added new company categories: AI Agent, AI Assistant, AI Content, AI Developer Tools
+- Upgraded NEWS_SEARCH_QUERIES from 24 to 50+ queries covering: foundation models (12), AI agents/assistants (10), developer tools (8), video/image/audio (6), Asian AI (8), enterprise/policy (6)
+- Enhanced news API with: category tagging (14 categories), improved relevance scoring (3-tier weighting), increased fetch to 16 queries per request, 50 results max
+- Added categorizeNews() function to auto-classify news items
+- Upgraded cron job to run 3x daily (8AM, 4PM, 12AM UTC) with shift-based query selection and 50-query comprehensive coverage
+- Expanded DB retention from 500 to 1000 news items
+- Redesigned AI News Hub page with: Trending section (top 10 by relevance), All/Trending view toggle, category filter chips, country breakdown badges, enhanced company grid with category grouping, Hot badges for high-relevance items
+- Added 50+ source queries stat to stats bar
+- Reduced auto-refresh interval from 30min to 20min
+- Fixed Image import conflict between next/image and lucide-react
+
+Stage Summary:
+- 90+ AI companies tracked (up from 40) covering USA, China, India, Japan, South Korea, Singapore, UAE, Indonesia, Europe
+- 50+ smart search queries (up from 24) for comprehensive daily coverage
+- 3x daily auto-publishing via Vercel Cron (up from 1x)
+- News API now returns category tags, improved relevance scoring, and up to 50 results
+- Redesigned News Hub with trending section, category filters, and country breakdown
+- Build verified: all pages compile successfully

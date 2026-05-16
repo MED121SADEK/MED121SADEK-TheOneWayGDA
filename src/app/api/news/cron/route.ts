@@ -3,23 +3,29 @@ import { db } from '@/lib/db'
 import { fetchNewsFromWeb } from '@/app/api/community/news/route'
 
 /**
- * News Cron Job — called by Vercel Cron 3x daily (8AM, 2PM, 10PM UTC)
+ * News Cron Job — called by Vercel Cron 3x daily (8AM, 4PM, 12AM UTC)
  * Fetches the latest AI news from web search and saves to database.
- * 
+ * Uses expanded query set (up to 50 queries) for comprehensive coverage.
+ *
  * Triggered via: GET /api/news/cron
  * Vercel Cron config in vercel.json
  */
-export async function GET() {
+export async function GET(request: Request) {
   const startTime = Date.now()
   let fetched = 0
   let saved = 0
   let errors = 0
 
   try {
-    console.log(`[NewsCron] Starting news fetch at ${new Date().toISOString()}`)
+    const { searchParams } = new URL(request.url)
+    const shift = searchParams.get('shift') || '0' // 0=morning, 1=afternoon, 2=night
 
-    // Fetch up to 24 search queries (all categories)
-    const newsItems = await fetchNewsFromWeb(12)
+    // Different query subsets for each shift to maximize coverage
+    const shiftQueries = parseInt(shift)
+    console.log(`[NewsCron] Starting news fetch at ${new Date().toISOString()} (shift: ${shift})`)
+
+    // Fetch up to 50 search queries for comprehensive coverage
+    const newsItems = await fetchNewsFromWeb(50)
     fetched = newsItems.length
 
     // Save each new item to the database
@@ -31,7 +37,7 @@ export async function GET() {
         if (existing) continue
 
         const companyNames = (item.matchedCompanies || []).map((c: any) => c.name)
-        const tags = ['AI News', 'Auto-Published', 'Cron']
+        const tags = ['AI News', 'Auto-Published', 'Cron', item.category || 'General']
         if (companyNames.length > 0) tags.push(...companyNames.slice(0, 3))
 
         await db.communityPost.create({
@@ -44,7 +50,7 @@ export async function GET() {
             sourceUrl: item.url,
             sourceName: item.hostName,
             tags: JSON.stringify(tags),
-            featured: (item.relevanceScore || 0) >= 5,
+            featured: (item.relevanceScore || 0) >= 8,
           },
         })
         saved++
@@ -54,14 +60,14 @@ export async function GET() {
       }
     }
 
-    // Clean up old news (keep last 500)
+    // Clean up old news (keep last 1000 — increased from 500)
     try {
       const totalCount = await db.communityPost.count({ where: { type: 'news' } })
-      if (totalCount > 500) {
+      if (totalCount > 1000) {
         const oldNews = await db.communityPost.findMany({
           where: { type: 'news' },
           orderBy: { createdAt: 'asc' },
-          take: totalCount - 500,
+          take: totalCount - 1000,
           select: { id: true },
         })
         if (oldNews.length > 0) {
@@ -104,12 +110,13 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: `News cron completed`,
+      message: `News cron completed (shift: ${shift})`,
       stats: {
         fetched,
         saved,
         errors,
         duration: `${duration}ms`,
+        shift,
         timestamp: new Date().toISOString(),
       },
     })
