@@ -169,3 +169,25 @@ Stage Summary:
 - All 3 back-button bugs fixed and deployed
 - Production URL: https://theonewaygda.vercel.app
 - Build: Clean, 34+ pages, all routes working
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Build AI News Hub with auto-publishing, company database, and cron job
+
+Work Log:
+- Created AI Companies database: 60+ companies from USA, China, Japan, Korea, Singapore, UAE, UK, Germany
+- Organized by category: Foundation Models, AI Infrastructure, AI Platform, AI Agents, AI Video, AI Audio, etc.
+- Enhanced /api/community/news with 20+ smart search queries, relevance scoring, company matching, auto-DB-save
+- Created /api/news/cron endpoint for scheduled news fetching (auto-cleans old news beyond 500)
+- Completely revamped /updates page with 3 tabs: AI News Hub (default), Changelog, Modules
+- AI News Hub features: live news feed, search, company/region filter, auto-refresh every 30min, manual refresh, stats bar, company spotlight grid
+- Added Vercel cron job for daily news fetch at 8AM UTC
+- Build verified clean (0 errors), deployed to production
+
+Stage Summary:
+- 60+ AI companies tracked across 8+ countries
+- 20+ smart search queries covering foundation models, agents, video, enterprise, Asian AI
+- News auto-fetched on page visit + daily cron + 30min auto-refresh
+- Company matching automatically tags news with relevant companies
+- Production URL: https://theonewaygda.vercel.app/updates
