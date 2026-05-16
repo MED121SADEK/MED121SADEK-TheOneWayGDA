@@ -90,3 +90,22 @@ Stage Summary:
 - Returning visitors now get instant access (0ms gate rendering)
 - DB operations halved (2 queries → 1)
 - Build passes with 0 errors, 24 pages, 6 API routes
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Add PWA support for App Store / Play Store readiness
+
+Work Log:
+- Generated app icon via z-ai-generate (1024x1024) and resized to 10 sizes: 72, 96, 128, 144, 152, 192, 384, 512, apple-touch-icon (180), favicons (16, 32)
+- Created /public/manifest.json with: name, short_name, standalone display, theme_color #0ea5e9, background_color #09090b, 8 icons, 3 shortcuts (Workspace, Community, Modules)
+- Created /public/sw.js service worker (91 lines): cache-first for static assets, network-first for pages, offline fallback, 30-min auto-update
+- Created /src/components/ServiceWorkerRegistrar.tsx — client component that registers sw.js on mount
+- Updated /src/app/layout.tsx: added manifest link, apple-touch-icon, mobile-web-app-capable, apple-mobile-web-app-capable, theme-color, msapplication tiles
+- Created /.well-known/assetlinks.json for TWA verification (placeholder SHA256 fingerprint)
+- Updated robots.txt with sitemap reference
+
+Stage Summary:
+- PWA prerequisites complete: manifest.json, service worker, all icon sizes, iOS meta tags
+- Build passes with 0 errors
+- Ready for: browser install prompt, PWABuilder packaging, Play Store TWA, App Store via Capacitor
