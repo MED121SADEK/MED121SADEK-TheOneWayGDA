@@ -92,3 +92,17 @@ model PostInteraction {
   @@index([postId])
   @@index([visitorId])
 }
+
+model Visitor {
+  id        String   @id @default(cuid())
+  email     String
+  name      String?
+  ipAddress String?
+  userAgent String?
+  path      String?
+  createdAt DateTime @default(now())
+  lastSeen  DateTime @updatedAt
+
+  @@index([email])
+  @@index([createdAt])
+}
