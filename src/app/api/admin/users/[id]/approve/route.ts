@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getTokenFromRequest } from '@/lib/auth'
+import { sendUserApprovalEmail } from '@/lib/email'
 
 // POST /api/admin/users/[id]/approve — Approve a pending user
 export async function POST(
@@ -59,10 +60,13 @@ export async function POST(
 
     const { password: _pw, ...safeUser } = updatedUser
 
+    // Send approval email to the user
+    sendUserApprovalEmail(user.email, user.name).catch(() => {})
+
     return NextResponse.json({
       success: true,
       user: safeUser,
-      message: `${user.name || user.email} has been approved and can now access the platform.`,
+      message: `${user.name || user.email} has been approved. A welcome email has been sent to them.`,
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to approve user'

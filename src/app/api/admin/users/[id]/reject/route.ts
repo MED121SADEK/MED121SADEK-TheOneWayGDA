@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getTokenFromRequest } from '@/lib/auth'
+import { sendUserRejectionEmail } from '@/lib/email'
 
 // POST /api/admin/users/[id]/reject — Reject a pending user
 export async function POST(
@@ -53,10 +54,13 @@ export async function POST(
       },
     })
 
+    // Send rejection email to the user
+    sendUserRejectionEmail(user.email, user.name).catch(() => {})
+
     return NextResponse.json({
       success: true,
       user: { id: updatedUser.id, email: updatedUser.email, name: updatedUser.name },
-      message: `${user.name || user.email} has been rejected.`,
+      message: `${user.name || user.email} has been rejected. A notification has been sent to them.`,
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to reject user'
