@@ -39,13 +39,13 @@ export default function AboutPage() {
   ]
 
   return (
-    <div className="min-h-screen" dir={dir}>
+    <div className="min-h-screen noise-overlay" dir={dir}>
       {/* Nav */}
-      <nav className="sticky top-0 z-50 glass-card">
+      <nav className="sticky top-0 z-50 nav-premium">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16">
           <Link href="/" className="flex items-center gap-2">
             <Image src="/images/logo.png" alt="TheOneWayGDA" width={32} height={32} className="rounded" />
-            <span className="text-lg font-bold gradient-text">{t('brand.name')}</span>
+            <span className="text-lg font-bold gradient-text-premium">{t('brand.name')}</span>
           </Link>
           <Link href="/"><Button variant="ghost" size="sm"><ArrowLeft className="size-4" /></Button></Link>
         </div>
@@ -59,11 +59,11 @@ export default function AboutPage() {
               <Badge variant="outline" className="px-4 py-1.5 rounded-full border-primary/30 bg-primary/5 mb-6"><Building2 className="size-3.5 text-primary" />{t('about.title')}</Badge>
             </motion.div>
             <motion.h1 variants={fadeUp} custom={1} className="text-4xl md:text-5xl font-extrabold tracking-tight">
-              <span className="gradient-text">{t('about.title')}</span>
+              <span className="gradient-text-premium">{t('about.title')}</span>
             </motion.h1>
             <motion.p variants={fadeUp} custom={2} className="mt-4 text-lg text-muted-foreground max-w-3xl mx-auto leading-relaxed">{t('about.mission')}</motion.p>
             <motion.div variants={fadeUp} custom={3} className="mt-8">
-              <Card className="inline-block border-primary/20 bg-card/50 backdrop-blur-sm">
+              <Card className="card-premium inline-block border-primary/20 bg-card/50 backdrop-blur-sm">
                 <CardContent className="p-6 text-left max-w-2xl mx-auto">
                   <p className="text-sm font-semibold text-primary mb-2">{t('about.vision')}</p>
                   <p className="text-sm text-muted-foreground leading-relaxed italic">&quot;{t('about.vision')}&quot;</p>
@@ -81,7 +81,7 @@ export default function AboutPage() {
             {stats.map((s, i) => (
               <motion.div key={i} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={i} className="text-center">
                 <div className="flex justify-center mb-3"><div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center"><s.icon className="size-7 text-primary" /></div></div>
-                <p className="text-3xl font-bold">{s.value}</p>
+                <p className="text-3xl font-bold stat-animate">{s.value}</p>
               </motion.div>
             ))}
           </div>
@@ -89,14 +89,14 @@ export default function AboutPage() {
       </section>
 
       {/* Values */}
-      <section className="py-20 md:py-28">
+      <section className="py-20 md:py-28 grid-pattern">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}>
             <motion.h2 variants={fadeUp} className="text-3xl md:text-4xl font-extrabold text-center mb-12">{t('about.values')}</motion.h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {values.map((v, i) => (
                 <motion.div key={i} variants={fadeUp} custom={i}>
-                  <Card className="h-full hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
+                  <Card className="card-premium h-full hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
                     <CardHeader>
                       <div className={`size-12 rounded-xl ${v.color} flex items-center justify-center mb-2`}><v.icon className="size-6" /></div>
                       <CardTitle className="text-lg">{v.title}</CardTitle>
@@ -119,10 +119,10 @@ export default function AboutPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {team.map((m, i) => (
                 <motion.div key={i} variants={fadeUp} custom={i + 2}>
-                  <Card className="hover:border-primary/30 transition-all duration-300">
+                  <Card className="card-premium hover:border-primary/30 transition-all duration-300">
                     <CardContent className="p-6 flex flex-col items-center text-center">
                       <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center mb-4">
-                        <span className="text-2xl font-bold gradient-text">{m.name.split(' ').map(n => n[0]).join('')}</span>
+                        <span className="text-2xl font-bold gradient-text-premium">{m.name.split(' ').map(n => n[0]).join('')}</span>
                       </div>
                       <h3 className="font-semibold text-base">{m.name}</h3>
                       <p className="text-xs text-primary mt-1">{m.role}</p>
@@ -141,7 +141,7 @@ export default function AboutPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}>
             <motion.div variants={fadeUp}>
-              <Card className="border-primary/20 bg-card/50 backdrop-blur-sm">
+              <Card className="card-premium border-primary/20 bg-card/50 backdrop-blur-sm">
                 <CardContent className="p-8 text-center">
                   <Building2 className="size-10 text-primary mx-auto mb-4" />
                   <p className="text-lg font-semibold">{t('about.founded')}</p>
@@ -154,7 +154,7 @@ export default function AboutPage() {
               <p className="text-center text-muted-foreground mb-8">{t('about.partnershipsDesc')}</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {['MIT', 'Stanford', 'Oxford', 'ETH Zurich', 'Tokyo U.', 'Sorbonne', 'Tsinghua', 'IIT Bombay'].map((u, i) => (
-                  <div key={i} className="glass-card rounded-lg p-4 text-center">
+                  <div key={i} className="card-premium glass-card rounded-lg p-4 text-center">
                     <GraduationCap className="size-5 mx-auto mb-2 text-primary/60" />
                     <p className="text-xs font-medium">{u}</p>
                   </div>

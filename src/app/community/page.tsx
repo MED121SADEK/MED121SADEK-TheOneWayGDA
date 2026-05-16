@@ -389,16 +389,16 @@ export default function CommunityPage() {
 
   /* ─── RENDER ─── */
   return (
-    <div className="min-h-screen flex flex-col" dir={dir}>
+    <div className="min-h-screen flex flex-col mesh-gradient noise-overlay" dir={dir}>
       {/* NAV */}
-      <nav className="sticky top-0 z-50 glass-card border-b border-border/50">
+      <nav className="sticky top-0 z-50 nav-premium">
         <div className="max-w-5xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14 gap-3">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft className="size-4" />
             </Link>
             <Image src="/images/logo.png" alt="TheOneWayGDA" width={28} height={28} className="rounded-lg" />
-            <span className="text-lg font-bold gradient-text">{t('community.navTitle') || 'AI News & Community'}</span>
+            <span className="text-lg font-bold gradient-text-premium">{t('community.navTitle') || 'AI News & Community'}</span>
           </div>
           <div className="flex items-center gap-2">
             <Button

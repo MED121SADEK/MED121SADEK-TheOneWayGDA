@@ -71,13 +71,13 @@ export default function CompanyPage() {
   const PRESS_BADGES = ['Featured', 'Research', 'Innovation', 'International']
 
   return (
-    <div className="min-h-screen" dir={dir}>
+    <div className="min-h-screen noise-overlay mesh-gradient" dir={dir}>
       {/* Nav */}
-      <nav className="sticky top-0 z-50 glass-card">
+      <nav className="sticky top-0 z-50 nav-premium">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16">
           <Link href="/" className="flex items-center gap-2">
             <Image src="/images/logo.png" alt="TheOneWayGDA" width={32} height={32} className="rounded" />
-            <span className="text-lg font-bold gradient-text">{t('brand.name')}</span>
+            <span className="text-lg font-bold gradient-text-premium">{t('brand.name')}</span>
           </Link>
           <Link href="/"><Button variant="ghost" size="sm"><ArrowLeft className="size-4" /></Button></Link>
         </div>
@@ -93,7 +93,7 @@ export default function CompanyPage() {
               </Badge>
             </motion.div>
             <motion.h1 variants={fadeUp} custom={1} className="text-4xl md:text-6xl font-extrabold tracking-tight">
-              <span className="gradient-text">{t('company.title')}</span>
+              <span className="gradient-text-premium">{t('company.title')}</span>
             </motion.h1>
             <motion.p variants={fadeUp} custom={2} className="mt-4 text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
               {t('company.tagline')}
@@ -104,7 +104,7 @@ export default function CompanyPage() {
                 { icon: GraduationCap, value: '500+', label: t('about.universities') },
                 { icon: Globe, value: '80+', label: t('about.countries') },
               ].map((s, i) => (
-                <Card key={i} className="glass-card border-primary/20 px-6 py-4">
+                <Card key={i} className="card-premium glass-card border-primary/20 px-6 py-4">
                   <CardContent className="p-0 flex items-center gap-3">
                     <s.icon className="size-5 text-primary" />
                     <div className="text-left">
@@ -124,7 +124,7 @@ export default function CompanyPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <motion.div variants={fadeUp}>
-              <Card className="border-primary/20 bg-card/50 backdrop-blur-sm">
+              <Card className="card-premium border-primary/20 bg-card/50 backdrop-blur-sm">
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -176,7 +176,7 @@ export default function CompanyPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {LEADERS.map((leader, i) => (
                 <motion.div key={leader.name} variants={fadeUp} custom={i + 2}>
-                  <Card className="h-full hover:border-primary/30 transition-all duration-300 text-center">
+                  <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300 text-center">
                     <CardContent className="p-8">
                       <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mx-auto mb-4 ring-4 ring-primary/10">
                         <leader.icon className="size-8 text-primary" />
@@ -203,7 +203,7 @@ export default function CompanyPage() {
           <AnimatedSection>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <motion.div variants={fadeUp} custom={0}>
-                <Card className="h-full hover:border-primary/30 transition-all duration-300">
+                <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300">
                   <CardContent className="p-8 text-center">
                     <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
                       <Target className="size-7 text-primary" />
@@ -214,7 +214,7 @@ export default function CompanyPage() {
                 </Card>
               </motion.div>
               <motion.div variants={fadeUp} custom={1}>
-                <Card className="h-full hover:border-primary/30 transition-all duration-300">
+                <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300">
                   <CardContent className="p-8 text-center">
                     <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
                       <Eye className="size-7 text-primary" />
@@ -230,7 +230,7 @@ export default function CompanyPage() {
       </section>
 
       {/* Timeline */}
-      <section className="py-20 md:py-28">
+      <section className="py-20 md:py-28 dot-pattern">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <motion.h2 variants={fadeUp} className="text-3xl md:text-4xl font-extrabold text-center mb-4">
@@ -282,7 +282,7 @@ export default function CompanyPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {OFFICES.map((office, i) => (
                 <motion.div key={office.city} variants={fadeUp} custom={i + 1}>
-                  <Card className="h-full hover:border-primary/30 transition-all duration-300 group">
+                  <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300 group">
                     <CardContent className="p-5 text-center">
                       <span className="text-3xl mb-2 block">{FLAGS[office.country] || '🌍'}</span>
                       <h3 className="font-semibold text-sm">{office.city}</h3>
@@ -306,11 +306,11 @@ export default function CompanyPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {ADVISORS.map((advisor, i) => (
                 <motion.div key={advisor.name} variants={fadeUp} custom={i + 2}>
-                  <Card className="h-full hover:border-primary/30 transition-all duration-300">
+                  <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300">
                     <CardContent className="p-6">
                       <div className="flex items-center gap-4 mb-3">
                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center flex-shrink-0">
-                          <span className="text-sm font-bold gradient-text">{advisor.name.split(' ').map(n => n[0]).join('')}</span>
+                          <span className="text-sm font-bold gradient-text-premium">{advisor.name.split(' ').map(n => n[0]).join('')}</span>
                         </div>
                         <div className="min-w-0">
                           <h3 className="font-semibold text-sm truncate">{advisor.name}</h3>
@@ -342,7 +342,7 @@ export default function CompanyPage() {
                 { label: 'FERPA', desc: 'Education Records', icon: BookOpen },
               ].map((cert, i) => (
                 <motion.div key={cert.label} variants={fadeUp} custom={i}>
-                  <Card className="h-full hover:border-primary/30 transition-all duration-300">
+                  <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300">
                     <CardContent className="p-4 text-center">
                       <cert.icon className="size-8 text-primary mx-auto mb-2" />
                       <p className="text-xs font-semibold">{cert.label}</p>
@@ -374,7 +374,7 @@ export default function CompanyPage() {
                 { icon: FileCheck, title: t('company.researchCollabs'), desc: t('company.researchCollabsDesc'), count: '200+' },
               ].map((p, i) => (
                 <motion.div key={p.title} variants={fadeUp} custom={i + 1}>
-                  <Card className="h-full hover:border-primary/30 transition-all duration-300">
+                  <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300">
                     <CardContent className="p-6 text-center">
                       <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
                         <p.icon className="size-7 text-primary" />
@@ -404,7 +404,7 @@ export default function CompanyPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
               {PRESS.map((headline, i) => (
                 <motion.div key={i} variants={fadeUp} custom={i + 1}>
-                  <Card className="h-full hover:border-primary/30 transition-all duration-300 group cursor-pointer">
+                  <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300 group cursor-pointer">
                     <CardContent className="p-6">
                       <div className="flex items-center gap-2 mb-3">
                         <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">{PRESS_BADGES[i]}</Badge>
@@ -420,7 +420,7 @@ export default function CompanyPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {AWARDS.map((award, i) => (
                 <motion.div key={i} variants={fadeUp} custom={i + 10}>
-                  <Card className="text-center hover:border-primary/30 transition-all">
+                  <Card className="card-premium text-center hover:border-primary/30 transition-all">
                     <CardContent className="p-6">
                       <Award className="size-8 text-amber-400 mx-auto mb-3" />
                       <h3 className="font-semibold text-sm">{award}</h3>
@@ -438,7 +438,7 @@ export default function CompanyPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <motion.div variants={fadeUp}>
-              <Card className="border-primary/20 bg-card/50 backdrop-blur-sm">
+              <Card className="card-premium border-primary/20 bg-card/50 backdrop-blur-sm">
                 <CardContent className="p-8 text-center">
                   <TrendingUp className="size-10 text-primary mx-auto mb-4" />
                   <h2 className="text-2xl font-bold mb-2">{t('company.backedBy')}</h2>
@@ -458,7 +458,7 @@ export default function CompanyPage() {
       </section>
 
       {/* Contact */}
-      <section className="py-20 bg-muted/30">
+      <section className="footer-premium py-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
           <AnimatedSection>
             <motion.div variants={fadeUp}>
