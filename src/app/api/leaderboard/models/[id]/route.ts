@@ -31,6 +31,6 @@ export async function GET(
       aggregates: { avgLatency, avgTps, avgBenchmark, totalTests: metrics.length, successfulTests: success.length },
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

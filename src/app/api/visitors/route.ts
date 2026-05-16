@@ -5,6 +5,8 @@ import { sendVisitorApprovalEmail, sendVisitorRejectionEmail } from '@/lib/email
 const ADMIN_SECRET = process.env.ADMIN_SECRET || ''
 
 function isAuthenticated(request: NextRequest): boolean {
+  // If no ADMIN_SECRET is configured, deny all requests for security
+  if (!ADMIN_SECRET) return false
   const auth = request.headers.get('authorization')
   if (!auth) return false
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth
@@ -47,7 +49,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ visitors, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }, filters: { status, visitorType, search }, stats: byType })
   } catch (error: any) {
     console.error('[Visitors API]', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -90,7 +92,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true, visitor })
   } catch (error: any) {
     console.error('[Visitors API PATCH]', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -104,6 +106,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('[Visitors API DELETE]', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

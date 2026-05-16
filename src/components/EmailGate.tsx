@@ -110,9 +110,8 @@ export function EmailGate() {
           setStep('form-email')
         }
       } catch {
-        // Network error — let returning visitors through if they have a valid session
-        setStep('accepted')
-        setTimeout(() => { setIsExiting(true); setTimeout(() => setIsGateVisible(false), 200) }, 400)
+        // Network error — show the form so user can retry instead of bypassing the gate
+        setStep('form-email')
       } finally {
         setIsCheckingStatus(false)
       }
