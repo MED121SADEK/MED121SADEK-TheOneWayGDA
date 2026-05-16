@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Image from 'next/image'
+import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation, Locale, localeNames } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
@@ -65,6 +66,13 @@ type GateStep = 'checking' | 'form-email' | 'form-details' | 'submitted' | 'acce
 
 export function EmailGate() {
   const { t, locale, setLocale, dir } = useTranslation()
+  const pathname = usePathname()
+
+  // Skip email gate entirely on auth pages and admin pages
+  const isAuthPage = pathname?.startsWith('/auth/')
+  const isAdminPage = pathname?.startsWith('/admin')
+  if (isAuthPage || isAdminPage) return null
+
   const [isGateVisible, setIsGateVisible] = useState(true)
   const [isExiting, setIsExiting] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
