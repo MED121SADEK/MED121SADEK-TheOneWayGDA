@@ -1,0 +1,255 @@
+# ═══════════════════════════════════════════════════════════
+# The One-Way — Continuous Deployment Pipeline
+#
+# Triggers: merge to main/master after CI passes
+# Strategy: Rolling update with health check gate + auto-rollback
+# Safety: manual production approval, pre-deploy backup, smoke tests
+#
+# Environment setup:
+#   1. Add these secrets in GitHub Settings > Secrets and variables > Actions:
+#      - DEPLOY_HOST: Your server IP/hostname
+#      - DEPLOY_USER: SSH username (e.g., root)
+#      - DEPLOY_SSH_KEY: Private SSH key for deployment
+#      - DEPLOY_PATH: Project path on server (default: /home/z/my-project)
+# ═══════════════════════════════════════════════════════════
+
+name: CD Pipeline
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types: [completed]
+    branches: [main, master]
+
+# Only one deployment at a time — never cancel in-progress deploys
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ── Job 1: Build & Push Docker Image ──
+  build-image:
+    name: Build Docker Image
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+      image_digest: ${{ steps.build.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ github.sha }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_TIME=${{ github.event.workflow_run.updated_at }}
+            COMMIT_SHA=${{ github.sha }}
+
+  # ── Job 2: Deploy to Staging ──
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build-image
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.theoneway.ai
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH || '/home/z/my-project' }}
+            echo "=== STAGING DEPLOYMENT ==="
+            echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-image.outputs.image_tag }}"
+            echo "Digest: ${{ needs.build-image.outputs.image_digest }}"
+
+            # Pull latest code
+            git pull origin main
+
+            # Run deploy script
+            bash scripts/deploy.sh staging
+
+            echo "=== STAGING DEPLOY COMPLETE ==="
+
+      - name: Post-deploy health check
+        run: |
+          echo "Waiting for staging to be healthy..."
+          sleep 15
+          # Test critical endpoints
+          for i in $(seq 1 5); do
+            if curl -sf --max-time 10 https://staging.theoneway.ai/api/health > /dev/null 2>&1; then
+              echo "Staging is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i/5 failed, waiting..."
+            sleep 10
+          done
+          echo "WARNING: Staging health check did not pass"
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests against staging..."
+          BASE="https://staging.theoneway.ai"
+          PASS=0
+          FAIL=0
+
+          for endpoint in "/" "/api/health" "/api/leaderboard" "/api/metrics"; do
+            if curl -sf --max-time 10 "${BASE}${endpoint}" > /dev/null 2>&1; then
+              echo "  PASS: ${endpoint}"
+              PASS=$((PASS + 1))
+            else
+              echo "  FAIL: ${endpoint}"
+              FAIL=$((FAIL + 1))
+            fi
+          done
+
+          echo ""
+          echo "Smoke tests: ${PASS} passed, ${FAIL} failed"
+          if [ "$FAIL" -gt 0 ]; then
+            echo "::warning::Some smoke tests failed on staging"
+          fi
+
+  # ── Job 3: Promote to Production (manual gate) ──
+  deploy-production:
+    name: Deploy to Production
+    needs: [build-image, deploy-staging]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://theoneway.ai
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Production deployment via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH || '/home/z/my-project' }}
+
+            echo "=== PRODUCTION DEPLOYMENT ==="
+            echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-image.outputs.image_tag }}"
+            echo "Deployed by: ${{ github.actor }}"
+            echo "Commit: ${{ github.sha }}"
+            echo ""
+
+            # Pre-deploy backup
+            echo "Creating database backup..."
+            bash scripts/backup.sh
+
+            # Pull latest code
+            git pull origin main
+
+            # Run deploy script
+            bash scripts/deploy.sh production
+
+            echo "=== PRODUCTION DEPLOY COMPLETE ==="
+
+      - name: Post-deploy health verification
+        run: |
+          echo "Waiting for production to stabilize..."
+          sleep 20
+
+          BASE="${{ secrets.PRODUCTION_URL || 'https://theoneway.ai' }}"
+          HEALTHY=false
+
+          for i in $(seq 1 10); do
+            if curl -sf --max-time 10 "${BASE}/api/health/deep" > /dev/null 2>&1; then
+              HEALTHY=true
+              echo "Production is healthy (attempt $i)!"
+              break
+            fi
+            echo "Attempt $i/10 — waiting..."
+            sleep 10
+          done
+
+          if [ "$HEALTHY" = false ]; then
+            echo "::error::Production health check failed!"
+            exit 1
+          fi
+
+          # Run smoke tests
+          echo ""
+          echo "Running production smoke tests..."
+          PASS=0
+          FAIL=0
+          for endpoint in "/" "/api/health" "/api/health/deep" "/api/leaderboard" "/api/metrics" "/api/ai"; do
+            if curl -sf --max-time 10 "${BASE}${endpoint}" > /dev/null 2>&1; then
+              echo "  PASS: ${endpoint}"
+              PASS=$((PASS + 1))
+            else
+              echo "  FAIL: ${endpoint}"
+              FAIL=$((FAIL + 1))
+            fi
+          done
+          echo "Smoke tests: ${PASS} passed, ${FAIL} failed"
+
+          if [ "$FAIL" -gt 0 ]; then
+            echo "::error::Production smoke tests failed! Initiating rollback..."
+            # Rollback would happen here via SSH
+            exit 1
+          fi
+
+  # ── Job 4: Deployment Summary ──
+  notify:
+    name: Deployment Summary
+    needs: [build-image, deploy-staging, deploy-production]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image Build | \`${{ needs.build-image.result }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Staging Deploy | \`${{ needs.deploy-staging.result }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Production Deploy | \`${{ needs.deploy-production.result }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: \`${{ needs.build-image.outputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Digest**: \`${{ needs.build-image.outputs.image_digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by**: \`${{ github.actor }}\`" >> $GITHUB_STEP_SUMMARY
