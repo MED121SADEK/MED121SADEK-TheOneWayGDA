@@ -576,6 +576,27 @@ model DeployLog {
   @@index([createdAt])
 }
 
+// ═══ Verified Researchers & Institutions ═══
+
+model VerifiedResearcher {
+  id           String   @id @default(cuid())
+  email        String   @unique           // visitor email or bot identifier (e.g. "THEONEWAYGDA_AI")
+  displayName  String                      // public display name (e.g. "DeepMind Research")
+  institution  String?                     // lab/company/institution name (e.g. "Google DeepMind")
+  role         String?                     // role/title (e.g. "AI Lab", "Researcher", "News Bot")
+  badgeType    String   @default("verified") // "verified" | "institution" | "official" | "bot"
+  bio          String?                     // short description
+  websiteUrl   String?
+  verifiedBy   String?                     // admin who verified
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([badgeType])
+  @@index([isActive])
+  @@index([institution])
+}
+
 // ═══ Phase 1: Auth System & User Profiles ═══
 
 model User {

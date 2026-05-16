@@ -27,6 +27,7 @@ import {
   MoreHorizontal, ArrowLeft, Sparkles, Check, Copy,
   Mail, RefreshCw, Bell, Pin, Zap, Brain, Beaker, Lightbulb,
   Megaphone, FileText, Award, Activity, Eye, BarChart3, Rss,
+  BadgeCheck,
 } from 'lucide-react'
 
 /* ─── Types ─── */
@@ -57,6 +58,16 @@ interface Comment {
   authorName?: string | null
   content: string
   createdAt: string
+}
+
+interface VerifiedInfo {
+  email: string
+  displayName: string
+  institution?: string | null
+  role?: string | null
+  badgeType: string
+  bio?: string | null
+  websiteUrl?: string | null
 }
 
 function getSession(): { email: string; name: string } | null {
@@ -160,6 +171,25 @@ export default function CommunityPage() {
 
   // Topic following
   const [followedTopics, setFollowedTopics] = useState<string[]>([])
+
+  // Verified researchers cache
+  const [verifiedMap, setVerifiedMap] = useState<Record<string, VerifiedInfo>>({})
+
+  /* ─── Fetch Verified Researchers ─── */
+  useEffect(() => {
+    const fetchVerified = async () => {
+      try {
+        const res = await fetch('/api/community/verified')
+        const data = await res.json()
+        if (data.researchers) {
+          const map: Record<string, VerifiedInfo> = {}
+          data.researchers.forEach((r: VerifiedInfo) => { map[r.email] = r })
+          setVerifiedMap(map)
+        }
+      } catch { /* silent */ }
+    }
+    fetchVerified()
+  }, [])
 
   /* ─── Fetch Posts ─── */
   const fetchPosts = useCallback(async (pageNum: number, append: boolean = false) => {
@@ -777,6 +807,7 @@ export default function CommunityPage() {
                     onCommentTextChange={setCommentText}
                     onSubmitComment={() => submitComment(post.id)}
                     onShare={() => setShareDialogPost(post)}
+                    verifiedInfo={verifiedMap[post.author] || null}
                   />
                 </motion.div>
               ))}
@@ -972,6 +1003,7 @@ function PostCard({
   onCommentTextChange,
   onSubmitComment,
   onShare,
+  verifiedInfo,
 }: {
   post: Post
   session: { email: string; name: string } | null
@@ -989,6 +1021,7 @@ function PostCard({
   onCommentTextChange: (v: string) => void
   onSubmitComment: () => void
   onShare: () => void
+  verifiedInfo: VerifiedInfo | null
 }) {
   const tags = parseTags(post.tags)
   const isOwnPost = session && session.email === post.author
@@ -1029,7 +1062,36 @@ function PostCard({
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-semibold">{displayName}</span>
+                <span className="text-sm font-semibold">{verifiedInfo ? verifiedInfo.displayName : displayName}</span>
+                {/* Verified Researcher / Institution Badge */}
+                {verifiedInfo && (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0 rounded-full text-[10px] font-medium border"
+                    title={verifiedInfo.institution
+                      ? `${verifiedInfo.badgeType === 'bot' ? 'Official Bot' : verifiedInfo.badgeType === 'institution' ? 'Verified Institution' : verifiedInfo.badgeType === 'official' ? 'Official Account' : 'Verified Researcher'} — ${verifiedInfo.institution}${verifiedInfo.role ? ` · ${verifiedInfo.role}` : ''}`
+                      : verifiedInfo.badgeType === 'bot' ? 'Official Bot' : 'Verified'}
+                    style={{
+                      borderColor: verifiedInfo.badgeType === 'bot' ? 'rgba(99,102,241,0.4)'
+                        : verifiedInfo.badgeType === 'institution' ? 'rgba(168,85,247,0.4)'
+                        : verifiedInfo.badgeType === 'official' ? 'rgba(59,130,246,0.4)'
+                        : 'rgba(16,185,129,0.4)',
+                      backgroundColor: verifiedInfo.badgeType === 'bot' ? 'rgba(99,102,241,0.1)'
+                        : verifiedInfo.badgeType === 'institution' ? 'rgba(168,85,247,0.1)'
+                        : verifiedInfo.badgeType === 'official' ? 'rgba(59,130,246,0.1)'
+                        : 'rgba(16,185,129,0.1)',
+                      color: verifiedInfo.badgeType === 'bot' ? '#818cf8'
+                        : verifiedInfo.badgeType === 'institution' ? '#c084fc'
+                        : verifiedInfo.badgeType === 'official' ? '#60a5fa'
+                        : '#34d399',
+                    }}
+                  >
+                    <BadgeCheck className="size-3" />
+                    {verifiedInfo.badgeType === 'bot' ? 'Bot'
+                      : verifiedInfo.badgeType === 'institution' ? 'Institution'
+                      : verifiedInfo.badgeType === 'official' ? 'Official'
+                      : 'Verified'}
+                  </span>
+                )}
                 {/* Post type badge */}
                 <Badge variant="outline" className={`gap-0.5 px-1.5 py-0 text-[10px] ${postTypeInfo.bg} ${postTypeInfo.border} ${postTypeInfo.text}`}>
                   <PostTypeIcon className="size-2.5" /> {postTypeInfo.label}

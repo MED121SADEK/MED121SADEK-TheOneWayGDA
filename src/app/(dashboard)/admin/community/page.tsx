@@ -14,7 +14,7 @@ import {
   AlertTriangle, CheckCircle, XCircle, Clock, Heart, MessageCircle,
   Repeat2, Bookmark, Search, ChevronDown, ChevronUp, Loader2,
   Sparkles, FileText, Award, Newspaper, Users, Zap, BarChart3, Rss,
-  Filter, Play, Ban, Globe, Megaphone,
+  Filter, Play, Ban, Globe, Megaphone, BadgeCheck, Plus, X,
 } from 'lucide-react'
 
 /* ─── Types ─── */
@@ -58,6 +58,16 @@ interface Post {
   saves: number
   featured: boolean
   createdAt: string
+}
+
+interface VerifiedResearcher {
+  email: string
+  displayName: string
+  institution?: string | null
+  role?: string | null
+  badgeType: string
+  bio?: string | null
+  websiteUrl?: string | null
 }
 
 /* ─── Helpers ─── */
@@ -138,6 +148,12 @@ export default function AdminCommunityPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
+  // Verified researchers
+  const [verifiedResearchers, setVerifiedResearchers] = useState<VerifiedResearcher[]>([])
+  const [showAddVerified, setShowAddVerified] = useState(false)
+  const [newVerified, setNewVerified] = useState({ email: '', displayName: '', institution: '', role: '', badgeType: 'verified', bio: '', websiteUrl: '' })
+  const [addingVerified, setAddingVerified] = useState(false)
+
   const fetchDashboard = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/community', { headers: authHeaders() })
@@ -176,10 +192,19 @@ export default function AdminCommunityPage() {
     setLoadingPosts(false)
   }, [typeFilter, statusFilter, searchQuery, sortBy])
 
+  /* ─── Verified Researchers ─── */
+  const fetchVerified = useCallback(async () => {
+    try {
+      const res = await fetch('/api/community/verified')
+      const data = await res.json()
+      if (data.researchers) setVerifiedResearchers(data.researchers)
+    } catch { /* silent */ }
+  }, [])
+
   useEffect(() => {
     setLoading(true)
-    Promise.all([fetchDashboard(), fetchPosts(1)]).finally(() => setLoading(false))
-  }, [fetchDashboard, fetchPosts])
+    Promise.all([fetchDashboard(), fetchPosts(1), fetchVerified()]).finally(() => setLoading(false))
+  }, [fetchDashboard, fetchPosts, fetchVerified])
 
   useEffect(() => {
     setSelectedPosts(new Set())
@@ -188,6 +213,40 @@ export default function AdminCommunityPage() {
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message })
     setTimeout(() => setToast(null), 4000)
+  }
+
+  const addVerifiedResearcher = async () => {
+    if (!newVerified.email.trim() || !newVerified.displayName.trim()) return
+    setAddingVerified(true)
+    try {
+      const res = await fetch('/api/community/verified', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newVerified, verifiedBy: 'admin' }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast('success', `Verified: ${newVerified.displayName}`)
+        setNewVerified({ email: '', displayName: '', institution: '', role: '', badgeType: 'verified', bio: '', websiteUrl: '' })
+        setShowAddVerified(false)
+        fetchVerified()
+      } else {
+        showToast('error', data.error || 'Failed to add')
+      }
+    } catch {
+      showToast('error', 'Failed to add verified researcher')
+    }
+    setAddingVerified(false)
+  }
+
+  const removeVerified = async (email: string) => {
+    try {
+      await fetch(`/api/community/verified?email=${encodeURIComponent(email)}`, { method: 'DELETE' })
+      showToast('success', 'Removed verified status')
+      fetchVerified()
+    } catch {
+      showToast('error', 'Failed to remove')
+    }
   }
 
   /* ─── Moderation Actions ─── */
@@ -745,6 +804,146 @@ export default function AdminCommunityPage() {
           </div>
         </div>
       )}
+
+      {/* ─── Section: Verified Researchers & Institutions ─── */}
+      <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <BadgeCheck className="size-4 text-emerald-400" />
+            Verified Researchers & Institutions
+            <Badge variant="outline" className="text-[9px] ml-1">{verifiedResearchers.length}</Badge>
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAddVerified(!showAddVerified)}
+            className="gap-1.5 text-xs"
+          >
+            {showAddVerified ? <X className="size-3" /> : <Plus className="size-3" />}
+            {showAddVerified ? 'Cancel' : 'Add Verified'}
+          </Button>
+        </div>
+
+        {/* Add Verified Researcher Form */}
+        <AnimatePresence>
+          {showAddVerified && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-4 p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 space-y-3 overflow-hidden"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  placeholder="Email or identifier (e.g. researcher@lab.edu)"
+                  value={newVerified.email}
+                  onChange={(e) => setNewVerified(p => ({ ...p, email: e.target.value }))}
+                  className="text-xs rounded-lg"
+                />
+                <Input
+                  placeholder="Display name"
+                  value={newVerified.displayName}
+                  onChange={(e) => setNewVerified(p => ({ ...p, displayName: e.target.value }))}
+                  className="text-xs rounded-lg"
+                />
+                <Input
+                  placeholder="Institution (e.g. Google DeepMind)"
+                  value={newVerified.institution}
+                  onChange={(e) => setNewVerified(p => ({ ...p, institution: e.target.value }))}
+                  className="text-xs rounded-lg"
+                />
+                <Input
+                  placeholder="Role (e.g. AI Research Lab)"
+                  value={newVerified.role}
+                  onChange={(e) => setNewVerified(p => ({ ...p, role: e.target.value }))}
+                  className="text-xs rounded-lg"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <Select value={newVerified.badgeType} onValueChange={(v) => setNewVerified(p => ({ ...p, badgeType: v }))}>
+                  <SelectTrigger className="h-8 w-36 text-xs rounded-lg">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="verified" className="text-xs">Verified Researcher</SelectItem>
+                    <SelectItem value="institution" className="text-xs">Institution</SelectItem>
+                    <SelectItem value="official" className="text-xs">Official Account</SelectItem>
+                    <SelectItem value="bot" className="text-xs">Official Bot</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Website URL (optional)"
+                  value={newVerified.websiteUrl}
+                  onChange={(e) => setNewVerified(p => ({ ...p, websiteUrl: e.target.value }))}
+                  className="flex-1 text-xs rounded-lg"
+                />
+                <Button
+                  size="sm"
+                  onClick={addVerifiedResearcher}
+                  disabled={addingVerified || !newVerified.email.trim() || !newVerified.displayName.trim()}
+                  className="gap-1.5 text-xs rounded-lg"
+                >
+                  {addingVerified ? <Loader2 className="size-3 animate-spin" /> : <BadgeCheck className="size-3" />}
+                  Verify
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Verified Researchers List */}
+        {verifiedResearchers.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-2">No verified researchers yet. Add one above or run the seed.</p>
+        ) : (
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {verifiedResearchers.map(r => (
+              <div key={r.email} className="flex items-center gap-3 p-2.5 rounded-lg border border-border/30 bg-card/40 group">
+                <div className={`size-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  r.badgeType === 'bot' ? 'bg-indigo-500/10'
+                  : r.badgeType === 'institution' ? 'bg-purple-500/10'
+                  : r.badgeType === 'official' ? 'bg-blue-500/10'
+                  : 'bg-emerald-500/10'
+                }`}>
+                  <BadgeCheck className={`size-4 ${
+                    r.badgeType === 'bot' ? 'text-indigo-400'
+                    : r.badgeType === 'institution' ? 'text-purple-400'
+                    : r.badgeType === 'official' ? 'text-blue-400'
+                    : 'text-emerald-400'
+                  }`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold truncate">{r.displayName}</span>
+                    <Badge variant="outline" className={`text-[8px] px-1.5 py-0 ${
+                      r.badgeType === 'bot' ? 'border-indigo-500/30 text-indigo-300 bg-indigo-500/5'
+                      : r.badgeType === 'institution' ? 'border-purple-500/30 text-purple-300 bg-purple-500/5'
+                      : r.badgeType === 'official' ? 'border-blue-500/30 text-blue-300 bg-blue-500/5'
+                      : 'border-emerald-500/30 text-emerald-300 bg-emerald-500/5'
+                    }`}>
+                      {r.badgeType}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    {r.institution && <span>{r.institution}</span>}
+                    {r.institution && r.role && <span>·</span>}
+                    {r.role && <span>{r.role}</span>}
+                    <span className="ml-1 truncate opacity-60">{r.email}</span>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  onClick={() => removeVerified(r.email)}
+                  title="Remove verified status"
+                >
+                  <Trash2 className="size-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Toast */}
       <AnimatePresence>
