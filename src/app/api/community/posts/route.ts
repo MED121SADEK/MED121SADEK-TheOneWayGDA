@@ -16,8 +16,13 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {}
     if (type !== 'all') where.type = type
+    // Exclude hidden posts from public feed (combine with tag filter if present)
+    if (tag) {
+      where.tags = { contains: tag, not: { contains: 'Hidden' } }
+    } else {
+      where.tags = { not: { contains: 'Hidden' } }
+    }
     if (sort === 'featured') where.featured = true
-    if (tag) where.tags = { contains: tag } // SQLite simple contains
     if (search) {
       where.OR = [
         { title: { contains: search } },

@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation, Locale, localeNames } from '@/lib/i18n'
+import { CommunityChatbot } from '@/components/community-chatbot'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -946,6 +947,9 @@ export default function CommunityPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Community Chatbot */}
+      <CommunityChatbot />
     </div>
   )
 }
