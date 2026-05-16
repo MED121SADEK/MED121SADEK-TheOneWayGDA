@@ -390,13 +390,13 @@ export default function Home() {
 
   /* ─── LANDING PAGE ─── */
   return (
-    <div className="min-h-screen flex flex-col" dir={dir}>
+    <div className="min-h-screen flex flex-col noise-overlay" dir={dir}>
       {/* NAV */}
-      <nav className="sticky top-0 z-50 glass-card">
+      <nav className="sticky top-0 z-50 nav-premium">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16 gap-4">
           <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2">
-            <Image src="/images/logo.png" alt="TheOneWayGDA" width={40} height={40} className="rounded-lg" />
-            <span className="text-xl font-bold gradient-text">{t('brand.name')}</span>
+            <Image src="/images/logo.png" alt="TheOneWayGDA" width={36} height={36} className="rounded-lg" />
+            <span className="text-xl font-bold gradient-text-premium">{t('brand.name')}</span>
           </button>
           {/* Primary nav links - always visible on lg+ */}
           <div className="hidden lg:flex items-center gap-6 flex-shrink-0">
@@ -474,26 +474,37 @@ export default function Home() {
       </nav>
 
       {/* HERO */}
-      <section className="hero-gradient relative overflow-hidden">
+      <section className="mesh-gradient relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-16 md:pt-32 md:pb-24 flex flex-col items-center text-center">
           <motion.div initial="hidden" animate="visible" variants={stagger} className="flex flex-col items-center">
-            <motion.div variants={fadeUp} custom={0}>
-              <Badge variant="outline" className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-6"><Sparkles className="size-3.5 text-primary" />{t('hero.badge')}</Badge>
+            {/* Animated gradient orb behind hero text */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-primary/20 via-chart-3/15 to-chart-2/10 blur-[120px] pointer-events-none animate-pulse opacity-40" />
+            <motion.div variants={fadeUp} custom={0} className="relative z-10">
+              <Badge variant="outline" className="px-3.5 py-1 text-xs rounded-full border-primary/20 bg-primary/5 mb-6 gradient-border"><Sparkles className="size-3 text-primary" />{t('hero.badge')}</Badge>
             </motion.div>
-            <motion.h1 variants={fadeUp} custom={1} className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight max-w-4xl leading-[1.1]">
-              {t('hero.title1')} <span className="gradient-text">{t('hero.titleHighlight')}</span>
+            <motion.h1 variants={fadeUp} custom={1} className="relative z-10 text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-[-0.03em] max-w-4xl leading-[1.08]">
+              {t('hero.title1')} <span className="gradient-text-premium">{t('hero.titleHighlight')}</span>
             </motion.h1>
             <motion.p variants={fadeUp} custom={2} className="mt-6 text-lg sm:text-xl text-muted-foreground max-w-2xl leading-relaxed">{t('hero.subtitle')}</motion.p>
-            <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row gap-4 mt-10">
-              <Button size="lg" className="rounded-full px-8 text-base h-12" onClick={() => store.setView('workspace')}>{t('hero.cta1')} <ArrowRight className="size-4" /></Button>
+            <motion.div variants={fadeUp} custom={3} className="relative z-10 flex flex-col sm:flex-row gap-4 mt-10">
+              <Button size="lg" className="btn-glow rounded-full px-8 text-base h-12 font-semibold" onClick={() => store.setView('workspace')}>{t('hero.cta1')} <ArrowRight className="size-4" /></Button>
               <Button variant="outline" size="lg" className="rounded-full px-8 text-base h-12" onClick={() => scrollTo('#demo')}><Play className="size-4" />{t('hero.cta2')}</Button>
             </motion.div>
-            <motion.div variants={fadeUp} custom={4} className="flex flex-wrap justify-center gap-6 sm:gap-10 mt-14">
+            <motion.div variants={fadeUp} custom={4} className="relative z-10 flex flex-wrap justify-center gap-6 sm:gap-10 mt-14">
               {[{ l: t('hero.stat1'), i: Users }, { l: t('hero.stat2'), i: WifiOff }, { l: t('hero.stat3'), i: Brain }, { l: t('hero.stat4'), i: Zap }].map(s => (
-                <div key={s.l} className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><s.i className="size-4 text-primary" />{s.l}</div>
+                <div key={s.l} className="stat-animate flex items-center gap-2 text-sm font-medium text-muted-foreground"><s.i className="size-4 text-primary" />{s.l}</div>
               ))}
             </motion.div>
-            <motion.div variants={fadeUp} custom={5} className="mt-16 w-full max-w-4xl">
+            {/* Trust bar */}
+            <motion.div variants={fadeUp} custom={5} className="relative z-10 mt-12">
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest mb-4">Trusted by researchers worldwide</p>
+              <div className="flex items-center justify-center gap-8 sm:gap-12 opacity-30">
+                {[Brain, BarChart3, Globe, Database, TrendingUp].map((Icon, idx) => (
+                  <Icon key={idx} className="size-6 sm:size-7" />
+                ))}
+              </div>
+            </motion.div>
+            <motion.div variants={fadeUp} custom={6} className="relative z-10 mt-14 w-full max-w-4xl">
               <div className="glow-border rounded-2xl overflow-hidden border border-border/30">
                 <Image src="/images/hero.png" alt="TheOneWayGDA Dashboard" width={1200} height={680} className="w-full h-auto" priority />
               </div>
@@ -503,12 +514,12 @@ export default function Home() {
       </section>
 
       {/* FEATURES */}
-      <section id="features" className="py-20 md:py-32">
+      <section id="features" className="py-20 md:py-32 dot-pattern relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <motion.div variants={fadeUp} className="text-center mb-16">
               <Badge variant="outline" className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"><Star className="size-3.5 text-primary" />{t('features.badge')}</Badge>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">{t('features.title1')} <span className="gradient-text">{t('features.titleHighlight')}</span></h2>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">{t('features.title1')} <span className="gradient-text-premium">{t('features.titleHighlight')}</span></h2>
               <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">{t('features.subtitle')}</p>
             </motion.div>
           </AnimatedSection>
@@ -516,9 +527,14 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {features.map((f, i) => (
                 <motion.div key={f.title} variants={fadeUp} custom={i}>
-                  <Card className="h-full hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">
+                  <Card className="card-premium h-full bg-card/80 backdrop-blur-sm group relative overflow-hidden">
+                    {/* Subtle gradient line at top */}
+                    <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
                     <CardHeader>
-                      <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors"><f.icon className="size-6 text-primary" /></div>
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors"><f.icon className="size-6 text-primary" /></div>
+                        <span className="text-xs font-mono text-muted-foreground/40 tracking-wider">{String(i + 1).padStart(2, '0')}</span>
+                      </div>
                       <CardTitle className="text-xl">{f.title}</CardTitle>
                     </CardHeader>
                     <CardContent><CardDescription className="text-base leading-relaxed">{f.desc}</CardDescription></CardContent>
@@ -536,7 +552,7 @@ export default function Home() {
           <AnimatedSection>
             <motion.div variants={fadeUp} className="text-center mb-16">
               <Badge variant="outline" className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"><BarChart3 className="size-3.5 text-primary" />{t('comparison.badge')}</Badge>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight"><span className="gradient-text">{t('comparison.title1')}</span> {t('comparison.title2')}</h2>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight"><span className="gradient-text-premium">{t('comparison.title1')}</span> {t('comparison.title2')}</h2>
               <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">{t('comparison.subtitle')}</p>
             </motion.div>
           </AnimatedSection>
@@ -548,7 +564,7 @@ export default function Home() {
                     <TableHeader>
                       <TableRow className="hover:bg-transparent border-b-border">
                         <TableHead className="text-base font-semibold pl-6 py-4 w-2/5">{t('comparison.feature')}</TableHead>
-                        <TableHead className="text-base font-semibold py-4 text-center"><span className="gradient-text font-bold">{t('comparison.theway')}</span></TableHead>
+                        <TableHead className="text-base font-semibold py-4 text-center"><span className="gradient-text-premium font-bold">{t('comparison.theway')}</span> <Badge variant="outline" className="ml-1.5 px-1.5 py-0 text-[10px] rounded-full border-emerald-500/30 bg-emerald-500/5 text-emerald-400">Recommended</Badge></TableHead>
                         <TableHead className="text-base font-semibold py-4 text-center text-muted-foreground">{t('comparison.spss')}</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -574,36 +590,45 @@ export default function Home() {
       </section>
 
       {/* DEMO */}
-      <section id="demo" className="py-20 md:py-32">
+      <section id="demo" className="py-20 md:py-32 grid-pattern relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <motion.div variants={fadeUp} className="text-center mb-16">
               <Badge variant="outline" className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"><Play className="size-3.5 text-primary" />{t('demo.badge')}</Badge>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">{t('demo.title1')} <span className="gradient-text">{t('demo.titleHighlight')}</span></h2>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">{t('demo.title1')} <span className="gradient-text-premium">{t('demo.titleHighlight')}</span></h2>
               <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">{t('demo.subtitle')}</p>
             </motion.div>
           </AnimatedSection>
           <AnimatedSection>
             <motion.div variants={fadeUp}>
-              <Card className="overflow-hidden border-primary/20 bg-card/80 backdrop-blur-sm">
+              <Card className="overflow-hidden border-primary/20 bg-card/80 backdrop-blur-sm shadow-2xl shadow-primary/5">
                 <CardContent className="p-0">
                   <div className="grid grid-cols-1 lg:grid-cols-2">
                     <div className="border-b lg:border-b-0 lg:border-r border-border p-6">
                       <div className="flex items-center gap-2 mb-5"><div className="size-3 rounded-full bg-emerald-500 animate-pulse" /><span className="text-sm font-semibold text-emerald-400">{t('demo.session')}</span></div>
-                      <div className="space-y-4">
+                      <div className="space-y-5">
                         {[
                           { role: 'user', text: 'Analyze the correlation between study hours and exam scores' },
                           { role: 'ai', text: `Running Pearson correlation... Found strong positive correlation (r=0.87, p<0.001). Generated scatter plot + regression model.` },
                           { role: 'user', text: 'Add a linear regression' },
                           { role: 'ai', text: 'Regression: Score = 12.3 + 7.8 × Hours. R² = 0.756, F(1,98) = 304.2, p < 0.001.' },
                         ].map((msg, i) => (
-                          <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.15, duration: 0.4 }}
+                          <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.2, duration: 0.4 }}
                             className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            {msg.role === 'ai' && <div className="flex-shrink-0 size-8 rounded-lg bg-primary/10 flex items-center justify-center mt-1"><Brain className="size-4 text-primary" /></div>}
-                            <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted rounded-bl-md'}`}>{msg.text}{i === 3 && <span className="inline-block w-2 h-4 ml-1 bg-current/60 animate-pulse rounded-sm" />}</div>
-                            {msg.role === 'user' && <div className="flex-shrink-0 size-8 rounded-lg bg-accent/20 flex items-center justify-center mt-1"><User className="size-4 text-accent" /></div>}
+                            {msg.role === 'ai' && <div className="flex-shrink-0 size-9 rounded-xl bg-primary/10 flex items-center justify-center mt-0.5 border border-primary/10"><Brain className="size-4 text-primary" /></div>}
+                            <div className={`max-w-[85%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted/80 border border-border/30 rounded-bl-md'}`}>{msg.text}{i === 3 && <span className="inline-block w-1.5 h-4 ml-1 bg-current/50 animate-pulse rounded-sm" />}</div>
+                            {msg.role === 'user' && <div className="flex-shrink-0 size-9 rounded-xl bg-accent/15 flex items-center justify-center mt-0.5 border border-accent/10"><User className="size-4 text-accent" /></div>}
                           </motion.div>
                         ))}
+                        {/* Typing indicator */}
+                        <div className="flex gap-3 justify-start">
+                          <div className="flex-shrink-0 size-9 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/10"><Brain className="size-4 text-primary" /></div>
+                          <div className="bg-muted/80 border border-border/30 rounded-2xl rounded-bl-md px-5 py-3.5 flex items-center gap-1.5">
+                            <span className="size-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="size-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="size-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <div className="p-6 flex flex-col justify-between">
@@ -638,12 +663,12 @@ export default function Home() {
       </section>
 
       {/* PRICING */}
-      <section id="pricing" className="py-20 md:py-32 bg-muted/30">
+      <section id="pricing" className="py-20 md:py-32 mesh-gradient relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <motion.div variants={fadeUp} className="text-center mb-16">
               <Badge variant="outline" className="px-4 py-1.5 text-sm rounded-full border-primary/30 bg-primary/5 mb-4"><Zap className="size-3.5 text-primary" />{t('pricing.badge')}</Badge>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">{t('pricing.title1')} <span className="gradient-text">{t('pricing.titleHighlight')}</span></h2>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">{t('pricing.title1')} <span className="gradient-text-premium">{t('pricing.titleHighlight')}</span></h2>
               <p className="mt-4 text-muted-foreground text-lg max-w-2xl mx-auto">{t('pricing.subtitle')}</p>
             </motion.div>
           </AnimatedSection>
@@ -651,8 +676,8 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
               {pricingPlans.map((plan, i) => (
                 <motion.div key={plan.name} variants={fadeUp} custom={i} className={plan.highlighted ? 'md:-mt-4' : ''}>
-                  <Card className={`h-full relative flex flex-col ${plan.highlighted ? 'border-primary/50 shadow-lg shadow-primary/10 ring-1 ring-primary/20' : ''}`}>
-                    {plan.highlighted && <div className="absolute -top-3.5 left-1/2 -translate-x-1/2"><Badge className="rounded-full px-4 py-1 bg-primary text-primary-foreground shadow-md shadow-primary/20">{t('pricing.popular')}</Badge></div>}
+                  <Card className={`card-premium h-full relative flex flex-col bg-card/80 backdrop-blur-sm ${plan.highlighted ? 'gradient-border !border-transparent shadow-2xl shadow-primary/10' : ''}`}>
+                    {plan.highlighted && <div className="absolute -top-3.5 left-1/2 -translate-x-1/2"><Badge className="btn-glow rounded-full px-4 py-1 bg-primary text-primary-foreground shadow-md shadow-primary/20">{t('pricing.popular')}</Badge></div>}
                     <CardHeader className="pb-2">
                       <CardTitle className="text-lg text-muted-foreground">{plan.name}</CardTitle>
                       <div className="flex items-baseline gap-1 mt-2"><span className="text-4xl font-extrabold tracking-tight">{plan.price}</span>{plan.period && <span className="text-muted-foreground text-sm">{plan.period}</span>}</div>
@@ -668,13 +693,27 @@ export default function Home() {
         </div>
       </section>
 
+      {/* CTA SECTION */}
+      <section className="py-20 md:py-28 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-chart-3/8 to-chart-2/5" />
+        <div className="absolute inset-0 dot-pattern opacity-30" />
+        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 text-center">
+          <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">Ready to <span className="gradient-text-premium">transform</span> your research?</motion.h2>
+          <motion.p variants={fadeUp} custom={1} className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto">Join thousands of researchers who have already made the switch to smarter, faster data analysis.</motion.p>
+          <motion.div variants={fadeUp} custom={2} className="flex flex-col sm:flex-row gap-4 mt-8 justify-center">
+            <Button size="lg" className="btn-glow rounded-full px-8 text-base h-12 font-semibold" onClick={() => store.setView('workspace')}>Get Started Free <ArrowRight className="size-4" /></Button>
+            <Button variant="outline" size="lg" className="rounded-full px-8 text-base h-12" onClick={() => scrollTo('#pricing')}>View Pricing</Button>
+          </motion.div>
+        </div>
+      </section>
+
       {/* FOOTER */}
-      <footer className="mt-auto border-t border-border/50 bg-card/50">
+      <footer className="mt-auto footer-premium">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10">
             <div className="lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4"><Image src="/images/logo.png" alt="TheOneWayGDA" width={32} height={32} className="rounded-lg" /><span className="text-lg font-bold gradient-text">{t('brand.name')}</span></div>
-              <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">{t('footer.desc')}</p>
+              <div className="flex items-center gap-2 mb-4"><Image src="/images/logo.png" alt="TheOneWayGDA" width={32} height={32} className="rounded-lg" /><span className="text-lg font-bold gradient-text-premium">{t('brand.name')}</span></div>
+              <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mt-3">{t('footer.desc')}</p>
             </div>
             {[{ title: t('footer.product'), links: [t('nav.features'), t('nav.pricing')] }, { title: t('footer.resources'), links: ['Documentation', 'API', 'Community'] }, { title: t('footer.company'), links: [t('footer.about'), t('footer.blog'), t('footer.contact')] }].map(col => (
               <div key={col.title}>
@@ -688,21 +727,18 @@ export default function Home() {
               <ShieldCheck className="size-4 text-emerald-500" />
               <span className="text-xs text-muted-foreground">GDPR · SOC 2 · ISO 27001 · HIPAA Compliant</span>
             </div>
-            <div className="flex items-center gap-4 mt-2">
-              <a href="mailto:msad41855@gmail.com" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
-                <Mail className="size-3.5" /> msad41855@gmail.com
+            <div className="flex items-center gap-3 mt-3">
+              <a href="mailto:msad41855@gmail.com" className="size-9 rounded-lg border border-border/50 bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/30 transition-all">
+                <Mail className="size-4" />
               </a>
-              <span className="text-muted-foreground">|</span>
-              <a href="https://www.linkedin.com/in/mohammed-essadek-549a17229" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
-                <LinkedInIcon size={14} /> LinkedIn
+              <a href="https://www.linkedin.com/in/mohammed-essadek-549a17229" target="_blank" rel="noopener noreferrer" className="size-9 rounded-lg border border-border/50 bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/30 transition-all">
+                <LinkedInIcon size={16} />
               </a>
-              <span className="text-muted-foreground">|</span>
-              <a href="https://www.instagram.com/the_one_way_community/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
-                <InstagramIcon size={14} /> Instagram
+              <a href="https://www.instagram.com/the_one_way_community/" target="_blank" rel="noopener noreferrer" className="size-9 rounded-lg border border-border/50 bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/30 transition-all">
+                <InstagramIcon size={16} />
               </a>
-              <span className="text-muted-foreground">|</span>
-              <a href="https://www.tiktok.com/@the1way1" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
-                <TikTokIcon size={14} /> TikTok
+              <a href="https://www.tiktok.com/@the1way1" target="_blank" rel="noopener noreferrer" className="size-9 rounded-lg border border-border/50 bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/30 transition-all">
+                <TikTokIcon size={16} />
               </a>
             </div>
           </div>

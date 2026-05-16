@@ -114,15 +114,15 @@ export default function WorkspacePage() {
   ], [t, h])
 
   return (
-    <div className="h-screen flex flex-col" dir={dir}>
+    <div className="h-screen flex flex-col noise-overlay" dir={dir}>
       <UpdateBanner />
 
       {/* ─── Navbar ─── */}
-      <nav className="h-11 border-b border-border/50 bg-card/80 backdrop-blur-md flex items-center justify-between px-4 flex-shrink-0 z-50">
+      <nav className="h-11 nav-premium flex items-center justify-between px-4 flex-shrink-0 z-50">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2">
             <Image src="/images/logo.png" alt="TheOneWayGDA" width={24} height={24} className="rounded" />
-            <span className="font-bold gradient-text text-sm hidden sm:inline">{t('brand.name')}</span>
+            <span className="font-bold gradient-text-premium text-sm hidden sm:inline">{t('brand.name')}</span>
           </Link>
           <Separator orientation="vertical" className="h-5" />
           <span className="text-xs font-medium text-muted-foreground truncate max-w-40">{h.store.currentProject?.name}</span>

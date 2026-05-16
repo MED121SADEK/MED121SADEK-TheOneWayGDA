@@ -238,9 +238,9 @@ export default function ModulesPage() {
   ]
 
   return (
-    <div className="min-h-screen" dir={dir}>
+    <div className="min-h-screen noise-overlay" dir={dir}>
       {/* ─── Navigation Bar ─── */}
-      <nav className="sticky top-0 z-50 glass-card">
+      <nav className="sticky top-0 z-50 nav-premium">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16">
           <Link href="/" className="flex items-center gap-2">
             <Image
@@ -250,7 +250,7 @@ export default function ModulesPage() {
               height={32}
               className="rounded"
             />
-            <span className="text-lg font-bold gradient-text">
+            <span className="text-lg font-bold gradient-text-premium">
               {t('brand.name')}
             </span>
           </Link>
@@ -289,7 +289,7 @@ export default function ModulesPage() {
               custom={1}
               className="text-4xl md:text-5xl font-extrabold tracking-tight"
             >
-              <span className="gradient-text">{t('modules.title')}</span>
+              <span className="gradient-text-premium">{t('modules.title')}</span>
             </motion.h1>
             <motion.p
               variants={fadeUp}
@@ -309,7 +309,7 @@ export default function ModulesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Total Modules */}
               <motion.div variants={fadeUp} custom={0}>
-                <Card className="p-6 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
+                <Card className="card-premium p-6 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <Package className="size-7 text-primary" />
@@ -325,7 +325,7 @@ export default function ModulesPage() {
               </motion.div>
               {/* Active Modules */}
               <motion.div variants={fadeUp} custom={1}>
-                <Card className="p-6 hover:border-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300">
+                <Card className="card-premium p-6 hover:border-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
                       <CheckCircle className="size-7 text-emerald-400" />
@@ -367,7 +367,7 @@ export default function ModulesPage() {
       </section>
 
       {/* ─── Module Cards Grid ─── */}
-      <section className="py-10">
+      <section className="py-10 dot-pattern">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -389,7 +389,7 @@ export default function ModulesPage() {
                     variants={fadeUp}
                     custom={Math.min(idx, 9)}
                   >
-                    <Card className="h-full hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">
+                    <Card className="card-premium h-full hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">
                       <CardHeader>
                         <div className="flex items-start gap-3">
                           {/* Module Icon */}
@@ -476,7 +476,7 @@ export default function ModulesPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
             <motion.div variants={fadeUp}>
-              <Card className="border-primary/20 bg-card/50 backdrop-blur-sm">
+              <Card className="card-premium border-primary/20 bg-card/50 backdrop-blur-sm">
                 <CardContent className="p-8 text-center">
                   <RefreshCw className="size-10 text-primary mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">
