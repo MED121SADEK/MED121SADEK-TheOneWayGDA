@@ -871,10 +871,11 @@ export default function Home() {
               { label: t('nav.workspace'), href: '#demo' },
               { label: t('nav.pricing'), href: '#pricing' },
               { label: t('nav.about'), href: '/about' },
-              { label: t('nav.security'), href: '/privacy' },
+              { label: t('nav.security'), href: '/security' },
               { label: t('nav.company'), href: '/company' },
               { label: t('nav.updates'), href: '/updates' },
               { label: t('nav.tutorials'), href: '/tutorials' },
+              { label: t('modules.title'), href: '/modules' },
             ].map((l) => (
               l.href.startsWith('/') ? (
                 <Link key={l.href} href={l.href} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">{l.label}</Link>
@@ -905,10 +906,11 @@ export default function Home() {
                   { label: t('nav.workspace'), href: '#demo' },
                   { label: t('nav.pricing'), href: '#pricing' },
                   { label: t('nav.about'), href: '/about' },
-                  { label: t('nav.security'), href: '/privacy' },
+                  { label: t('nav.security'), href: '/security' },
                   { label: t('nav.company'), href: '/company' },
                   { label: t('nav.updates'), href: '/updates' },
                   { label: t('nav.tutorials'), href: '/tutorials' },
+                  { label: t('modules.title'), href: '/modules' },
                 ].map((l) => (
                   l.href.startsWith('/') ? (
                     <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)} className="text-left text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2">{l.label}</Link>
@@ -1143,7 +1145,9 @@ export default function Home() {
             <div className="flex items-center gap-4">
               <Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('nav.about')}</Link>
               <Link href="/company" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('nav.company')}</Link>
+              <Link href="/security" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('nav.security')}</Link>
               <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.privacy')}</Link>
+              <Link href="/modules" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('modules.title')}</Link>
               <span className="text-muted-foreground">|</span>
               <Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.terms')}</Link>
             </div>
