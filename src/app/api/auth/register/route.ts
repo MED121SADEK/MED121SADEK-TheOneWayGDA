@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hashPassword } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { sendAdminAccessRequestEmail } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,6 +61,10 @@ export async function POST(request: NextRequest) {
       update: { name: user.name, status: 'pending' },
       create: { email: normalizedEmail, name: user.name, status: 'pending' },
     })
+
+    // Send admin notification email (fire-and-forget)
+    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
+    sendAdminAccessRequestEmail(user.name, user.email, user.id, ipAddress).catch(() => {})
 
     return NextResponse.json({
       status: 'pending',

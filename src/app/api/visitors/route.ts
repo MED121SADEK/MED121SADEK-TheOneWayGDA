@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { sendVisitorApprovalEmail, sendVisitorRejectionEmail } from '@/lib/email'
+import { sendUserApprovalEmail, sendUserRejectionEmail } from '@/lib/email'
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || ''
 
@@ -67,8 +67,8 @@ export async function PATCH(request: NextRequest) {
       // Send approval/rejection emails (only for status changes)
       for (const v of visitorsBefore) {
         if (v.status !== bulkStatus) {
-          if (bulkStatus === 'accepted') sendVisitorApprovalEmail(v.email, v.name).catch(() => {})
-          else if (bulkStatus === 'rejected') sendVisitorRejectionEmail(v.email, v.name).catch(() => {})
+          if (bulkStatus === 'accepted') sendUserApprovalEmail(v.email, v.name).catch(() => {})
+          else if (bulkStatus === 'rejected') sendUserRejectionEmail(v.email, v.name).catch(() => {})
         }
       }
       return NextResponse.json({ success: true, updated: result.count })
@@ -86,8 +86,8 @@ export async function PATCH(request: NextRequest) {
     const visitor = await db.visitor.update({ where: { id }, data: updateData })
     // Send email notification on status change
     if (visitorBefore && status && visitorBefore.status !== status) {
-      if (status === 'accepted') sendVisitorApprovalEmail(visitorBefore.email, visitorBefore.name).catch(() => {})
-      else if (status === 'rejected') sendVisitorRejectionEmail(visitorBefore.email, visitorBefore.name).catch(() => {})
+      if (status === 'accepted') sendUserApprovalEmail(visitorBefore.email, visitorBefore.name).catch(() => {})
+      else if (status === 'rejected') sendUserRejectionEmail(visitorBefore.email, visitorBefore.name).catch(() => {})
     }
     return NextResponse.json({ success: true, visitor })
   } catch (error: unknown) {
