@@ -364,13 +364,13 @@ function OutputChart({ item }: { item: OutputItem }) {
   const renderChart = () => {
     switch (c.chartType) {
       case 'scatter':
-        return <ChartScatter data={c.data} slope={c.slope} intercept={c.intercept} dv={c.dv} iv={c.iv} />
+        return <ChartScatter data={c.data} title={c.title} />
       case 'histogram':
         return <ChartHistogram values={c.values} title={c.title} />
       case 'pie':
         return <ChartPie data={c.data} title={c.title} />
       case 'bar':
-        return <ChartBar data={c.data} title={c.title} />
+        return <ChartBar data={c.data} title={c.title} bars={[]} />
       case 'boxplot':
         return <ChartBoxPlot groups={c.groups} title={c.title} />
       case 'line':
@@ -389,7 +389,7 @@ function OutputChart({ item }: { item: OutputItem }) {
             variant="ghost"
             size="sm"
             className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-            onClick={() => exportChartAsImage(chartId)}
+            onClick={() => exportChartAsImage(chartId as unknown as React.RefObject<HTMLDivElement>)}
           >
             <Download className="w-3 h-3" />
           </Button>
@@ -560,7 +560,7 @@ export function ScanPanel(h: HandlerHook) {
             const res = await fetch('/api/scan', { method: 'POST', body: formData })
             const data = await res.json()
             if (data.fields || data.tables) {
-              h.store.setScanResults({ fields: data.fields || [], tables: data.tables || [], rawText: data.rawText || '', summary: data.summary || '' })
+              h.store.setScanResults(data as any)
             } else if (data.error) {
               h.store.setScanState('error')
             }

@@ -390,5 +390,5 @@ export function makeFrequencyBarData(values: (string | number | null | undefined
 
 // Helper to create pie chart data
 export function makePieData(values: (string | number | null | undefined)[]): { name: string; value: number }[] {
-  return makeFrequencyBarData(values).slice(0, 10)
+  return makeFrequencyBarData(values).slice(0, 10).map(d => ({ name: d.name, value: d.count }));
 }

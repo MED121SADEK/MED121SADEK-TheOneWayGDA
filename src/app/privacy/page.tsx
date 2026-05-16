@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Shield, Lock, Eye, Trash2, Download, FileCheck, Cookie, Users, ArrowLeft, CheckCircle, AlertTriangle, Server, Key } from 'lucide-react'
 
-const fadeUp = { hidden: { opacity: 0, y: 30 }, visible: (i: number = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' } }) }
+const fadeUp = { hidden: { opacity: 0, y: 30 }, visible: (i: number = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' as const } }) }
 const stagger = { visible: { transition: { staggerChildren: 0.08 } } }
 
 export default function PrivacyPage() {

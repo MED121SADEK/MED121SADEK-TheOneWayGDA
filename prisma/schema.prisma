@@ -113,7 +113,8 @@ model Visitor {
   @@index([status])
 }
 
-model AIModel {
+model AiModel {
+  @@map("AIModel")
   id            String   @id @default(cuid())
   name          String
   provider      String

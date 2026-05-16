@@ -15,20 +15,23 @@ export async function GET(request: Request) {
     const where: any = { isActive: true };
     if (provider) where.provider = provider;
 
-    const pricingData = await prisma.modelPricing.findMany({
-      where, include: { AIModel: { select: { name: true, provider: true, modelType: true, contextWindow: true, parameters: true } } },
-      orderBy: { updatedAt: 'desc' },
-    });
+    const [pricingData, models] = await Promise.all([
+      prisma.modelPricing.findMany({ where, orderBy: { updatedAt: 'desc' } }),
+      prisma.aiModel.findMany({ select: { id: true, name: true, provider: true, modelType: true, contextWindow: true, parameters: true } }),
+    ]);
+
+    const modelMap = Object.fromEntries(models.map(m => [m.id, m]));
 
     const seen = new Set<string>();
     const unique: any[] = [];
     for (const p of pricingData) {
       if (!seen.has(p.modelId)) {
         seen.add(p.modelId);
+        const model = modelMap[p.modelId];
         unique.push({
-          modelId: p.modelId, modelName: p.AIModel?.name || 'Unknown', provider: p.AIModel?.provider || p.provider,
-          modelType: p.AIModel?.modelType || 'unknown', contextWindow: p.AIModel?.contextWindow || 0,
-          parameters: p.AIModel?.parameters || 'N/A',
+          modelId: p.modelId, modelName: model?.name || 'Unknown', provider: model?.provider || p.provider,
+          modelType: model?.modelType || 'unknown', contextWindow: model?.contextWindow || 0,
+          parameters: model?.parameters || 'N/A',
           inputPrice: p.inputPrice, outputPrice: p.outputPrice,
           batchInputPrice: p.batchInputPrice, batchOutputPrice: p.batchOutputPrice,
           costPer1MCombined: parseFloat(((p.inputPrice + p.outputPrice) / 2).toFixed(2)),

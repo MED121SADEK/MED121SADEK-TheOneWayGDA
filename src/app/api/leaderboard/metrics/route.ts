@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db as prisma } from '@/lib/db';
-import { metricsCache } from '@/lib/cache';
+import { metricsCache, leaderboardCache } from '@/lib/cache';
 import { seedLeaderboardData } from '@/lib/leaderboard-seed';
 
 const TEST_PROMPTS = [

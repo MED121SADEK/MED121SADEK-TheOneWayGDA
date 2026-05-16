@@ -80,7 +80,7 @@ function timeAgo(date: string): string {
   return new Date(date).toLocaleDateString()
 }
 
-function parseTags(tags: string | null): string[] {
+function parseTags(tags: string | null | undefined): string[] {
   if (!tags) return []
   try { return JSON.parse(tags) } catch { return [] }
 }

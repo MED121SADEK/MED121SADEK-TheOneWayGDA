@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { motion, useInView } from 'framer-motion'
 import { useTranslation, localeNames, Locale } from '@/lib/i18n'
 import { useAppStore } from '@/lib/store'
-import type { Variable } from '@/lib/store'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -51,7 +50,7 @@ const fadeUp = {
   hidden: { opacity: 0, y: 30 },
   visible: (i: number = 0) => ({
     opacity: 1, y: 0,
-    transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' },
+    transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' as const },
   }),
 }
 const stagger = { visible: { transition: { staggerChildren: 0.08 } } }
