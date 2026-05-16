@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPassword, generateToken } from '@/lib/auth'
-import { memDb } from '@/lib/memory-db'
+import { db } from '@/lib/db'
 
-// Use in-memory database (works on any platform without external database)
-const database = memDb
+// Use unified database (auto-selects in-memory on Vercel, Prisma locally)
+const database = db
 
 export async function POST(request: NextRequest) {
   try {
