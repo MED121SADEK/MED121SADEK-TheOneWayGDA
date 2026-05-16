@@ -5,8 +5,16 @@
       "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/news/cron",
+      "path": "/api/news/cron?shift=0",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/news/cron?shift=1",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/news/cron?shift=2",
+      "schedule": "0 0 * * *"
     }
   ]
 }
