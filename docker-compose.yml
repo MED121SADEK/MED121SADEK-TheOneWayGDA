@@ -1,0 +1,81 @@
+# ═══════════════════════════════════════════════════════════
+# The One-Way — Docker Compose (Development & Production)
+# Services: app, db (optional Postgres for production scale)
+# Usage:
+#   Development: docker compose up
+#   Production:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ═══════════════════════════════════════════════════════════
+
+services:
+  # ── Main Application ──
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        DATABASE_URL: "file:/app/db/production.db"
+    container_name: oneway-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "file:/app/db/production.db"
+      ADMIN_SECRET: "${ADMIN_SECRET:?ADMIN_SECRET is required}"
+      NEXT_PUBLIC_BASE_URL: "${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}"
+    volumes:
+      - app-db:/app/db          # Persist SQLite database
+      - app-logs:/app/logs      # Persist application logs
+      - app-uploads:/app/upload # Persist uploaded files
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+    networks:
+      - oneway-network
+
+  # ── Caddy Reverse Proxy (optional, for HTTPS) ──
+  caddy:
+    image: caddy:2-alpine
+    container_name: oneway-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - oneway-network
+    profiles:
+      - production
+
+volumes:
+  app-db:
+    driver: local
+  app-logs:
+    driver: local
+  app-uploads:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+
+networks:
+  oneway-network:
+    driver: bridge

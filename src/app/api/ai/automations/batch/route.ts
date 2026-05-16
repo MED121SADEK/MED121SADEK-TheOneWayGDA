@@ -365,20 +365,6 @@ export async function PATCH(request: NextRequest) {
         { status: 400 }
       )
     }
-  }
-
-  try {
-    const body = await request.json()
-    const { ruleIds, updates } = body as {
-      ruleIds: string[]
-      updates: {
-        isActive?: boolean
-        trigger?: string
-        triggerConfig?: Record<string, unknown>
-        name?: string
-        description?: string
-      }
-    }
 
     // Build Prisma update data
     const updateData: Record<string, unknown> = {}

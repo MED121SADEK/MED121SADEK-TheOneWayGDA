@@ -1,0 +1,54 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build output
+.next
+out
+dist
+build
+
+# Database
+db/*.db
+db/*.db-journal
+db/backups/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.production.local
+.env.development.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Docker
+docker-compose.override.yml
+
+# Misc
+.git
+.github
+.gitignore
+README.md
+LICENSE
+coverage
+.nyc_output
+scripts/
+examples/
+upload/
+download/

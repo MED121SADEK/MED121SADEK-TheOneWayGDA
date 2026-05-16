@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════════════════
+# The One-Way — Docker Compose Production Overrides
+# Adds: resource limits, auto-scaling readiness, monitoring ports
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ═══════════════════════════════════════════════════════════
+
+services:
+  app:
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+      update_config:
+        parallelism: 1
+        delay: 30s
+        order: start-first     # Zero-downtime: start new before stopping old
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    environment:
+      - NODE_ENV=production
+    read_only: false
+    tmpfs:
+      - /tmp

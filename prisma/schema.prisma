@@ -459,3 +459,51 @@ model CommunityAnalysisTemplate {
   @@index([isFeatured])
   @@index([isOfficial])
 }
+
+// ═══ MLOps — AI Prompt & Config Versioning ═══
+
+model PromptVersion {
+  id          String   @id @default(cuid())
+  name        String
+  version     String   // "v1.0.0", "v1.1.0"
+  context     String   // "copilot" | "workflow" | "automation" | "governance"
+  prompt      String   // The actual system prompt text
+  description String?
+  isActive    Boolean  @default(false)
+  metadata    String?  // JSON: {tokens, testedAt, changelog}
+  createdBy   String?  // visitor email or "system"
+  createdAt   DateTime @default(now())
+
+  @@unique([name, version])
+  @@index([context])
+  @@index([isActive])
+}
+
+model AiModelConfig {
+  id            String   @id @default(cuid())
+  name          String
+  version       String
+  model         String   // "default" | "gpt-4" | specific model identifier
+  parameters    String   // JSON: {temperature, maxTokens, topP, ...}
+  promptVersion String?
+  isActive      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@unique([name, version])
+  @@index([isActive])
+}
+
+model EvaluationRun {
+  id            String   @id @default(cuid())
+  configVersion String
+  promptVersion String
+  status        String   @default("pending") // "pending" | "running" | "completed" | "failed"
+  metrics       String   // JSON: {accuracy, latencyMs, tokenUsage, userSatisfaction}
+  testCases     Int      @default(0)
+  passed        Int      @default(0)
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+
+  @@index([configVersion])
+  @@index([status])
+}

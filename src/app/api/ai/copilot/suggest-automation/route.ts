@@ -317,7 +317,15 @@ export async function GET(request: NextRequest) {
       } catch { /* silent */ }
 
       // Store new suggestions
-      const storedSuggestions = []
+      const storedSuggestions: Array<{
+        id: string
+        title: string
+        content: unknown
+        confidence: number
+        context: string
+        category: string
+        createdAt: Date
+      }> = []
       for (const suggestion of suggestions.slice(0, limit)) {
         try {
           const stored = await prisma.aiSuggestion.create({
