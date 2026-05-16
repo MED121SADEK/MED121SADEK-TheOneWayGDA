@@ -344,41 +344,13 @@ export default function TeamDetailPage() {
     .sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0))
 
   if (!session) return null
-  if (loading) return <div className="h-screen flex items-center justify-center mesh-gradient"><Loader2 className="size-8 text-primary animate-spin" /></div>
-  if (!team) return <div className="h-screen flex items-center justify-center mesh-gradient"><p className="text-muted-foreground">Team not found</p></div>
+  if (loading) return <div className="flex items-center justify-center py-32"><Loader2 className="size-8 text-primary animate-spin" /></div>
+  if (!team) return <div className="flex items-center justify-center py-32"><p className="text-muted-foreground">Team not found</p></div>
 
   const initials = getInitials(team.name, team.slug)
 
   return (
-    <div className="min-h-screen flex flex-col mesh-gradient noise-overlay" dir={dir}>
-      {/* ═══ NAV ═══ */}
-      <nav className="sticky top-0 z-50 nav-premium">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14 gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link href="/teams" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
-              <ArrowLeft className="size-4" />
-            </Link>
-            <div className={`size-7 rounded-lg bg-gradient-to-br ${team.avatar || GRADIENTS[0]} flex items-center justify-center flex-shrink-0 text-white font-bold text-xs`}>
-              {team.name.charAt(0).toUpperCase()}
-            </div>
-            <span className="text-lg font-bold gradient-text-premium whitespace-nowrap truncate">{team.name}</span>
-            {getRoleBadge(myRole)}
-          </div>
-          <div className="flex items-center gap-2">
-            {isOwnerOrAdmin && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => router.push(`/teams/${teamId}`)}>
-                <Settings className="size-3" />Manage
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" className="h-8 text-xs text-rose-400 hover:text-rose-300" onClick={handleLeaveTeam}>
-              Leave
-            </Button>
-          </div>
-        </div>
-      </nav>
-
-      {/* ═══ MAIN ═══ */}
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+    <div className="flex flex-col gap-6 px-4 sm:px-6 py-6" dir={dir}>
         {/* ── Team Hero ── */}
         <motion.div {...fadeUp} className="hero-gradient rounded-2xl p-6 sm:p-8 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-violet-500/5 pointer-events-none" />
@@ -760,7 +732,6 @@ export default function TeamDetailPage() {
             </motion.div>
           </TabsContent>
         </Tabs>
-      </div>
 
       {/* ═══ SHARE RESOURCE DIALOG ═══ */}
       <Dialog open={shareOpen} onOpenChange={setShareOpen}>

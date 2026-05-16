@@ -1,0 +1,11 @@
+{
+  "description": "The One Way - Professional Solutions",
+  "repo": "https://github.com/<YOUR_GITHUB_USERNAME>/theonewaygda",
+  "owner": {
+    "username": "<YOUR_GITHUB_USERNAME>",
+    "email": "<YOUR_EMAIL>"
+  },
+  "record": {
+    "CNAME": "theonewaygda.vercel.app"
+  }
+}

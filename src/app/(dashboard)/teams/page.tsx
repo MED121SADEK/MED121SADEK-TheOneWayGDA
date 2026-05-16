@@ -105,9 +105,9 @@ export default function TeamsPage() {
 
   /* ─── Auth check ─── */
   useEffect(() => {
-    if (!session) { router.push('/auth/login'); return }
+    if (!session) return
     Promise.all([fetchTeams(), fetchInvites()])
-  }, [router, session])
+  }, [session])
 
   /* ─── Data fetchers ─── */
   const fetchTeams = useCallback(async () => {
@@ -213,18 +213,10 @@ export default function TeamsPage() {
   if (!session) return null
 
   return (
-    <div className="min-h-screen flex flex-col mesh-gradient noise-overlay" dir={dir}>
-      {/* ═══ NAV ═══ */}
-      <nav className="sticky top-0 z-50 nav-premium">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14 gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link href="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
-              <ArrowLeft className="size-4" />
-            </Link>
-            <Image src="/images/logo.png" alt="TheOneWayGDA" width={28} height={28} className="rounded-lg flex-shrink-0" />
-            <span className="text-lg font-bold gradient-text-premium whitespace-nowrap">Teams</span>
-          </div>
-          <div className="flex items-center gap-2">
+    <div dir={dir}>
+      {/* Team action buttons */}
+      <div className="flex items-center justify-between gap-2 px-4 sm:px-6 pt-4">
+        <div className="flex items-center gap-2">
             <Dialog open={joinOpen} onOpenChange={setJoinOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
@@ -310,24 +302,11 @@ export default function TeamsPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-
-            <Select value={locale} onValueChange={(v) => setLocale(v as 'en' | 'fr' | 'ar' | 'zh' | 'es' | 'de' | 'ja' | 'ko')}>
-              <SelectTrigger className="h-8 w-20 text-xs">
-                <Globe className="size-3 mr-0.5" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {['en', 'fr', 'ar', 'zh', 'es', 'de', 'ja', 'ko'].map(l => (
-                  <SelectItem key={l} value={l} className="text-xs">{l.toUpperCase()}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
-      </nav>
 
-      {/* ═══ MAIN ═══ */}
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+      {/* == MAIN == */}
+      <div className="flex-1">
         {loading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="size-8 text-primary animate-spin" /></div>
         ) : (
