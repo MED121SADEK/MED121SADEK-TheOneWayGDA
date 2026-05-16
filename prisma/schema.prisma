@@ -13,24 +13,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model Project {
   id          String   @id @default(cuid())
   name        String
@@ -67,11 +49,15 @@ model CommunityPost {
   @@index([author])
   @@index([createdAt])
   @@index([featured])
+
+  postComments  PostComment[]
+  interactions  PostInteraction[]
 }
 
 model PostComment {
   id        String   @id @default(cuid())
   postId    String
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   author    String   // visitor email
   authorName String?
   content   String
@@ -84,6 +70,7 @@ model PostComment {
 model PostInteraction {
   id        String   @id @default(cuid())
   postId    String
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   visitorId String   // visitor email
   type      String   // "like" | "save"
   createdAt DateTime @default(now())
@@ -134,11 +121,16 @@ model AiModel {
   @@index([provider])
   @@index([modelType])
   @@index([isActive])
+
+  benchmarkScores BenchmarkScore[]
+  pricing         ModelPricing[]
+  liveMetrics     LiveMetric[]
 }
 
 model BenchmarkScore {
   id        String   @id @default(cuid())
   modelId   String
+  model     AiModel       @relation(fields: [modelId], references: [id], onDelete: Cascade)
   benchmark String
   score     Float
   maxScore  Float    @default(100)
@@ -158,6 +150,7 @@ model BenchmarkScore {
 model ModelPricing {
   id              String   @id @default(cuid())
   modelId         String
+  model           AiModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
   provider        String
   inputPrice      Float
   outputPrice     Float
@@ -177,6 +170,7 @@ model ModelPricing {
 model LiveMetric {
   id           String   @id @default(cuid())
   modelId      String
+  model        AiModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
   prompt       String
   response     String?
   latencyMs    Int?

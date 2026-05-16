@@ -50,25 +50,13 @@ export default function CompanyPage() {
     { city: t('company.office8City'), country: t('company.office8Country'), role: t('company.office8Role') },
   ]
 
-  const ADVISORS = [
-    { name: t('company.advisor1Name'), title: t('company.advisor1Title'), expertise: t('company.advisor1Expertise') },
-    { name: t('company.advisor2Name'), title: t('company.advisor2Title'), expertise: t('company.advisor2Expertise') },
-    { name: t('company.advisor3Name'), title: t('company.advisor3Title'), expertise: t('company.advisor3Expertise') },
-    { name: t('company.advisor4Name'), title: t('company.advisor4Title'), expertise: t('company.advisor4Expertise') },
-    { name: t('company.advisor5Name'), title: t('company.advisor5Title'), expertise: t('company.advisor5Expertise') },
-    { name: t('company.advisor6Name'), title: t('company.advisor6Title'), expertise: t('company.advisor6Expertise') },
-  ]
-
   const LEADERS = [
     { name: 'Mohammed Essadek', title: 'Founder & CEO', icon: Crown, linkedin: 'https://www.linkedin.com/in/mohammed-essadek-549a17229' },
-    { name: t('company.ctoName'), title: t('company.ctoTitle'), icon: Sparkles },
-    { name: t('company.cooName'), title: t('company.cooTitle'), icon: Briefcase },
   ]
 
-  const INVESTORS = [t('company.investor1'), t('company.investor2'), t('company.investor3'), t('company.investor4')]
-  const PRESS = [t('company.press1'), t('company.press2'), t('company.press3'), t('company.press4')]
-  const AWARDS = [t('company.award1'), t('company.award2'), t('company.award3')]
-  const PRESS_BADGES = ['Featured', 'Research', 'Innovation', 'International']
+  const PRESS: string[] = []
+  const AWARDS: string[] = []
+  const INVESTORS = [t('company.backedBy')]
 
   return (
     <div className="min-h-screen noise-overlay mesh-gradient" dir={dir}>
@@ -154,10 +142,6 @@ export default function CompanyPage() {
                     <Building className="size-4 text-muted-foreground flex-shrink-0" />
                     <p className="text-muted-foreground"><span className="font-medium text-foreground">{t('company.dba')}</span></p>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Lock className="size-4 text-muted-foreground flex-shrink-0" />
-                    <p className="text-muted-foreground text-xs">{t('company.registration')}</p>
-                  </div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -173,7 +157,7 @@ export default function CompanyPage() {
             <motion.p variants={fadeUp} custom={1} className="text-muted-foreground mt-2 max-w-2xl mx-auto">{t('about.teamDesc')}</motion.p>
           </AnimatedSection>
           <AnimatedSection>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-6 max-w-sm mx-auto">
               {LEADERS.map((leader, i) => (
                 <motion.div key={leader.name} variants={fadeUp} custom={i + 2}>
                   <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300 text-center">
@@ -297,61 +281,19 @@ export default function CompanyPage() {
         </div>
       </section>
 
-      {/* Advisory Board */}
-      <section className="py-20 md:py-28">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <AnimatedSection>
-            <motion.h2 variants={fadeUp} className="text-3xl font-extrabold text-center mb-4">{t('company.advisoryBoard')}</motion.h2>
-            <motion.p variants={fadeUp} custom={1} className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">{t('company.advisoryBoardDesc')}</motion.p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {ADVISORS.map((advisor, i) => (
-                <motion.div key={advisor.name} variants={fadeUp} custom={i + 2}>
-                  <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300">
-                    <CardContent className="p-6">
-                      <div className="flex items-center gap-4 mb-3">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center flex-shrink-0">
-                          <span className="text-sm font-bold gradient-text-premium">{advisor.name.split(' ').map(n => n[0]).join('')}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="font-semibold text-sm truncate">{advisor.name}</h3>
-                          <p className="text-xs text-primary truncate">{advisor.title}</p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="text-[10px]">{advisor.expertise}</Badge>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          </AnimatedSection>
-        </div>
-      </section>
-
       {/* Certifications */}
       <section className="py-20 bg-muted/30">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
-            <motion.h2 variants={fadeUp} className="text-3xl font-extrabold text-center mb-10">{t('company.certifications')}</motion.h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {[
-                { label: 'ISO 27001', desc: 'Information Security', icon: Shield },
-                { label: 'SOC 2 Type II', desc: 'Service Controls', icon: FileCheck },
-                { label: 'GDPR', desc: 'EU Data Protection', icon: Lock },
-                { label: 'HIPAA', desc: 'Healthcare Data', icon: Heart },
-                { label: 'CCPA', desc: 'California Privacy', icon: Shield },
-                { label: 'FERPA', desc: 'Education Records', icon: BookOpen },
-              ].map((cert, i) => (
-                <motion.div key={cert.label} variants={fadeUp} custom={i}>
-                  <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300">
-                    <CardContent className="p-4 text-center">
-                      <cert.icon className="size-8 text-primary mx-auto mb-2" />
-                      <p className="text-xs font-semibold">{cert.label}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">{cert.desc}</p>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
+            <motion.div variants={fadeUp}>
+              <Card className="card-premium border-primary/20 bg-card/50 backdrop-blur-sm">
+                <CardContent className="p-8 text-center">
+                  <Shield className="size-10 text-primary mx-auto mb-4" />
+                  <h3 className="text-lg font-bold mb-2">{t('company.certifications')}</h3>
+                  <p className="text-sm text-muted-foreground">We are committed to meeting the highest security standards. Compliance certifications are part of our roadmap as we scale.</p>
+                </CardContent>
+              </Card>
+            </motion.div>
           </AnimatedSection>
         </div>
       </section>
@@ -393,42 +335,17 @@ export default function CompanyPage() {
 
       {/* Press & Recognition */}
       <section className="py-20 bg-muted/30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <AnimatedSection className="text-center mb-12">
-            <motion.div variants={fadeUp}>
-              <Newspaper className="size-10 text-primary mx-auto mb-4" />
-              <h2 className="text-3xl font-extrabold">{t('company.press')}</h2>
-            </motion.div>
-          </AnimatedSection>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <AnimatedSection>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-              {PRESS.map((headline, i) => (
-                <motion.div key={i} variants={fadeUp} custom={i + 1}>
-                  <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300 group cursor-pointer">
-                    <CardContent className="p-6">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">{PRESS_BADGES[i]}</Badge>
-                        <ChevronRight className="size-3 text-muted-foreground ml-auto group-hover:text-primary transition-colors" />
-                      </div>
-                      <h3 className="font-semibold text-sm leading-relaxed">{headline}</h3>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-            <motion.h3 variants={fadeUp} className="text-2xl font-bold text-center mb-8">{t('company.awards')}</motion.h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {AWARDS.map((award, i) => (
-                <motion.div key={i} variants={fadeUp} custom={i + 10}>
-                  <Card className="card-premium text-center hover:border-primary/30 transition-all">
-                    <CardContent className="p-6">
-                      <Award className="size-8 text-amber-400 mx-auto mb-3" />
-                      <h3 className="font-semibold text-sm">{award}</h3>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
+            <motion.div variants={fadeUp}>
+              <Card className="card-premium border-primary/20 bg-card/50 backdrop-blur-sm">
+                <CardContent className="p-8 text-center">
+                  <Newspaper className="size-10 text-primary mx-auto mb-4" />
+                  <h3 className="text-lg font-bold mb-2">Press & Recognition</h3>
+                  <p className="text-sm text-muted-foreground">As a growing platform, we look forward to sharing media coverage and achievements here.</p>
+                </CardContent>
+              </Card>
+            </motion.div>
           </AnimatedSection>
         </div>
       </section>
@@ -442,14 +359,7 @@ export default function CompanyPage() {
                 <CardContent className="p-8 text-center">
                   <TrendingUp className="size-10 text-primary mx-auto mb-4" />
                   <h2 className="text-2xl font-bold mb-2">{t('company.backedBy')}</h2>
-                  <p className="text-sm text-muted-foreground mb-6 max-w-xl mx-auto">{t('company.backedByDesc')}</p>
-                  <div className="flex flex-wrap justify-center gap-4">
-                    {INVESTORS.map((investor, i) => (
-                      <div key={i} className="glass-card rounded-lg px-5 py-3">
-                        <p className="text-xs font-medium">{investor}</p>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-sm text-muted-foreground">Self-funded and growing. We are focused on building the best product for our community.</p>
                 </CardContent>
               </Card>
             </motion.div>

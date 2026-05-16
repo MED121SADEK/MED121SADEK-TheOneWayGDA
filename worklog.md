@@ -181,3 +181,37 @@ Stage Summary:
 - Files modified: i18n.tsx, visitors/route.ts, EmailGate.tsx, page.tsx, stats.ts, leaderboard/route.ts, pricing/route.ts, benchmarks/route.ts, metrics/route.ts, models/[id]/route.ts
 - Files created: .env.example
 - Security: Admin API now properly secured when ADMIN_SECRET is unset
+
+---
+Task ID: 6
+Agent: Main Agent + 3 Subagents
+Task: Fix inappropriate content, clean schema, add middleware, fix types — complete all remaining steps
+
+Work Log:
+- **Inappropriate Content Audit & Fix:**
+  - Company page: Removed fake CEO/CTO/COO names, fake advisory board (6 invented professors), fake press quotes (TechCrunch, Nature, Wired, Le Monde), fake awards, fake investors (Sequoia, YC, Google AI Fund). Replaced with honest "coming soon" and "self-funded" messaging. Only real founder (Mohammed Essadek) remains.
+  - Company page: Removed fake EIN registration number, fake certifications grid. Replaced with compliance roadmap card.
+  - Security page: Removed fake certifying bodies (Deloitte, Bureau Veritas, HITRUST, Knudsen & Associates). Changed all 9 certifications to show "In Progress" or "Planned" status instead of claiming they're certified.
+  - Security page: Fixed hardcoded English heading to use i18n.
+- **Prisma Schema Cleanup:**
+  - Removed orphaned User model (zero references in codebase)
+  - Removed orphaned Post model (zero references in codebase)
+  - Added @relation declarations with onDelete: Cascade on 5 FK fields (PostComment.postId, PostInteraction.postId, BenchmarkScore.modelId, ModelPricing.modelId, LiveMetric.modelId)
+  - Added reverse relation fields on parent models (CommunityPost, AiModel)
+  - Ran prisma db push — schema synced
+- **Middleware Created:**
+  - Created src/middleware.ts — protects /admin/* routes by checking oneway-admin-token cookie
+  - Unauthorized admin access redirects to /
+  - matcher config: ['/admin/:path*']
+- **TypeScript Quality:**
+  - Replaced all `any` types with proper typed alternatives in 3 API routes (visitors, leaderboard, community/posts)
+  - Changed `catch (error: any)` to `catch (error: unknown)` across 8 files
+  - Used `Record<string, unknown>`, `Record<string, string>`, and `typeof` for lookup maps
+- **Vercel Cron:** Already configured in vercel.json (hourly /api/leaderboard/cron)
+
+Stage Summary:
+- All inappropriate/fake content removed and replaced with honest messaging
+- Prisma schema cleaned: 2 orphaned models removed, 5 relations added with cascade deletes
+- Server-side middleware protects admin routes
+- All `any` types eliminated from API routes
+- Build: 0 errors, 24 pages, 14 API routes, 1 middleware

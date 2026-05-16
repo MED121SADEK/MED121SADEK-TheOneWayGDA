@@ -69,15 +69,15 @@ export default function SecurityPage() {
 
   /* ── Compliance Certifications ── */
   const certifications = [
-    { icon: ShieldCheck, name: t('privacy.gdpr'), desc: t('security.gdprDescription'), body: t('security.certBodyISO'), color: 'from-blue-500/20 to-blue-600/5 border-blue-500/20', iconBg: 'bg-blue-500/10 text-blue-500 dark:text-blue-400' },
-    { icon: Shield, name: t('privacy.soc2'), desc: t('security.soc2Description'), body: t('security.soc2CertBody'), color: 'from-emerald-500/20 to-emerald-600/5 border-emerald-500/20', iconBg: 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400' },
-    { icon: FileCheck, name: t('privacy.iso27001'), desc: t('security.isoDescription'), body: t('security.certBodyISO'), color: 'from-purple-500/20 to-purple-600/5 border-purple-500/20', iconBg: 'bg-purple-500/10 text-purple-500 dark:text-purple-400' },
-    { icon: Fingerprint, name: t('privacy.hipaa'), desc: t('security.hipaaDesc'), body: t('security.certBodyHIPAA'), color: 'from-teal-500/20 to-teal-600/5 border-teal-500/20', iconBg: 'bg-teal-500/10 text-teal-500 dark:text-teal-400' },
-    { icon: CheckCircle, name: t('privacy.ccpa'), desc: t('security.ccpaDescription'), body: '–', color: 'from-amber-500/20 to-amber-600/5 border-amber-500/20', iconBg: 'bg-amber-500/10 text-amber-500 dark:text-amber-400' },
-    { icon: Eye, name: t('privacy.ferpa'), desc: t('security.ferpaDescription'), body: '–', color: 'from-rose-500/20 to-rose-600/5 border-rose-500/20', iconBg: 'bg-rose-500/10 text-rose-500 dark:text-rose-400' },
-    { icon: Globe, name: t('security.lgpd'), desc: t('security.lgpdDescription'), body: '–', color: 'from-green-500/20 to-green-600/5 border-green-500/20', iconBg: 'bg-green-500/10 text-green-500 dark:text-green-400' },
-    { icon: Lock, name: t('security.pcidss'), desc: t('security.pcidssDescription'), body: '–', color: 'from-red-500/20 to-red-600/5 border-red-500/20', iconBg: 'bg-red-500/10 text-red-500 dark:text-red-400' },
-    { icon: Shield, name: t('security.fedramp'), desc: t('security.fedrampDescription'), body: t('security.certBodyFedRAMP'), color: 'from-sky-500/20 to-sky-600/5 border-sky-500/20', iconBg: 'bg-sky-500/10 text-sky-500 dark:text-sky-400' },
+    { icon: ShieldCheck, name: t('privacy.gdpr'), desc: t('security.gdprDescription'), body: 'In Progress', color: 'from-blue-500/20 to-blue-600/5 border-blue-500/20', iconBg: 'bg-blue-500/10 text-blue-500 dark:text-blue-400' },
+    { icon: Shield, name: t('privacy.soc2'), desc: t('security.soc2Description'), body: 'In Progress', color: 'from-emerald-500/20 to-emerald-600/5 border-emerald-500/20', iconBg: 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400' },
+    { icon: FileCheck, name: t('privacy.iso27001'), desc: t('security.isoDescription'), body: 'In Progress', color: 'from-purple-500/20 to-purple-600/5 border-purple-500/20', iconBg: 'bg-purple-500/10 text-purple-500 dark:text-purple-400' },
+    { icon: Fingerprint, name: t('privacy.hipaa'), desc: t('security.hipaaDesc'), body: 'In Progress', color: 'from-teal-500/20 to-teal-600/5 border-teal-500/20', iconBg: 'bg-teal-500/10 text-teal-500 dark:text-teal-400' },
+    { icon: CheckCircle, name: t('privacy.ccpa'), desc: t('security.ccpaDescription'), body: 'Planned', color: 'from-amber-500/20 to-amber-600/5 border-amber-500/20', iconBg: 'bg-amber-500/10 text-amber-500 dark:text-amber-400' },
+    { icon: Eye, name: t('privacy.ferpa'), desc: t('security.ferpaDescription'), body: 'Planned', color: 'from-rose-500/20 to-rose-600/5 border-rose-500/20', iconBg: 'bg-rose-500/10 text-rose-500 dark:text-rose-400' },
+    { icon: Globe, name: t('security.lgpd'), desc: t('security.lgpdDescription'), body: 'Planned', color: 'from-green-500/20 to-green-600/5 border-green-500/20', iconBg: 'bg-green-500/10 text-green-500 dark:text-green-400' },
+    { icon: Lock, name: t('security.pcidss'), desc: t('security.pcidssDescription'), body: 'Planned', color: 'from-red-500/20 to-red-600/5 border-red-500/20', iconBg: 'bg-red-500/10 text-red-500 dark:text-red-400' },
+    { icon: Shield, name: t('security.fedramp'), desc: t('security.fedrampDescription'), body: 'Planned', color: 'from-sky-500/20 to-sky-600/5 border-sky-500/20', iconBg: 'bg-sky-500/10 text-sky-500 dark:text-sky-400' },
   ]
 
   /* ── Encryption & Infrastructure ── */
@@ -193,9 +193,7 @@ export default function SecurityPage() {
                           </div>
                           <div className="min-w-0">
                             <CardTitle className="text-base leading-snug">{cert.name}</CardTitle>
-                            {cert.body !== '–' && (
-                              <CardDescription className="mt-0.5 text-xs">{cert.body}</CardDescription>
-                            )}
+                            <CardDescription className="mt-0.5 text-xs">{cert.body}</CardDescription>
                           </div>
                         </div>
                       </CardHeader>
@@ -323,7 +321,7 @@ export default function SecurityPage() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <AnimatedSection>
               <motion.h2 variants={fadeUp} className="text-2xl md:text-3xl font-bold text-center mb-10">
-                Advanced Security Features
+                {t('security.advanced') || 'Advanced Security Features'}
               </motion.h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
                 {advancedFeatures.map((feat, i) => (
