@@ -215,3 +215,24 @@ Stage Summary:
 - Server-side middleware protects admin routes
 - All `any` types eliminated from API routes
 - Build: 0 errors, 24 pages, 14 API routes, 1 middleware
+
+---
+Task ID: 3
+Agent: full-stack-developer
+Task: Add model comparison, search, refactor landing page, external API, fix bugs
+
+Work Log:
+- Added model comparison feature with checkboxes and side-by-side view
+- Added search functionality to leaderboard
+- Refactored page.tsx into /src/components/landing/ components
+- Created external data API integration endpoint
+- Fixed seed data missing batch prices
+- Fixed any type in model route
+- Verified build passes
+
+Stage Summary:
+- Model comparison: checkboxes on rows, floating compare bar, radar chart, benchmark/pricing/latency comparison
+- Search: client-side filtering by name/provider
+- Landing page: split into 10 components in /src/components/landing/
+- External API: /api/leaderboard/external with huggingface/github types
+- Build: passes with 0 errors
