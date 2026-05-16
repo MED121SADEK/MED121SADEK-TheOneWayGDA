@@ -158,6 +158,15 @@ export default function Home() {
   const [newVarName, setNewVarName] = useState('')
   const [newVarType, setNewVarType] = useState<'numeric' | 'string' | 'date' | 'currency'>('numeric')
   const chatEndRef = useRef<HTMLDivElement>(null)
+  // Scan & Fill state
+  const [scanDialogOpen, setScanDialogOpen] = useState(false)
+  const [cleanDialogOpen, setCleanDialogOpen] = useState(false)
+  const [validateDialogOpen, setValidateDialogOpen] = useState(false)
+  const [scanFile, setScanFile] = useState<File | null>(null)
+  const [scanPreview, setScanPreview] = useState<string | null>(null)
+  const [editedFields, setEditedFields] = useState<Record<string, string>>({})
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const batchInputRef = useRef<HTMLInputElement>(null)
 
   const scrollTo = (href: string) => {
     setMobileOpen(false)
@@ -410,6 +419,104 @@ export default function Home() {
                 <DialogFooter><Button onClick={() => setShareDialogOpen(false)}>{t('workspace.close')}</Button></DialogFooter>
               </DialogContent>
             </Dialog>
+            {/* Scan & Fill */}
+            <Dialog open={scanDialogOpen} onOpenChange={(open) => { setScanDialogOpen(open); if (!open) { setScanFile(null); setScanPreview(null); setEditedFields({}) } }}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="h-8 text-xs bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white">
+                  <ScanLine className="size-3.5" /> {t('scan.title')}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader><DialogTitle className="flex items-center gap-2"><ScanLine className="size-5 text-teal-500" />{t('scan.title')}</DialogTitle><DialogDescription>{t('scan.batchDesc')}</DialogDescription></DialogHeader>
+                <div className="space-y-4">
+                  {/* Upload area */}
+                  <div
+                    className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${scanFile ? 'border-teal-400 bg-teal-50/50' : 'border-border hover:border-teal-300 hover:bg-muted/30'}`}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff" className="hidden" onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) { setScanFile(f); const reader = new FileReader(); reader.onload = (ev) => setScanPreview(ev.target?.result as string); reader.readAsDataURL(f) }
+                    }} />
+                    {store.scanState === 'processing' ? (
+                      <div className="flex flex-col items-center gap-2"><div className="size-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" /><p className="text-sm text-muted-foreground">{t('scan.processing')}</p></div>
+                    ) : scanPreview ? (
+                      <div className="flex flex-col items-center gap-2"><img src={scanPreview} alt="Preview" className="max-h-48 rounded-lg shadow-sm" /><p className="text-xs text-muted-foreground">{scanFile?.name}</p></div>
+                    ) : (
+                      <><Upload className="size-8 mx-auto mb-2 text-muted-foreground" /><p className="text-sm text-muted-foreground">{t('scan.dragDrop')}</p><p className="text-xs text-muted-foreground mt-1">{t('scan.supportedFormats')}</p></>
+                    )}
+                  </div>
+                  {/* Batch upload */}
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => batchInputRef.current?.click()}><FolderOpen className="size-3.5" />{t('scan.batch')}</Button>
+                    <input ref={batchInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple className="hidden" onChange={async (e) => {
+                      const files = Array.from(e.target.files || [])
+                      files.forEach(f => store.addToBatchQueue({ id: Date.now().toString(36) + Math.random().toString(36).slice(2), name: f.name, status: 'pending' }))
+                    }} />
+                    {store.batchQueue.length > 0 && <span className="text-xs text-muted-foreground">{store.batchQueue.length} files queued</span>}
+                  </div>
+                  {/* Action buttons */}
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1 bg-teal-600 hover:bg-teal-700 text-white" disabled={!scanFile || store.scanState === 'processing'} onClick={async () => {
+                      if (!scanFile) return
+                      store.setScanState('processing')
+                      const formData = new FormData()
+                      formData.append('file', scanFile)
+                      try {
+                        const res = await fetch('/api/scan', { method: 'POST', body: formData })
+                        const data = await res.json()
+                        if (data.fields || data.tables) {
+                          store.setScanResults({ fields: data.fields || [], tables: data.tables || [], rawText: data.rawText || '', summary: data.summary || '' })
+                        } else if (data.error) {
+                          store.setScanState('error')
+                        }
+                      } catch { store.setScanState('error') }
+                    }}>{store.scanState === 'processing' ? t('scan.processing') : t('scan.title')}</Button>
+                    {store.scanState === 'done' && store.scanResults && (
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => { store.importScanResults(store.scanResults!); setScanDialogOpen(false) }}><Check className="size-3.5" />{t('scan.approve')}</Button>
+                    )}
+                  </div>
+                  {/* Results */}
+                  {store.scanState === 'done' && store.scanResults && (
+                    <div className="space-y-4">
+                      {store.scanResults.summary && <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">{store.scanResults.summary}</p>}
+                      {/* Extracted fields */}
+                      {store.scanResults.fields.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-foreground mb-2">{t('scan.extracted')} ({store.scanResults.fields.length})</p>
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {store.scanResults.fields.map((f: any, i: number) => (
+                              <div key={i} className="flex items-center gap-2 bg-muted/30 rounded-lg p-2">
+                                <Badge variant="outline" className="text-[10px] w-16 justify-center shrink-0">{f.type || 'text'}</Badge>
+                                <span className="text-xs font-medium w-28 truncate">{f.label}</span>
+                                <input className="flex-1 text-xs bg-background border rounded px-2 py-1" value={editedFields[f.label] ?? f.value} onChange={e => setEditedFields(p => ({ ...p, [f.label]: e.target.value }))} />
+                                <Badge variant={f.confidence > 0.8 ? 'default' : 'secondary'} className={`text-[10px] ${f.confidence > 0.8 ? 'bg-emerald-500 text-white' : f.confidence > 0.5 ? 'bg-amber-500 text-white' : 'bg-red-500 text-white'}`}>{Math.round((f.confidence || 0.5) * 100)}%</Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Tables */}
+                      {store.scanResults.tables.map((tbl: any, ti: number) => (
+                        <div key={ti}>
+                          <p className="text-xs font-semibold text-foreground mb-1 flex items-center gap-1"><Table2 className="size-3" />{t('scan.tableDetected')} - {tbl.rows.length} {t('scan.rowsExtracted')}</p>
+                          <div className="overflow-x-auto max-h-40 overflow-y-auto border rounded-lg">
+                            <table className="w-full text-xs border-collapse">
+                              <thead className="sticky top-0 bg-muted/80"><tr>{tbl.headers.map((h: string, hi: number) => <th key={hi} className="border px-2 py-1 text-left font-medium bg-muted/60">{h}</th>)}</tr></thead>
+                              <tbody>{tbl.rows.slice(0, 20).map((row: string[], ri: number) => <tr key={ri} className="hover:bg-muted/30">{row.map((cell: string, ci: number) => <td key={ci} className="border px-2 py-1">{cell}</td>)}</tr>)}</tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Scan history */}
+                  {store.scanHistory.length > 0 && (
+                    <div><p className="text-xs font-semibold mb-2">{t('scan.history')}</p><div className="space-y-1 max-h-24 overflow-y-auto">{store.scanHistory.slice(-5).reverse().map((s: any, i: number) => <div key={i} className="text-xs text-muted-foreground bg-muted/30 rounded p-1.5">{s.summary || `${s.fields.length} fields, ${s.tables.length} tables`}</div>)}</div></div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
             {/* Export */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button size="sm" variant="outline" className="h-8 text-xs"><Download className="size-3.5" /> {t('workspace.export')} <ChevronDown className="size-3" /></Button></DropdownMenuTrigger>
@@ -437,6 +544,67 @@ export default function Home() {
                 <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" disabled><Database className="size-3.5 mr-2" />{t('analysis.anova')}</Button>
                 <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" disabled><BarChart3 className="size-3.5 mr-2" />{t('analysis.chisquare')}</Button>
                 <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" disabled><PenLine className="size-3.5 mr-2" />{t('analysis.nonparametric')}</Button>
+              </div>
+            </div>
+            <div className="p-3 border-t border-border/50">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{t('scan.title')}</p>
+              <div className="space-y-1">
+                <Dialog open={cleanDialogOpen} onOpenChange={setCleanDialogOpen}>
+                  <DialogTrigger asChild><Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" disabled={store.variables.length === 0}><Sparkles className="size-3.5 mr-2 text-teal-500" />{t('clean.title')}</Button></DialogTrigger>
+                  <DialogContent className="max-w-lg">
+                    <DialogHeader><DialogTitle className="flex items-center gap-2"><Sparkles className="size-5 text-teal-500" />{t('clean.title')}</DialogTitle><DialogDescription>AI-powered data cleaning and normalization</DialogDescription></DialogHeader>
+                    <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white" disabled={store.variables.length === 0} onClick={async () => {
+                      const res = await fetch('/api/clean', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: store.data, variables: store.variables }) })
+                      const result = await res.json()
+                      if (result.cleanedData) {
+                        store.setData(result.cleanedData)
+                        store.setCleaningStats(result.stats)
+                        store.addSyntax(`DATA CLEANING: ${result.stats.totalRows} rows processed, ${result.stats.cleanedCells} cells cleaned, ${result.stats.outliers} outliers detected, ${result.stats.duplicates} duplicates found, ${result.stats.missing} missing imputed`)
+                        store.addOutput({ id: Date.now().toString(36), title: t('clean.title'), type: 'table', content: { headers: ['Metric', 'Value'], rows: [['Rows Processed', result.stats.totalRows], ['Cells Cleaned', result.stats.cleanedCells], ['Outliers Detected', result.stats.outliers], ['Duplicates Found', result.stats.duplicates], ['Missing Imputed', result.stats.missing]] }, timestamp: new Date().toISOString() })
+                      }
+                    }}>{t('clean.start')}</Button>
+                    {store.cleaningStats && (
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center"><p className="text-lg font-bold text-emerald-600">{store.cleaningStats.cleanedCells}</p><p className="text-[10px] text-muted-foreground">{t('clean.fixes')}</p></div>
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center"><p className="text-lg font-bold text-amber-600">{store.cleaningStats.outliers}</p><p className="text-[10px] text-muted-foreground">{t('clean.outliers')}</p></div>
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center"><p className="text-lg font-bold text-red-600">{store.cleaningStats.duplicates}</p><p className="text-[10px] text-muted-foreground">{t('clean.duplicates')}</p></div>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
+                <Dialog open={validateDialogOpen} onOpenChange={setValidateDialogOpen}>
+                  <DialogTrigger asChild><Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8" disabled={store.variables.length === 0}><Check className="size-3.5 mr-2 text-emerald-500" />{t('validate.title')}</Button></DialogTrigger>
+                  <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader><DialogTitle className="flex items-center gap-2"><Check className="size-5 text-emerald-500" />{t('validate.title')}</DialogTitle><DialogDescription>Smart data validation with AI-powered suggestions</DialogDescription></DialogHeader>
+                    <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={store.variables.length === 0} onClick={async () => {
+                      const res = await fetch('/api/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: store.data, variables: store.variables }) })
+                      const result = await res.json()
+                      store.setValidationIssues(result.issues || [])
+                      if (result.valid) {
+                        store.addOutput({ id: Date.now().toString(36), title: t('clean.validated'), type: 'text', content: 'All data passed validation checks.', timestamp: new Date().toISOString() })
+                      }
+                    }}>{t('validate.start')}</Button>
+                    {store.validationIssues && store.validationIssues.length > 0 && (
+                      <div className="space-y-2 mt-3">
+                        <div className="flex gap-2 text-xs mb-2">
+                          <Badge className="bg-red-100 text-red-700 border-red-200">{store.validationIssues.filter((i: any) => i.severity === 'error').length} {t('validate.errors')}</Badge>
+                          <Badge className="bg-amber-100 text-amber-700 border-amber-200">{store.validationIssues.filter((i: any) => i.severity === 'warning').length} {t('validate.warnings')}</Badge>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto space-y-1">
+                          {store.validationIssues.slice(0, 50).map((issue: any, i: number) => (
+                            <div key={i} className={`flex items-start gap-2 text-xs p-2 rounded-lg ${issue.severity === 'error' ? 'bg-red-50 border border-red-100' : issue.severity === 'warning' ? 'bg-amber-50 border border-amber-100' : 'bg-blue-50 border border-blue-100'}`}>
+                              <span className="font-medium shrink-0">Row {issue.row}:</span>
+                              <div><p className="font-medium\">{issue.message}</p><p className="text-muted-foreground">{issue.suggestion}</p></div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {store.validationIssues && store.validationIssues.length === 0 && (
+                      <div className="text-center py-4"><Check className="size-8 mx-auto text-emerald-500 mb-2" /><p className="text-sm text-muted-foreground">{t('validate.noIssues')}</p></div>
+                    )}
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
             <div className="mt-auto p-3 border-t border-border/50">

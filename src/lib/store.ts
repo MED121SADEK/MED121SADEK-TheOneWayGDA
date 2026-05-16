@@ -27,6 +27,51 @@ export interface ChatMessage {
   timestamp: string
 }
 
+export interface ScanField {
+  label: string
+  value: string
+  confidence: number
+  type: 'string' | 'numeric' | 'date' | 'currency' | 'percentage' | 'boolean' | 'id' | 'email' | 'phone'
+}
+
+export interface ScanTable {
+  headers: string[]
+  rows: any[][]
+}
+
+export interface ScanResult {
+  id: string
+  timestamp: string
+  fields: ScanField[]
+  tables: ScanTable[]
+  rawText: string
+  summary: string
+}
+
+export interface ValidationIssue {
+  row: number
+  column: string
+  value: any
+  severity: 'error' | 'warning' | 'info'
+  message: string
+  suggestion: string
+}
+
+export interface CleaningStats {
+  totalRows: number
+  cleanedCells: number
+  outliers: number
+  duplicates: number
+  missing: number
+}
+
+export interface BatchItem {
+  id: string
+  name: string
+  status: 'pending' | 'processing' | 'done' | 'error'
+  result?: ScanResult
+}
+
 export interface Project {
   id: string
   name: string
@@ -50,6 +95,18 @@ interface AppState {
   chatMessages: ChatMessage[]
   isAiTyping: boolean
   syntaxHistory: string[]
+
+  // Document AI - Scan
+  scanState: 'idle' | 'uploading' | 'processing' | 'done' | 'error'
+  scanResults: ScanResult | null
+  scanHistory: ScanResult[]
+
+  // Document AI - Validation & Cleaning
+  validationIssues: ValidationIssue[] | null
+  cleaningStats: CleaningStats | null
+
+  // Document AI - Batch
+  batchQueue: BatchItem[]
 
   setView: (view: 'landing' | 'workspace') => void
   setWorkspaceTab: (tab: 'data' | 'variables' | 'output' | 'syntax') => void
@@ -84,6 +141,21 @@ interface AppState {
   exportJSON: () => string
 
   loadProjectsFromStorage: () => void
+
+  // Document AI - Scan actions
+  setScanState: (state: 'idle' | 'uploading' | 'processing' | 'done' | 'error') => void
+  setScanResults: (results: ScanResult | null) => void
+  clearScanHistory: () => void
+
+  // Document AI - Validation & Cleaning actions
+  setValidationIssues: (issues: ValidationIssue[] | null) => void
+  setCleaningStats: (stats: CleaningStats | null) => void
+
+  // Document AI - Batch actions
+  addToBatchQueue: (item: BatchItem) => void
+
+  // Document AI - Import scan results into data
+  importScanResults: (results: ScanResult) => void
 }
 
 function uid(): string {
@@ -110,6 +182,14 @@ export const useAppStore = create<AppState>()(
       chatMessages: [],
       isAiTyping: false,
       syntaxHistory: [],
+
+      // Document AI
+      scanState: 'idle',
+      scanResults: null,
+      scanHistory: [],
+      validationIssues: null,
+      cleaningStats: null,
+      batchQueue: [],
 
       setView: (view) => set({ view }),
       setWorkspaceTab: (tab) => set({ workspaceTab: tab }),
@@ -326,6 +406,108 @@ export const useAppStore = create<AppState>()(
       },
 
       loadProjectsFromStorage: () => {},
+
+      // Document AI - Scan actions
+      setScanState: (state) => set({ scanState: state }),
+      setScanResults: (results) => set(s => ({
+        scanResults: results,
+        scanState: results ? 'done' : 'idle',
+        scanHistory: results ? [results, ...s.scanHistory] : s.scanHistory,
+      })),
+      clearScanHistory: () => set({ scanHistory: [], scanResults: null, scanState: 'idle' }),
+
+      // Document AI - Validation & Cleaning actions
+      setValidationIssues: (issues) => set({ validationIssues: issues }),
+      setCleaningStats: (stats) => set({ cleaningStats: stats }),
+
+      // Document AI - Batch actions
+      addToBatchQueue: (item) => set(s => ({
+        batchQueue: [...s.batchQueue, item],
+      })),
+
+      // Document AI - Import scan results into variables + data
+      importScanResults: (results) => {
+        const newVariables: Variable[] = []
+        const newData: Record<string, any[]> = {}
+
+        // Create variables and data from extracted fields
+        for (const field of results.fields) {
+          const varName = field.label
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_|_$/g, '')
+            .slice(0, 50)
+
+          const existingVar = get().variables.find(v => v.name === varName)
+          if (existingVar) continue
+
+          const detectedType: Variable['type'] =
+            field.type === 'numeric' || field.type === 'currency' || field.type === 'percentage'
+              ? 'numeric'
+              : field.type === 'date'
+              ? 'date'
+              : 'string'
+
+          newVariables.push({
+            id: uid(),
+            name: varName,
+            type: detectedType,
+            label: field.label,
+            width: Math.max(8, String(field.value).length),
+            decimals: detectedType === 'numeric' ? 2 : 0,
+            missing: '',
+            values: {},
+          })
+          newData[varName] = [field.value]
+        }
+
+        // Create variables and data from extracted tables
+        for (const table of results.tables) {
+          for (let colIdx = 0; colIdx < table.headers.length; colIdx++) {
+            const header = table.headers[colIdx]
+            const varName = header
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '_')
+              .replace(/^_|_$/g, '')
+              .slice(0, 50)
+
+            const existingVar = get().variables.find(v => v.name === varName)
+            if (existingVar) continue
+
+            const colValues = table.rows.map(row => row[colIdx] ?? '')
+            const allNumeric = colValues.every(v => v === '' || !isNaN(parseFloat(v)))
+
+            newVariables.push({
+              id: uid(),
+              name: varName,
+              type: allNumeric ? 'numeric' : 'string',
+              label: header,
+              width: Math.max(8, ...colValues.map(v => String(v).length)),
+              decimals: allNumeric ? 2 : 0,
+              missing: '',
+              values: {},
+            })
+            newData[varName] = colValues.map(v => {
+              if (v === '') return ''
+              const num = parseFloat(v)
+              return allNumeric && !isNaN(num) ? num : v
+            })
+          }
+        }
+
+        if (newVariables.length === 0) return
+
+        // Merge with existing data
+        const currentData = { ...get().data, ...newData }
+        const currentVariables = [...get().variables, ...newVariables]
+
+        set({
+          data: currentData,
+          variables: currentVariables,
+          view: 'workspace',
+          workspaceTab: 'data',
+        })
+      },
     }),
     {
       name: 'oneway-storage',
