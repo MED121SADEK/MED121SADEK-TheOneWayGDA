@@ -552,3 +552,85 @@ model DeployLog {
   @@index([status])
   @@index([createdAt])
 }
+
+// ═══ Phase 1: Auth System & User Profiles ═══
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String
+  name        String?
+  image       String?
+  role        String   @default("user") // "user" | "pro" | "admin"
+  bio         String?
+  company     String?
+  location    String?
+  website     String?
+  skills      String?  // JSON: ["statistics", "python", ...]
+  preferences String?  // JSON: {theme, language, notifications...}
+  isOnboarded Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastSeen    DateTime @updatedAt
+
+  @@index([role])
+  @@index([isOnboarded])
+
+  sessions UserSession[]
+  activities UserActivity[]
+}
+
+model UserSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model UserActivity {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // "login" | "project_created" | "analysis_run" | "report_generated" | "workflow_executed" | "automation_triggered" | "profile_updated"
+  details   String?  // JSON: additional context
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ═══ Phase 2: Advanced Analytics Engine ═══
+
+model AnalysisRun {
+  id          String   @id @default(cuid())
+  userId      String?
+  projectId   String?
+  name        String
+  type        String   // "descriptive" | "inferential" | "regression" | "correlation" | "prediction" | "classification" | "clustering" | "time_series"
+  status      String   @default("pending") // "pending" | "running" | "completed" | "error"
+  inputData   String   // JSON: input data snapshot
+  config      String?  // JSON: analysis configuration
+  result      String?  // JSON: analysis results (statistics, p-values, r-squared, etc.)
+  chartData   String?  // JSON: chart-ready data (for visualizations)
+  summary     String?  // AI-generated summary of findings
+  errorMessage String?
+  durationMs  Int?
+  aiModel     String?  // which AI model was used
+  tokensUsed  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
