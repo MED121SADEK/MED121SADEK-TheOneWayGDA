@@ -580,6 +580,10 @@ model User {
   activities UserActivity[]
   ownedTeams Team[] @relation("TeamOwner")
   teamMemberships TeamMember[] @relation("TeamMemberships")
+  apiKeys      ApiKey[]
+  usageRecords UsageRecord[]
+  subscription Subscription?
+  notifications Notification[]
 }
 
 model UserSession {
@@ -752,5 +756,87 @@ model TeamComment {
   @@index([teamId])
   @@index([shareId])
   @@index([userId])
+  @@index([createdAt])
+}
+
+// ═══ Phase 4: Monetization, API Keys & Notifications ═══
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String   // human-readable label, e.g. "Production Key"
+  prefix      String   // first 8 chars shown in UI, e.g. "onw_a3f8..."
+  keyHash     String   // SHA-256 hash of the full key (never stored plain)
+  scopes      String   @default("read") // JSON: ["read"] | ["read", "write", "admin"]
+  rateLimit   Int      @default(100) // requests per minute
+  lastUsed    DateTime?
+  requestCount Int     @default(0)
+  expiresAt   DateTime? // null = never expires
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([prefix])
+  @@index([isActive])
+}
+
+model UsageRecord {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKeyId    String?
+  category    String   // "ai_query" | "workflow" | "analysis" | "api_call" | "export"
+  operation   String?  // specific operation, e.g. "chat.completion" | "workflow.execute"
+  tokensUsed  Int      @default(0)
+  durationMs  Int?
+  costUsd     Float    @default(0) // estimated cost in USD
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([apiKeyId])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model Subscription {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan        String   @default("free") // "free" | "pro" | "enterprise"
+  status      String   @default("active") // "active" | "past_due" | "canceled" | "trialing"
+  stripeCustomerId   String? // Stripe customer ID (for future integration)
+  stripeSubscriptionId String? // Stripe subscription ID
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd   DateTime?
+  trialEnd    DateTime?
+  cancelAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([plan])
+  @@index([status])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String   // "team_invite" | "team_member_joined" | "resource_shared" | "usage_alert" | "system" | "billing"
+  title       String
+  message     String
+  actionUrl   String?  // link to navigate to
+  actionLabel String?  // CTA button text, e.g. "View Team"
+  isRead      Boolean  @default(false)
+  readAt      DateTime?
+  metadata    String?  // JSON: additional context
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
   @@index([createdAt])
 }
