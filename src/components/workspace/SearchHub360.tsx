@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { PanelWindow, type PanelWindowProps } from './PanelWindow'
 import {
   RotateCw, Pause, Maximize2, Minimize2, ChevronLeft, ChevronRight,
-  LayoutGrid,
+  LayoutGrid, Home,
 } from 'lucide-react'
 
 export interface PanelDefinition {
@@ -55,8 +55,15 @@ export function SearchHub360({
   const [autoRotate, setAutoRotate] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [viewportSize, setViewportSize] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
+  const [mounted, setMounted] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const autoRotateRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Entrance animation
+  useEffect(() => {
+    const timer = setTimeout(() => setMounted(true), 100)
+    return () => clearTimeout(timer)
+  }, [])
 
   // Detect viewport size
   useEffect(() => {
@@ -92,6 +99,11 @@ export function SearchHub360({
     setFocusedIndex((prev) => (prev - 1 + panels.length) % panels.length)
   }, [panels.length])
 
+  const goHome = useCallback(() => {
+    setFocusedIndex(0)
+    setIsExpanded(false)
+  }, [])
+
   const focusPanel = useCallback((index: number) => {
     setFocusedIndex(index)
     setIsExpanded(true)
@@ -106,9 +118,14 @@ export function SearchHub360({
     return (
       <div className={cn('flex flex-col h-full', className)}>
         {/* Center Hub */}
-        <div className="flex items-center justify-center gap-2 px-4 py-3 border-b border-border/50 bg-card/80">
-          <Image src={logoSrc} alt={brandName} width={24} height={24} className="rounded" />
-          <span className="font-bold text-sm gradient-text">{brandName}</span>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-card/80">
+          <div className="flex items-center gap-2">
+            <Image src={logoSrc} alt={brandName} width={24} height={24} className="rounded" />
+            <span className="font-bold text-sm gradient-text">{brandName}</span>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goHome}>
+            <Home className="w-4 h-4" />
+          </Button>
         </div>
 
         {/* Panel tabs */}
@@ -165,6 +182,9 @@ export function SearchHub360({
             <span className="font-bold text-sm gradient-text">{brandName}</span>
           </div>
           <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goHome}>
+              <Home className="w-4 h-4" />
+            </Button>
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goPrev}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
@@ -224,8 +244,12 @@ export function SearchHub360({
   return (
     <div className={cn('relative flex flex-col h-full overflow-hidden', className)}>
       {/* ── Top Control Bar ── */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-card/60 backdrop-blur-sm flex-shrink-0 z-50">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border/30 bg-card/40 backdrop-blur-md flex-shrink-0 z-50">
+        <div className="flex items-center gap-2">
+          {/* Home button */}
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goHome}>
+            <Home className="w-4 h-4" />
+          </Button>
           {/* Navigation arrows */}
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goPrev}>
             <ChevronLeft className="w-4 h-4" />
@@ -240,7 +264,7 @@ export function SearchHub360({
 
         {/* Center hub */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-card/90 border border-border/50 shadow-lg">
+          <div className="flex items-center gap-2 px-5 py-2 rounded-full bg-card/80 border border-border/40 shadow-lg backdrop-blur-md">
             <Image src={logoSrc} alt={brandName} width={18} height={18} className="rounded" />
             <span className="font-bold text-xs gradient-text">{brandName}</span>
           </div>
@@ -270,16 +294,16 @@ export function SearchHub360({
       </div>
 
       {/* ── Panel Thumbnail Strip (bottom) ── */}
-      <div className="flex items-center gap-1 px-4 py-1.5 border-b border-border/30 bg-muted/20 flex-shrink-0 z-40">
+      <div className="flex items-center gap-1.5 px-4 py-2 border-b border-border/20 bg-muted/10 flex-shrink-0 z-40">
         {panels.map((panel, i) => (
           <button
             key={panel.id}
             onClick={() => focusPanel(i)}
             className={cn(
-              'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium whitespace-nowrap transition-all',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-all',
               focusedIndex === i
-                ? 'bg-primary/10 text-primary ring-1 ring-primary/30 shadow-sm'
-                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                ? 'bg-primary/15 text-primary ring-1 ring-primary/30 shadow-sm shadow-primary/10'
+                : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
             )}
           >
             <panel.icon className="w-3 h-3" />
@@ -292,14 +316,15 @@ export function SearchHub360({
           </button>
         ))}
         <div className="flex-1" />
-        <div className="flex items-center gap-0.5">
-          <LayoutGrid className="w-3 h-3 text-muted-foreground mr-1" />
+        <div className="flex items-center gap-1 mr-1">
           {Array.from({ length: PANEL_COUNT }, (_, i) => (
             <div
               key={i}
               className={cn(
-                'w-1.5 h-1.5 rounded-full transition-colors',
-                focusedIndex === i ? 'bg-primary' : 'bg-muted-foreground/30',
+                'w-2 h-2 rounded-full transition-all duration-500',
+                focusedIndex === i
+                  ? 'bg-primary shadow-sm shadow-primary/50 scale-125'
+                  : 'bg-muted-foreground/20 hover:bg-muted-foreground/40',
               )}
             />
           ))}
@@ -309,7 +334,7 @@ export function SearchHub360({
       {/* ── 3D Orbital Stage ── */}
       <div
         ref={containerRef}
-        className="flex-1 relative"
+        className="flex-1 relative overflow-hidden"
         style={{
           perspective: '1200px',
           perspectiveOrigin: '50% 50%',
@@ -319,31 +344,61 @@ export function SearchHub360({
           if (isExpanded) collapsePanel()
         }}
       >
+        {/* ── Animated Gradient Background ── */}
+        <div className="absolute inset-0 z-0 pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-radial from-primary/8 via-transparent to-transparent opacity-60" />
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-purple-500/5 blur-3xl animate-pulse-glow" />
+          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-teal-500/5 blur-3xl animate-pulse-glow" style={{ animationDelay: '1.5s' }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/3 blur-3xl animate-pulse-glow" style={{ animationDelay: '3s' }} />
+        </div>
+
+        {/* ── Floating Particles ── */}
+        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+          {Array.from({ length: 20 }, (_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 rounded-full bg-primary/20"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animation: `float ${6 + Math.random() * 8}s ease-in-out infinite`,
+                animationDelay: `${Math.random() * 6}s`,
+                opacity: 0.2 + Math.random() * 0.4,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* ── Subtle Grid Pattern ── */}
+        <div
+          className="absolute inset-0 z-0 pointer-events-none opacity-[0.03]"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+            `,
+            backgroundSize: '60px 60px',
+          }}
+        />
+
+        {/* ── 3D Carousel Container ── */}
         <div
           className="absolute inset-0"
           style={{
             transformStyle: 'preserve-3d',
-            transition: 'transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+            transition: 'transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
           }}
         >
           {panels.map((panel, i) => {
-            // Calculate the angle needed to bring this panel to front
-            // Front = rotateY(0deg). Panel i is at rotateY(i * ANGLE_STEP).
-            // To bring panel i to front: container rotates by -i * ANGLE_STEP.
             const panelBaseAngle = i * ANGLE_STEP
-            // The offset the container has to bring focusedPanel to front
             const containerRotation = -focusedIndex * ANGLE_STEP
-            // Net angle of this panel relative to front
             const relativeAngle = panelBaseAngle + containerRotation
-
-            // Determine if this panel is roughly facing the user
             const normalizedAngle = ((relativeAngle % 360) + 360) % 360
             const isFacingUser = normalizedAngle < 40 || normalizedAngle > 320
             const isBack = normalizedAngle > 140 && normalizedAngle < 220
 
-            // Z position: bring focused panel closer, push back panels away
             let zOffset = 0
-            if (isFocused || i === focusedIndex) {
+            if (i === focusedIndex) {
               zOffset = isExpanded ? 280 : 120
             } else if (isBack) {
               zOffset = BACKFACE_OFFSET
@@ -351,11 +406,10 @@ export function SearchHub360({
               zOffset = 0
             }
 
-            // Opacity: dim panels that are on the sides or back
             let panelOpacity = 1
-            if (isBack) panelOpacity = 0.15
-            else if (normalizedAngle > 90 && normalizedAngle < 270) panelOpacity = 0.35
-            else if (normalizedAngle > 60 && normalizedAngle < 300) panelOpacity = 0.6
+            if (isBack) panelOpacity = 0.12
+            else if (normalizedAngle > 90 && normalizedAngle < 270) panelOpacity = 0.3
+            else if (normalizedAngle > 60 && normalizedAngle < 300) panelOpacity = 0.55
             else panelOpacity = 0.85
 
             if (i === focusedIndex) panelOpacity = 1
@@ -365,14 +419,14 @@ export function SearchHub360({
                 key={panel.id}
                 className="absolute"
                 style={{
-                  width: isExpanded && i === focusedIndex ? '70%' : '52%',
-                  height: isExpanded && i === focusedIndex ? '80%' : '68%',
-                  left: isExpanded && i === focusedIndex ? '15%' : '24%',
-                  top: isExpanded && i === focusedIndex ? '10%' : '16%',
+                  width: isExpanded && i === focusedIndex ? '72%' : '54%',
+                  height: isExpanded && i === focusedIndex ? '82%' : '70%',
+                  left: isExpanded && i === focusedIndex ? '14%' : '23%',
+                  top: isExpanded && i === focusedIndex ? '9%' : '15%',
                   transformStyle: 'preserve-3d',
                   transform: `rotateY(${panelBaseAngle}deg) translateZ(${RADIUS + zOffset}px)`,
-                  transition: 'all 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-                  opacity: panelOpacity,
+                  transition: 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                  opacity: mounted ? panelOpacity : 0,
                   pointerEvents: i === focusedIndex || isFacingUser ? 'auto' : 'none',
                 }}
               >
@@ -396,7 +450,7 @@ export function SearchHub360({
 
         {/* ── Center Glow Effect ── */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-          <div className="w-96 h-96 rounded-full bg-gradient-radial from-primary/5 via-transparent to-transparent blur-3xl" />
+          <div className="w-96 h-96 rounded-full bg-gradient-radial from-primary/5 via-transparent to-transparent blur-3xl animate-pulse-glow" />
         </div>
       </div>
     </div>
