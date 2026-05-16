@@ -324,3 +324,44 @@ model AiAuditLog {
   @@index([action])
   @@index([createdAt])
 }
+
+// ═══ Workflow-Native Copilot ═══
+
+model WorkflowPipeline {
+  id               String   @id @default(cuid())
+  visitorId        String?
+  projectId        String?
+  name             String
+  description      String?
+  intent           String   // User's high-level intent (e.g., "Analyze sales trends")
+  steps            String   // JSON: ordered array of {id, type, name, config, status}
+  status           String   @default("draft") // "draft" | "ready" | "running" | "completed" | "error"
+  result           String?  // JSON: pipeline execution results
+  executiveSummary String? // AI-generated executive summary
+  tokensUsed       Int?
+  durationMs       Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([visitorId])
+  @@index([status])
+}
+
+model DecisionRecord {
+  id              String   @id @default(cuid())
+  visitorId       String?
+  projectId       String?
+  pipelineId      String?
+  context         String   // "workspace" | "leaderboard" | "automation"
+  question        String   // User's question/intent
+  aiAnalysis      String   // JSON: AI's analysis and reasoning
+  options         String?  // JSON: generated options
+  selectedOption  String?
+  outcome         String?  // JSON: what happened after decision
+  confidence      Float?
+  createdAt       DateTime @default(now())
+
+  @@index([visitorId])
+  @@index([context])
+  @@index([createdAt])
+}
