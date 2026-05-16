@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { sendVisitorApprovalEmail, sendVisitorRejectionEmail } from '@/lib/email'
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'oneway-admin-2026'
 
@@ -58,7 +59,16 @@ export async function PATCH(request: NextRequest) {
 
     if (bulkIds && bulkStatus) {
       if (!['accepted', 'rejected', 'pending'].includes(bulkStatus)) return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+      // Fetch visitors before updating to get their emails for notifications
+      const visitorsBefore = await db.visitor.findMany({ where: { id: { in: bulkIds } }, select: { id: true, email: true, name: true, status: true } })
       const result = await db.visitor.updateMany({ where: { id: { in: bulkIds } }, data: { status: bulkStatus } })
+      // Send approval/rejection emails (only for status changes)
+      for (const v of visitorsBefore) {
+        if (v.status !== bulkStatus) {
+          if (bulkStatus === 'accepted') sendVisitorApprovalEmail(v.email, v.name).catch(() => {})
+          else if (bulkStatus === 'rejected') sendVisitorRejectionEmail(v.email, v.name).catch(() => {})
+        }
+      }
       return NextResponse.json({ success: true, updated: result.count })
     }
 
@@ -69,7 +79,14 @@ export async function PATCH(request: NextRequest) {
     if (visitorType && ['researcher', 'student', 'professional', 'enterprise', 'developer', 'educator', 'general'].includes(visitorType)) updateData.visitorType = visitorType
     if (Object.keys(updateData).length === 0) return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
 
+    // Fetch visitor before update to check if status changed
+    const visitorBefore = await db.visitor.findUnique({ where: { id }, select: { status: true, email: true, name: true } })
     const visitor = await db.visitor.update({ where: { id }, data: updateData })
+    // Send email notification on status change
+    if (visitorBefore && status && visitorBefore.status !== status) {
+      if (status === 'accepted') sendVisitorApprovalEmail(visitorBefore.email, visitorBefore.name).catch(() => {})
+      else if (status === 'rejected') sendVisitorRejectionEmail(visitorBefore.email, visitorBefore.name).catch(() => {})
+    }
     return NextResponse.json({ success: true, visitor })
   } catch (error: any) {
     console.error('[Visitors API PATCH]', error)
