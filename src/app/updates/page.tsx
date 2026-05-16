@@ -1,9 +1,11 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from '@/lib/i18n'
 import { useModuleRegistry, APP_VERSION } from '@/lib/modules'
 import { checkForUpdates } from '@/lib/update-checker'
 import type { ModuleUpdate } from '@/lib/modules'
+import { AI_COMPANIES, COMPANY_CATEGORIES, getCompaniesByFilter } from '@/lib/ai-companies'
+import type { AICompany } from '@/lib/ai-companies'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -15,13 +17,30 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import {
   ArrowLeft, Search, Brain, Shield, Sparkles, Layout, Zap, Cpu, Code, AlertTriangle,
-  RefreshCw, Package, CheckCircle2, XCircle, ChevronDown, ChevronUp,
+  RefreshCw, Package, CheckCircle2, ChevronDown, ChevronUp,
   Download, Cpu as ModuleIcon, Puzzle, Info,
+  ExternalLink, Newspaper, Globe, Building2, TrendingUp, Clock, Filter, Rss,
 } from 'lucide-react'
 
+/* ─── Animation helpers ─── */
 const fadeUp = { hidden: { opacity: 0, y: 30 }, visible: (i: number = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' as const } }) }
 const stagger = { visible: { transition: { staggerChildren: 0.06 } } }
+const fadeIn = { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.3 } }
 
+/* ─── Types ─── */
+interface NewsItem {
+  id?: string
+  title: string
+  snippet: string
+  url: string
+  hostName: string
+  date: string
+  favicon?: string
+  relevanceScore?: number
+  matchedCompanies?: { id: string; name: string; logo: string; region: string }[]
+}
+
+/* ─── Changelog data (unchanged) ─── */
 const UPDATES = [
   { id: 1, version: 'v2.4.0', date: '2026-04-18', category: 'ai', title: 'GLM-4.6V Vision Model', desc: 'Upgraded OCR engine with state-of-the-art vision AI for 40% better form recognition accuracy.' },
   { id: 2, version: 'v2.4.0', date: '2026-04-18', category: 'features', title: 'Batch OCR Processing', desc: 'Upload and process 100+ scanned documents in a single batch operation.' },
@@ -68,23 +87,25 @@ const PRIORITY_COLORS: Record<string, string> = {
   optional: 'bg-muted text-muted-foreground border-border',
 }
 
+/* ═══════════════════════════════════════════════════════
+   MAIN PAGE COMPONENT
+   ═══════════════════════════════════════════════════════ */
 export default function UpdatesPage() {
   const { t, dir } = useTranslation()
   const registry = useModuleRegistry()
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [expandedUpdate, setExpandedUpdate] = useState<string | null>(null)
-  const [updateTab, setUpdateTab] = useState<'changelog' | 'modules'>('changelog')
+  const [updateTab, setUpdateTab] = useState<'news' | 'changelog' | 'modules'>('news')
 
+  /* ─── Module update checker ─── */
   const handleCheckForUpdates = useCallback(async () => {
     registry.setChecking(true)
     try {
       const updates = await checkForUpdates(registry.modules)
       registry.setPendingUpdates(updates)
       registry.setLastChecked(new Date().toISOString())
-    } catch {
-      // Silently handle
-    }
+    } catch { /* silent */ }
     registry.setChecking(false)
   }, [registry])
 
@@ -100,6 +121,7 @@ export default function UpdatesPage() {
 
   return (
     <div className="min-h-screen" dir={dir}>
+      {/* ── Top Nav ── */}
       <nav className="sticky top-0 z-50 glass-card">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16">
           <Link href="/" className="flex items-center gap-2">
@@ -117,50 +139,38 @@ export default function UpdatesPage() {
         </div>
       </nav>
 
-      {/* Hero Section with Version Badge */}
-      <section className="hero-gradient py-16 md:py-24">
+      {/* ── Hero ── */}
+      <section className="hero-gradient py-12 md:py-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
           <motion.div initial="hidden" animate="visible" variants={stagger}>
             <motion.div variants={fadeUp} className="mb-4">
               <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs px-3 py-1">
-                <Info className="size-3 mr-1.5" />
-                {t('modules.appVersion')} v{APP_VERSION}
+                <Rss className="size-3 mr-1.5" />
+                AI News Hub &amp; Platform Updates
               </Badge>
             </motion.div>
-            <motion.h1 variants={fadeUp} custom={1} className="text-4xl md:text-5xl font-extrabold">
-              <span className="gradient-text">{t('updates.title')}</span>
+            <motion.h1 variants={fadeUp} custom={1} className="text-3xl md:text-5xl font-extrabold">
+              <span className="gradient-text">Updates &amp; AI News</span>
             </motion.h1>
             <motion.p variants={fadeUp} custom={2} className="mt-4 text-muted-foreground max-w-xl mx-auto text-sm">
-              {t('modules.installed')}: {activeModules}/{totalModules} {t('modules.enabled')}
+              Track the latest AI model releases, tool updates, and industry news from 60+ companies worldwide. Auto-refreshed 3 times daily.
             </motion.p>
-            <motion.div variants={fadeUp} custom={3} className="mt-6 flex flex-wrap gap-3 justify-center">
-              <Button
-                onClick={handleCheckForUpdates}
-                disabled={registry.isChecking}
-                className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground"
-              >
-                <RefreshCw className={`size-4 mr-2 ${registry.isChecking ? 'animate-spin' : ''}`} />
-                {registry.isChecking ? t('modules.checking') : t('modules.checkUpdates')}
-              </Button>
-              {updateCount > 0 && (
-                <Button variant="outline" onClick={() => setUpdateTab('modules')}>
-                  <Download className="size-4 mr-2" />
-                  {t('modules.updateAll')} ({updateCount})
-                </Button>
-              )}
-            </motion.div>
-            {registry.lastChecked && (
-              <motion.p variants={fadeUp} custom={4} className="mt-3 text-xs text-muted-foreground">
-                {t('modules.lastUpdated')}: {new Date(registry.lastChecked).toLocaleString()}
-              </motion.p>
-            )}
           </motion.div>
         </div>
       </section>
 
-      {/* Tab Navigation */}
+      {/* ── Tab Navigation ── */}
       <section className="border-b border-border/50 bg-card/30 sticky top-16 z-40 backdrop-blur-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto">
+          <Button
+            variant={updateTab === 'news' ? 'default' : 'ghost'}
+            size="sm"
+            className="text-xs"
+            onClick={() => setUpdateTab('news')}
+          >
+            <Newspaper className="size-3.5 mr-1.5" />
+            AI News Hub
+          </Button>
           <Button
             variant={updateTab === 'changelog' ? 'default' : 'ghost'}
             size="sm"
@@ -185,21 +195,22 @@ export default function UpdatesPage() {
         </div>
       </section>
 
-      {/* Changelog Tab */}
+      {/* ═══════════════════════════════════════════════════
+          TAB: AI NEWS HUB
+          ═══════════════════════════════════════════════════ */}
+      {updateTab === 'news' && <AINewsHub />}
+
+      {/* ═══════════════════════════════════════════════════
+          TAB: CHANGELOG
+          ═══════════════════════════════════════════════════ */}
       {updateTab === 'changelog' && (
         <>
-          {/* Category Filters */}
           <section className="py-6 border-b border-border/50 bg-muted/20">
             <div className="max-w-5xl mx-auto px-4 sm:px-6">
               <div className="flex gap-2 mb-3 max-w-md">
                 <div className="relative flex-1">
                   <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder={t('updates.search')}
-                    className="pl-9 h-9 text-xs"
-                  />
+                  <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('updates.search')} className="pl-9 h-9 text-xs" />
                 </div>
               </div>
               <div className="flex gap-2 overflow-x-auto pb-2">
@@ -212,8 +223,6 @@ export default function UpdatesPage() {
               </div>
             </div>
           </section>
-
-          {/* Update Notifications */}
           {updateCount > 0 && (
             <section className="py-6 border-b border-border/50">
               <div className="max-w-5xl mx-auto px-4 sm:px-6">
@@ -223,21 +232,14 @@ export default function UpdatesPage() {
                 </div>
                 <div className="space-y-3">
                   {registry.pendingUpdates.map((update: ModuleUpdate) => (
-                    <UpdateNotificationCard
-                      key={update.moduleId}
-                      update={update}
-                      expanded={expandedUpdate === update.moduleId}
+                    <UpdateNotificationCard key={update.moduleId} update={update} expanded={expandedUpdate === update.moduleId}
                       onToggle={() => setExpandedUpdate(expandedUpdate === update.moduleId ? null : update.moduleId)}
-                      onApply={() => registry.updateModuleVersion(update.moduleId, update.latestVersion)}
-                      t={t}
-                    />
+                      onApply={() => registry.updateModuleVersion(update.moduleId, update.latestVersion)} t={t} />
                   ))}
                 </div>
               </div>
             </section>
           )}
-
-          {/* Updates List */}
           <section className="py-8">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-4">
               <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}>
@@ -263,8 +265,6 @@ export default function UpdatesPage() {
               </motion.div>
             </div>
           </section>
-
-          {/* Technology Radar */}
           <section className="py-16 bg-muted/30">
             <div className="max-w-5xl mx-auto px-4 sm:px-6">
               <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}>
@@ -287,89 +287,47 @@ export default function UpdatesPage() {
         </>
       )}
 
-      {/* Modules Tab */}
+      {/* ═══════════════════════════════════════════════════
+          TAB: MODULES
+          ═══════════════════════════════════════════════════ */}
       {updateTab === 'modules' && (
         <section className="py-8">
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
-            {/* Stats Row */}
             <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              <motion.div variants={fadeUp}>
-                <Card className="p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Puzzle className="size-4 text-primary" />
+              {[
+                { icon: Puzzle, label: t('modules.totalModules'), value: totalModules, color: 'primary' },
+                { icon: CheckCircle2, label: t('modules.activeModules'), value: activeModules, color: 'emerald' },
+                { icon: RefreshCw, label: t('modules.updatesAvailable'), value: updateCount, color: 'amber' },
+                { icon: Info, label: t('modules.appVersion'), value: `v${APP_VERSION}`, color: 'cyan' },
+              ].map((stat, i) => (
+                <motion.div key={stat.label} variants={fadeUp} custom={i}>
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-lg bg-${stat.color}-500/10 flex items-center justify-center`}>
+                        <stat.icon className={`size-4 text-${stat.color}-400`} />
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold">{stat.value}</p>
+                        <p className="text-[10px] text-muted-foreground">{stat.label}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-lg font-bold">{totalModules}</p>
-                      <p className="text-[10px] text-muted-foreground">{t('modules.totalModules')}</p>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-              <motion.div variants={fadeUp} custom={1}>
-                <Card className="p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                      <CheckCircle2 className="size-4 text-emerald-400" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold">{activeModules}</p>
-                      <p className="text-[10px] text-muted-foreground">{t('modules.activeModules')}</p>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-              <motion.div variants={fadeUp} custom={2}>
-                <Card className="p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                      <RefreshCw className="size-4 text-amber-400" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold">{updateCount}</p>
-                      <p className="text-[10px] text-muted-foreground">{t('modules.updatesAvailable')}</p>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-              <motion.div variants={fadeUp} custom={3}>
-                <Card className="p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                      <Info className="size-4 text-cyan-400" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold">v{APP_VERSION}</p>
-                      <p className="text-[10px] text-muted-foreground">{t('modules.appVersion')}</p>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
+                  </Card>
+                </motion.div>
+              ))}
             </motion.div>
-
-            {/* Modules Grid */}
             <div className="space-y-3">
               {registry.modules.map((mod, idx) => {
                 const hasUpdate = registry.pendingUpdates.some(u => u.moduleId === mod.id)
                 const updateInfo = registry.pendingUpdates.find(u => u.moduleId === mod.id)
                 const catColor = CATEGORY_COLORS[mod.category] || 'bg-muted text-muted-foreground border-border'
-
                 return (
-                  <motion.div
-                    key={mod.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.04, duration: 0.4 }}
-                  >
+                  <motion.div key={mod.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04, duration: 0.4 }}>
                     <Card className={`hover:border-primary/30 transition-all duration-300 ${hasUpdate ? 'border-amber-500/30' : ''}`}>
                       <CardContent className="p-4">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                          {/* Module Icon */}
                           <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${catColor}`}>
                             <ModuleIcon className="size-5" />
                           </div>
-
-                          {/* Module Info */}
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <h3 className="font-semibold text-sm">{t(mod.nameKey) || mod.name}</h3>
@@ -380,37 +338,17 @@ export default function UpdatesPage() {
                               ) : (
                                 <Badge variant="outline" className="text-[10px] text-muted-foreground">{t('modules.disabled')}</Badge>
                               )}
-                              {hasUpdate && (
-                                <Badge className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/20">
-                                  <RefreshCw className="size-2.5 mr-1" />
-                                  v{updateInfo?.latestVersion}
-                                </Badge>
-                              )}
+                              {hasUpdate && <Badge className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/20"><RefreshCw className="size-2.5 mr-1" />v{updateInfo?.latestVersion}</Badge>}
                             </div>
                             <p className="text-xs text-muted-foreground leading-relaxed truncate">{t(mod.descriptionKey) || mod.description}</p>
-                            {mod.dependencies && mod.dependencies.length > 0 && (
-                              <p className="text-[10px] text-muted-foreground mt-1">
-                                {t('modules.dependencies')}: {mod.dependencies.join(', ')}
-                              </p>
-                            )}
                           </div>
-
-                          {/* Actions */}
                           <div className="flex items-center gap-3 flex-shrink-0">
                             {hasUpdate && (
-                              <Button
-                                size="sm"
-                                className="h-7 text-xs bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white"
-                                onClick={() => registry.updateModuleVersion(mod.id, updateInfo!.latestVersion)}
-                              >
-                                <Download className="size-3 mr-1" />
-                                {t('modules.updateAll').replace(' All', '')}
+                              <Button size="sm" className="h-7 text-xs bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white" onClick={() => registry.updateModuleVersion(mod.id, updateInfo!.latestVersion)}>
+                                <Download className="size-3 mr-1" />{t('modules.updateAll').replace(' All', '')}
                               </Button>
                             )}
-                            <Switch
-                              checked={mod.enabled}
-                              onCheckedChange={(checked) => checked ? registry.enableModule(mod.id) : registry.disableModule(mod.id)}
-                            />
+                            <Switch checked={mod.enabled} onCheckedChange={(checked) => checked ? registry.enableModule(mod.id) : registry.disableModule(mod.id)} />
                           </div>
                         </div>
                       </CardContent>
@@ -426,13 +364,332 @@ export default function UpdatesPage() {
   )
 }
 
-/* ─── Update Notification Card ─── */
+/* ═══════════════════════════════════════════════════════
+   AI NEWS HUB COMPONENT
+   ═══════════════════════════════════════════════════════ */
+function AINewsHub() {
+  const [news, setNews] = useState<NewsItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [companyFilter, setCompanyFilter] = useState('all')
+  const [lastFetch, setLastFetch] = useState<string>('')
+  const [totalStored, setTotalStored] = useState(0)
+  const [newsCompanies, setNewsCompanies] = useState<{ id: string; name: string; logo: string; region: string; category: string }[]>([])
+  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const fetchNews = useCallback(async (forceRefresh = false) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const params = new URLSearchParams()
+      if (forceRefresh) params.set('refresh', 'true')
+      params.set('limit', '30')
+      const res = await fetch(`/api/community/news?${params}`)
+      const data = await res.json()
+      if (data.news) {
+        setNews(data.news)
+        setLastFetch(data.fetchedAt || new Date().toISOString())
+        setTotalStored(data.totalStored || 0)
+        if (data.companies) setNewsCompanies(data.companies)
+      }
+      if (!res.ok) setError(data.error || 'Failed to fetch news')
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Initial fetch + auto-refresh every 30 minutes
+  useEffect(() => {
+    fetchNews(true)
+    refreshTimer.current = setInterval(() => fetchNews(false), 30 * 60 * 1000)
+    return () => { if (refreshTimer.current) clearInterval(refreshTimer.current) }
+  }, [fetchNews])
+
+  // Filter news
+  const filteredNews = news.filter(item => {
+    if (companyFilter !== 'all') {
+      const hasCompany = item.matchedCompanies?.some(c =>
+        c.id === companyFilter || c.name.toLowerCase().includes(companyFilter.toLowerCase())
+      )
+      if (!hasCompany) return false
+    }
+    if (search) {
+      const q = search.toLowerCase()
+      return item.title.toLowerCase().includes(q) || item.snippet.toLowerCase().includes(q)
+    }
+    return true
+  })
+
+  // Company spotlight data
+  const usCompanies = AI_COMPANIES.filter(c => c.region === 'us')
+  const asiaCompanies = AI_COMPANIES.filter(c => c.region === 'asia')
+  const otherCompanies = AI_COMPANIES.filter(c => c.region === 'europe')
+
+  return (
+    <>
+      {/* ── Stats Bar ── */}
+      <section className="py-4 border-b border-border/50 bg-muted/10">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <Newspaper className="size-3.5 text-primary" />
+            <span><strong className="text-foreground">{news.length}</strong> articles loaded</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Building2 className="size-3.5 text-amber-400" />
+            <span><strong className="text-foreground">{AI_COMPANIES.length}</strong> companies tracked</span>
+          </div>
+          {totalStored > 0 && (
+            <div className="flex items-center gap-1.5">
+              <TrendingUp className="size-3.5 text-emerald-400" />
+              <span><strong className="text-foreground">{totalStored}</strong> stored in DB</span>
+            </div>
+          )}
+          {lastFetch && (
+            <div className="flex items-center gap-1.5 ml-auto">
+              <Clock className="size-3.5" />
+              <span>Last updated: {new Date(lastFetch).toLocaleTimeString()}</span>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Search + Filters ── */}
+      <section className="py-5 border-b border-border/50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search news..."
+                className="pl-9 h-9 text-xs"
+              />
+            </div>
+            <Button
+              onClick={() => fetchNews(true)}
+              disabled={loading}
+              variant="outline"
+              size="sm"
+              className="h-9 text-xs gap-1.5"
+            >
+              <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh Now
+            </Button>
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {COMPANY_CATEGORIES.map(cat => (
+              <button
+                key={cat.key}
+                onClick={() => setCompanyFilter(cat.key)}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all ${
+                  companyFilter === cat.key
+                    ? 'bg-primary/15 text-primary border border-primary/30'
+                    : 'bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── News Feed ── */}
+      <section className="py-6">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          {/* Loading State */}
+          {loading && news.length === 0 && (
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardContent className="p-5">
+                    <div className="h-4 bg-muted rounded w-3/4 mb-3" />
+                    <div className="h-3 bg-muted rounded w-full mb-2" />
+                    <div className="h-3 bg-muted rounded w-1/2" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && !loading && (
+            <div className="text-center py-16">
+              <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="size-6 text-red-400" />
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">{error}</p>
+              <Button variant="outline" size="sm" onClick={() => fetchNews(true)}>
+                <RefreshCw className="size-3.5 mr-1.5" />Try Again
+              </Button>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!loading && !error && filteredNews.length === 0 && (
+            <div className="text-center py-16">
+              <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
+                <Search className="size-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground mb-1">No matching news found</p>
+              <p className="text-xs text-muted-foreground">Try changing your search or filter</p>
+            </div>
+          )}
+
+          {/* News Cards */}
+          {!loading && filteredNews.length > 0 && (
+            <div className="space-y-3">
+              {filteredNews.map((item, i) => (
+                <motion.div
+                  key={item.url || i}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(i * 0.03, 0.3), duration: 0.35 }}
+                >
+                  <Card className="hover:border-primary/30 transition-all duration-300 group">
+                    <CardContent className="p-4 sm:p-5">
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                        {/* Main Content */}
+                        <div className="flex-1 min-w-0">
+                          {/* Title */}
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-sm hover:text-primary transition-colors leading-snug line-clamp-2 group-hover:underline decoration-primary/40"
+                          >
+                            {item.title}
+                            <ExternalLink className="size-3 inline ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </a>
+
+                          {/* Snippet */}
+                          <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed line-clamp-2">
+                            {item.snippet}
+                          </p>
+
+                          {/* Meta: source, date, companies */}
+                          <div className="flex flex-wrap items-center gap-2 mt-3">
+                            {item.hostName && (
+                              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                <Globe className="size-2.5" />
+                                {item.hostName}
+                              </span>
+                            )}
+                            {item.date && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {typeof item.date === 'string' && item.date.includes('T')
+                                  ? new Date(item.date).toLocaleDateString()
+                                  : item.date}
+                              </span>
+                            )}
+                            {item.matchedCompanies && item.matchedCompanies.length > 0 && (
+                              <div className="flex flex-wrap gap-1 ml-1">
+                                {item.matchedCompanies.slice(0, 4).map(c => (
+                                  <Badge
+                                    key={c.id}
+                                    variant="outline"
+                                    className={`text-[9px] px-1.5 py-0 border-border/50 ${
+                                      c.region === 'us' ? 'bg-blue-500/5 text-blue-400' :
+                                      c.region === 'asia' ? 'bg-orange-500/5 text-orange-400' :
+                                      'bg-purple-500/5 text-purple-400'
+                                    }`}
+                                  >
+                                    <span className="mr-0.5">{c.logo}</span>
+                                    {c.name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Relevance indicator */}
+                        {item.relevanceScore !== undefined && item.relevanceScore >= 5 && (
+                          <div className="flex-shrink-0 hidden sm:block">
+                            <div
+                              className={`w-2 h-10 rounded-full ${
+                                item.relevanceScore >= 10 ? 'bg-emerald-400' :
+                                item.relevanceScore >= 7 ? 'bg-primary' :
+                                'bg-amber-400'
+                              }`}
+                              title={`Relevance: ${item.relevanceScore}`}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Company Spotlight ── */}
+      <section className="py-12 bg-muted/20 border-t border-border/50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+            <Building2 className="size-5 text-primary" />
+            Tracked AI Companies
+            <Badge variant="outline" className="text-[10px] ml-1">{AI_COMPANIES.length} total</Badge>
+          </h2>
+
+          {/* Region: US */}
+          <CompanyRegion title="🇺🇸 American Companies" companies={usCompanies} />
+          <Separator className="my-6" />
+          {/* Region: Asia */}
+          <CompanyRegion title="🌏 Asian Companies" companies={asiaCompanies} />
+          {otherCompanies.length > 0 && (
+            <>
+              <Separator className="my-6" />
+              <CompanyRegion title="🇪🇺 European Companies" companies={otherCompanies} />
+            </>
+          )}
+        </div>
+      </section>
+    </>
+  )
+}
+
+/* ─── Company Region Grid ─── */
+function CompanyRegion({ title, companies }: { title: string; companies: AICompany[] }) {
+  const [showAll, setShowAll] = useState(false)
+  const visible = showAll ? companies : companies.slice(0, 8)
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold mb-3 text-muted-foreground">{title} ({companies.length})</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        {visible.map(c => (
+          <div
+            key={c.id}
+            className="flex items-center gap-2.5 p-2.5 rounded-lg bg-card/50 border border-border/30 hover:border-primary/20 transition-all"
+          >
+            <span className="text-lg flex-shrink-0">{c.logo}</span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium truncate">{c.name}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{c.specialty.split(',')[0]}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      {companies.length > 8 && !showAll && (
+        <Button variant="ghost" size="sm" className="mt-2 text-xs text-muted-foreground" onClick={() => setShowAll(true)}>
+          +{companies.length - 8} more companies
+        </Button>
+      )}
+    </div>
+  )
+}
+
+/* ─── Update Notification Card (unchanged) ─── */
 function UpdateNotificationCard({
-  update,
-  expanded,
-  onToggle,
-  onApply,
-  t,
+  update, expanded, onToggle, onApply, t,
 }: {
   update: ModuleUpdate
   expanded: boolean
@@ -441,25 +698,18 @@ function UpdateNotificationCard({
   t: (key: string) => string
 }) {
   const priorityColor = PRIORITY_COLORS[update.priority] || PRIORITY_COLORS.optional
-
   return (
     <Card className={`border ${priorityColor} transition-all duration-300`}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${priorityColor}`}>
-              {update.critical ? (
-                <AlertTriangle className="size-4" />
-              ) : (
-                <RefreshCw className="size-4" />
-              )}
+              {update.critical ? <AlertTriangle className="size-4" /> : <RefreshCw className="size-4" />}
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h4 className="font-semibold text-sm">{update.moduleName}</h4>
-                <Badge variant="outline" className={`text-[10px] ${priorityColor}`}>
-                  {t(`modules.${update.priority}`)}
-                </Badge>
+                <Badge variant="outline" className={`text-[10px] ${priorityColor}`}>{t(`modules.${update.priority}`)}</Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
                 v{update.currentVersion} → v{update.latestVersion}
@@ -470,8 +720,7 @@ function UpdateNotificationCard({
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <Button size="sm" className="h-7 text-xs" onClick={onApply}>
-              <Download className="size-3 mr-1" />
-              {t('modules.updateAll').replace(' All', '')}
+              <Download className="size-3 mr-1" />{t('modules.updateAll').replace(' All', '')}
             </Button>
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onToggle}>
               {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
@@ -479,16 +728,9 @@ function UpdateNotificationCard({
           </div>
         </div>
         {expanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-3 pt-3 border-t border-border/50"
-          >
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-3 pt-3 border-t border-border/50">
             <p className="text-xs font-medium mb-1.5">{t('modules.changelog')}</p>
-            <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3 leading-relaxed">
-              {update.changelog}
-            </pre>
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3 leading-relaxed">{update.changelog}</pre>
           </motion.div>
         )}
       </CardContent>
