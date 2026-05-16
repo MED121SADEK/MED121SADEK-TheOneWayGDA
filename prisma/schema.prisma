@@ -214,3 +214,113 @@ model CronJob {
   @@index([status])
   @@index([nextRun])
 }
+
+// ═══ AI Copilot & Automation ═══
+
+model AiConversation {
+  id          String   @id @default(cuid())
+  sessionId   String
+  visitorId   String?
+  context     String   @default("general") // "workspace" | "leaderboard" | "community" | "general"
+  title       String?
+  messages    String   // JSON array of {role, content, timestamp}
+  summary     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sessionId])
+  @@index([visitorId])
+  @@index([context])
+}
+
+model AutomationRule {
+  id          String   @id @default(cuid())
+  visitorId   String?
+  name        String
+  description String?
+  trigger     String   // "schedule" | "event" | "manual" | "new_data"
+  triggerConfig String // JSON: {cron?: string, eventType?: string, condition?: string}
+  actions     String   // JSON array of {type: "clean"|"model"|"report"|"notify", config: {...}}
+  isActive    Boolean  @default(true)
+  lastRun     DateTime?
+  nextRun     DateTime?
+  runCount    Int      @default(0)
+  lastStatus  String?  // "success" | "error"
+  lastError   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([visitorId])
+  @@index([isActive])
+  @@index([nextRun])
+}
+
+model AutomationLog {
+  id          String   @id @default(cuid())
+  ruleId      String
+  status      String   @default("pending") // "pending" | "running" | "success" | "error"
+  input       String?  // JSON: trigger input data
+  output      String?  // JSON: action results
+  error       String?
+  durationMs  Int?
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  @@index([ruleId])
+  @@index([status])
+}
+
+model AiSuggestion {
+  id          String   @id @default(cuid())
+  visitorId   String?
+  context     String   // "workspace" | "leaderboard" | "data_prep" | "modeling" | "reporting"
+  category    String   // "next_action" | "insight" | "optimization" | "template" | "learning"
+  title       String
+  content     String   // JSON: detailed suggestion data
+  confidence  Float    @default(0.5)
+  isAccepted  Boolean?
+  isDismissed Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([visitorId])
+  @@index([context])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model UserPreference {
+  id            String   @id @default(cuid())
+  visitorId     String   @unique
+  skillLevel    String   @default("intermediate") // "beginner" | "intermediate" | "expert"
+  preferredLang String   @default("en")
+  interfaceMode String   @default("standard") // "compact" | "standard" | "advanced"
+  recentPages   String?  // JSON array of recent page paths
+  frequentActions String? // JSON: {action: count} map
+  theme         String   @default("dark")
+  aiSensitivity Float    @default(0.7) // 0-1, how proactive AI should be
+  notificationsEnabled Boolean @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([visitorId])
+}
+
+model AiAuditLog {
+  id          String   @id @default(cuid())
+  visitorId   String?
+  action      String   // "suggestion_accepted" | "suggestion_dismissed" | "automation_run" | "ai_query" | "data_access"
+  details     String   // JSON: full context of the action
+  error       String?  // Error message if action failed
+  inputData   String?  // JSON: what data the AI accessed
+  outputData  String?  // JSON: what the AI produced
+  model       String   @default("default") // which AI model was used
+  tokensUsed  Int?
+  durationMs  Int?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([visitorId])
+  @@index([action])
+  @@index([createdAt])
+}

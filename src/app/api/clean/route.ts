@@ -408,8 +408,9 @@ export async function POST(request: NextRequest) {
         missing: missingCount,
       },
     })
-  } catch (error: any) {
-    console.error('Clean API error:', error.message)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error'
+    console.error('Clean API error:', message)
     return NextResponse.json(
       { error: 'Data cleaning failed. Please check your data format.' },
       { status: 500 }

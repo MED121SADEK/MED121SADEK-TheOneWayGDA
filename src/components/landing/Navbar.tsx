@@ -58,6 +58,8 @@ export function Navbar() {
               {[
                 { label: t('nav.community') || 'Community', href: '/community' },
                 { label: t('lb.badge') || 'Leaderboard', href: '/leaderboard' },
+                { label: 'AI Automation', href: '/ai' },
+                { label: 'AI Governance', href: '/ai/governance' },
                 { label: t('nav.about'), href: '/about' },
                 { label: t('nav.security'), href: '/security' },
                 { label: t('nav.company'), href: '/company' },
@@ -95,6 +97,8 @@ export function Navbar() {
                 { label: t('nav.pricing'), href: '#pricing' },
                 { label: t('nav.community') || 'Community', href: '/community' },
                 { label: t('lb.badge') || 'Leaderboard', href: '/leaderboard' },
+                { label: 'AI Automation', href: '/ai' },
+                { label: 'AI Governance', href: '/ai/governance' },
                 { label: t('nav.about'), href: '/about' },
                 { label: t('nav.security'), href: '/security' },
                 { label: t('nav.company'), href: '/company' },

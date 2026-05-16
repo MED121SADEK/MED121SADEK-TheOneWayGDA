@@ -17,10 +17,10 @@ import { Input } from '@/components/ui/input'
 import {
   ArrowLeft, Globe, Trophy, Zap, DollarSign, Activity, BarChart3, Server,
   Clock, RefreshCw, Loader2, Crown, TrendingUp, Timer, Database, Cpu, Shield, Hash,
-  Search, GitCompareArrows, X, CheckCircle2, CircleDot,
+  Search, GitCompareArrows, X,
 } from 'lucide-react'
 import {
-  RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Legend,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Legend, Tooltip,
 } from 'recharts'
 
 /* ───────────────────────── Types ───────────────────────── */
@@ -197,20 +197,22 @@ const stagger = {
   animate: { transition: { staggerChildren: 0.04 } },
 }
 
-/* ───────────────────────── Radar data builder ───────────────────────── */
-function buildRadarData(models: LeaderboardEntry[]): Record<string, unknown>[] {
-  if (models.length === 0) return []
-  // Use normalized scores from the entries (0-100 scale)
-  const benchmarks = ['GPQA', 'MMLU', 'HumanEval', 'GSM8K', 'ARC-Challenge', 'HellaSwag', 'MATH']
-  return benchmarks.map(bm => {
-    const row: Record<string, unknown> = { benchmark: bm }
+/* ───────────────────────── Radar data builder (uses REAL benchmark data) ───────────────────────── */
+function buildRadarData(
+  models: LeaderboardEntry[],
+  allBenchmarks: BenchmarkSummary[]
+): Record<string, unknown>[] {
+  if (models.length === 0 || allBenchmarks.length === 0) return []
+  // Use the most popular benchmarks (sorted by participant count)
+  const radarBenchmarks = allBenchmarks
+    .slice(0, 8)
+    .map(b => b.name)
+  return radarBenchmarks.map(bmName => {
+    const row: Record<string, unknown> = { benchmark: bmName }
+    const bmSummary = allBenchmarks.find(b => b.name === bmName)
     models.forEach((m, idx) => {
-      // Simulate varied benchmark scores based on the model's normalized score
-      // with some variance to make the radar interesting
-      const base = m.normalizedScore
-      const variance = ((bm.charCodeAt(0) * 7 + m.id.charCodeAt(0) * 13) % 20) - 10
-      const score = Math.max(20, Math.min(100, base + variance))
-      row[`model_${idx}`] = score
+      const realScore = bmSummary?.scores.find(s => s.modelId === m.id)
+      row[`model_${idx}`] = realScore ? realScore.normalized : 0
     })
     return row
   })
@@ -257,7 +259,6 @@ export default function LeaderboardPage() {
 
   /* ── Comparison state ── */
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [showCompare, setShowCompare] = useState(false)
   const [compareData, setCompareData] = useState<LeaderboardEntry[]>([])
   const [compareLoading, setCompareLoading] = useState(false)
 
@@ -385,25 +386,8 @@ export default function LeaderboardPage() {
 
   const handleCompare = async () => {
     if (selectedIds.size < 2) return
-    setShowCompare(true)
-    setCompareLoading(true)
-    try {
-      const entries = leaderboard.filter(e => selectedIds.has(e.id))
-      // Fetch full details for each model
-      const details = await Promise.all(entries.map(async (e) => {
-        try {
-          const res = await fetch(`/api/leaderboard/models/${e.id}`)
-          const data = await res.json()
-          return { ...e, fullData: data }
-        } catch {
-          return { ...e, fullData: null }
-        }
-      }))
-      setCompareData(details as LeaderboardEntry[] & { fullData: unknown }[])
-    } catch {
-      setCompareData(leaderboard.filter(e => selectedIds.has(e.id)))
-    }
-    setCompareLoading(false)
+    setActiveTab('compare')
+    setCompareData(leaderboard.filter(e => selectedIds.has(e.id)))
   }
 
   const handleClearCache = async () => {
@@ -611,7 +595,7 @@ export default function LeaderboardPage() {
                         <tr className="border-b border-border/40 bg-muted/30">
                           <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground w-10">
                             <Checkbox
-                              checked={selectedIds.size === filteredLeaderboard.length && filteredLeaderboard.length > 0}
+                              checked={filteredLeaderboard.length > 0 && filteredLeaderboard.slice(0, 6).every(e => selectedIds.has(e.id))}
                               onCheckedChange={(checked) => {
                                 if (checked) {
                                   const allIds = new Set(filteredLeaderboard.slice(0, 6).map(e => e.id))
@@ -1124,9 +1108,11 @@ export default function LeaderboardPage() {
                   </CardHeader>
                   <CardContent className="px-5 pb-5">
                     <ResponsiveContainer width="100%" height={350}>
-                      <RadarChart data={buildRadarData(compareData)}>
+                      <RadarChart data={buildRadarData(compareData, benchmarks)}>
                         <PolarGrid stroke="oklch(0.5 0 0 / 0.15)" />
                         <PolarAngleAxis dataKey="benchmark" tick={{ fontSize: 11, fill: 'oklch(0.6 0 0)' }} />
+                        <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10, fill: 'oklch(0.5 0 0)' }} />
+                        <Tooltip contentStyle={{ backgroundColor: 'oklch(0.15 0 0)', border: '1px solid oklch(0.3 0 0)', borderRadius: '8px', fontSize: '12px' }} />
                         {compareData.map((_, idx) => (
                           <Radar
                             key={idx}

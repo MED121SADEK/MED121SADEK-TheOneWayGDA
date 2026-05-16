@@ -20,7 +20,7 @@ async function initCron() {
     handler: async () => {
       metricsCache.clear();
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://theoneway.app';
         await fetch(`${baseUrl}/api/leaderboard/metrics`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
       } catch { console.warn('[Cron] Self-trigger failed (expected in dev)'); }
     },

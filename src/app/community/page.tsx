@@ -333,6 +333,7 @@ export default function CommunityPage() {
           author: session.email,
           authorName: session.name,
           imageUrl: composerImageUrl.trim() || null,
+          sourceUrl: composerLink.trim() || null,
           tags,
         }),
       })

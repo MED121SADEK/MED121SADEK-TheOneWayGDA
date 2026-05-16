@@ -188,6 +188,8 @@ export default function AdminVisitorsPage() {
     if (session === 'authenticated' && pw) {
       setPassword(pw)
       setIsAuthenticated(true)
+      // Restore cookie for middleware (may have expired)
+      document.cookie = 'oneway-admin-token=' + encodeURIComponent(pw) + ';path=/;max-age=86400;SameSite=Strict'
     }
   }, [])
 
@@ -206,6 +208,8 @@ export default function AdminVisitorsPage() {
         setIsAuthenticated(true)
         localStorage.setItem('oneway-admin-session', 'authenticated')
         localStorage.setItem('oneway-admin-pw', password)
+        // Set cookie for middleware auth check
+        document.cookie = 'oneway-admin-token=' + encodeURIComponent(password) + ';path=/;max-age=86400;SameSite=Strict'
       } else {
         setLoginError('Invalid password. Access denied.')
       }
@@ -221,6 +225,8 @@ export default function AdminVisitorsPage() {
     setPassword('')
     localStorage.removeItem('oneway-admin-session')
     localStorage.removeItem('oneway-admin-pw')
+    // Clear cookie for middleware
+    document.cookie = 'oneway-admin-token=;path=/;max-age=0'
   }, [])
 
   // ── Data Fetching ──────────────────────────────────────────────────────
@@ -256,8 +262,9 @@ export default function AdminVisitorsPage() {
       setPagination(data.pagination || { page: 1, limit: 50, total: 0, totalPages: 0 })
       setStats(data.stats || {})
       setSelectedIds(new Set())
-    } catch (err: any) {
-      setError(err.message || 'Failed to load visitor data.')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred'
+      setError(message || 'Failed to load visitor data.')
     } finally {
       setLoading(false)
     }

@@ -60,7 +60,7 @@ export async function GET(request: Request) {
     const result = { pricing: unique, providerStats, meta: { totalModels: unique.length, lastUpdated: new Date().toISOString() } };
     pricingCache.set(cacheKey, result);
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

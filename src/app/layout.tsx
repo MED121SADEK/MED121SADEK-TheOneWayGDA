@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { I18nProvider } from "@/lib/i18n";
 import { GdprConsent } from "@/components/gdpr-consent";
 import { EmailGate } from "@/components/EmailGate";
+import AiCopilot from "@/components/ai/AiCopilot";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 
 const geistSans = Geist({
@@ -72,6 +73,7 @@ export default function RootLayout({
           <EmailGate />
           <GdprConsent />
           {children}
+          <AiCopilot />
           <Toaster />
         </I18nProvider>
       </body>

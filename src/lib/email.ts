@@ -71,8 +71,9 @@ ${data.ipAddress ? `<tr><td style="color:#64748b;font-size:12px;font-weight:600;
       console.log(`[Email] Visitor notification sent to ${ADMIN_EMAIL} for ${data.email}`)
     }
     return true
-  } catch (error: any) {
-    console.error('[Email] Failed to send visitor notification:', error.message)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'An error occurred'
+    console.error('[Email] Failed to send visitor notification:', message)
     return false
   }
 }
@@ -114,8 +115,9 @@ export async function sendVisitorApprovalEmail(visitorEmail: string, visitorName
     await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: visitorEmail, subject, html })
     console.log(`[Email] Approval email sent to ${visitorEmail}`)
     return true
-  } catch (error: any) {
-    console.error('[Email] Failed to send approval email:', error.message)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'An error occurred'
+    console.error('[Email] Failed to send approval email:', message)
     return false
   }
 }
@@ -150,8 +152,9 @@ export async function sendVisitorRejectionEmail(visitorEmail: string, visitorNam
     await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: visitorEmail, subject, html })
     console.log(`[Email] Rejection email sent to ${visitorEmail}`)
     return true
-  } catch (error: any) {
-    console.error('[Email] Failed to send rejection email:', error.message)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'An error occurred'
+    console.error('[Email] Failed to send rejection email:', message)
     return false
   }
 }

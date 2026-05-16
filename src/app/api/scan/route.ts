@@ -161,8 +161,9 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code fences):
       rawText: String(parsed.rawText || ''),
       summary: String(parsed.summary || ''),
     })
-  } catch (error: any) {
-    console.error('Scan API error:', error.message)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error'
+    console.error('Scan API error:', message)
     return NextResponse.json(
       { error: 'Document scanning failed. Please try again.' },
       { status: 500 }

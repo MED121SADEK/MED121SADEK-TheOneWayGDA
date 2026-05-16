@@ -62,11 +62,12 @@ class CronManager {
         data: { status: 'completed', runCount: { increment: 1 }, nextRun: new Date(Date.now() + intervalMs), lastError: null },
       });
       console.log(`[CronManager] Completed: ${name} in ${duration}ms`);
-    } catch (error: any) {
-      console.error(`[CronManager] Failed: ${name}`, error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'An error occurred';
+      console.error(`[CronManager] Failed: ${name}`, message);
       await prisma.cronJob.update({
         where: { name },
-        data: { status: 'failed', lastError: error.message?.substring(0, 500) },
+        data: { status: 'failed', lastError: message.substring(0, 500) },
       });
     }
   }
@@ -78,8 +79,9 @@ class CronManager {
       const t0 = Date.now();
       await job.config.handler();
       return { success: true, message: `Job "${name}" completed in ${Date.now() - t0}ms` };
-    } catch (error: any) {
-      return { success: false, message: `Job "${name}" failed: ${error.message}` };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'An error occurred';
+      return { success: false, message: `Job "${name}" failed: ${message}` };
     }
   }
 
