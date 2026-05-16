@@ -262,8 +262,8 @@ export async function POST(request: NextRequest) {
     }
 
     const validCategories = ['environment', 'purpose', 'sensitivity', 'custom'] as const
-    const resolvedCategory = validCategories.includes(category)
-      ? category
+    const resolvedCategory: typeof validCategories[number] = validCategories.includes(category as typeof validCategories[number])
+      ? (category as typeof validCategories[number])
       : 'custom'
 
     // Validate color format (hex)

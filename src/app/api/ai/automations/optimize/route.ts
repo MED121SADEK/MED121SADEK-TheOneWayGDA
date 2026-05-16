@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
       const improvements: string[] = []
       let optimizedTrigger = rule.trigger
       let optimizedTriggerConfig = { ...triggerConfig as Record<string, unknown> }
-      const optimizedActions = [...actions]
+      const optimizedActions: Array<{ type: string; config: Record<string, string> }> = [...actions as Array<{ type: string; config: Record<string, string> }>]
 
       if (errorRate > 20) {
         improvements.push('High error rate detected — consider reviewing action configurations for compatibility')

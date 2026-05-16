@@ -1,0 +1,33 @@
+# ═══════════════════════════════════════════════════════════
+# The One-Way — Docker Compose Development Override
+# Adds: hot-reload, dev server, volume mounts for live coding
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ═══════════════════════════════════════════════════════════
+
+services:
+  app:
+    build:
+      target: deps            # Only build deps stage for faster dev startup
+    command: bun run dev
+    environment:
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./src:/app/src              # Live source code
+      - ./public:/app/public        # Live static files
+      - ./prisma:/app/prisma        # Live schema changes
+      - ./tailwind.config.ts:/app/tailwind.config.ts
+      - ./next.config.ts:/app/next.config.ts
+      - ./postcss.config.mjs:/app/postcss.config.mjs
+      - app-db:/app/db
+      - app-node-modules:/app/node_modules
+    healthcheck:
+      disable: true                 # Don't health-check dev server
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+volumes:
+  app-node-modules:
