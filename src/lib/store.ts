@@ -137,6 +137,7 @@ interface AppState {
   addSyntax: (syntax: string) => void
 
   importCSV: (text: string) => void
+  importFile: (file: File) => void
   exportCSV: () => string
   exportJSON: () => string
 
@@ -340,6 +341,61 @@ export const useAppStore = create<AppState>()(
       addSyntax: (syntax) => set(s => ({ syntaxHistory: [...s.syntaxHistory, syntax] })),
 
       importCSV: (text) => {
+        // Try PapaParse first, fallback to manual parsing
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const Papa = require('papaparse')
+          const result = Papa.parse(text.trim(), {
+            header: true,
+            skipEmptyLines: true,
+            dynamicTyping: false, // We do our own typing
+          })
+
+          if (result.data && result.data.length > 0 && result.meta.fields) {
+            const headers = result.meta.fields.filter(Boolean)
+            const data: Record<string, any[]> = {}
+            const variables: Variable[] = []
+
+            headers.forEach(name => {
+              data[name] = []
+              variables.push({
+                id: uid(), name, type: 'numeric', label: name, width: 8, decimals: 2, missing: '', values: {},
+              })
+            })
+
+            for (const row of result.data) {
+              headers.forEach(h => {
+                const raw = String(row[h] ?? '').trim()
+                const num = parseFloat(raw)
+                data[h].push(isNaN(num) || raw === '' ? raw : num)
+              })
+            }
+
+            variables.forEach(v => {
+              const col = data[v.name]
+              const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
+              if (nonEmpty.length === 0) return
+              if (nonEmpty.every(x => typeof x === 'number')) {
+                v.type = 'numeric'
+              } else if (nonEmpty.every(x => /^\d{4}[\/-]\d{1,2}[\/-]\d{1,2}$/.test(String(x)))) {
+                v.type = 'date'
+                v.decimals = 0
+              } else if (nonEmpty.every(x => /^\$?\d+[,.]?\d*$/.test(String(x)))) {
+                v.type = 'currency'
+              } else {
+                v.type = 'string'
+                v.decimals = 0
+              }
+            })
+
+            set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+            return
+          }
+        } catch {
+          // Fallback to manual parsing
+        }
+
+        // Manual CSV parsing fallback
         const lines = text.trim().split('\n')
         if (lines.length < 2) return
         const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
@@ -369,7 +425,6 @@ export const useAppStore = create<AppState>()(
           })
         }
 
-        // Detect types
         variables.forEach(v => {
           const col = data[v.name]
           const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
@@ -384,6 +439,74 @@ export const useAppStore = create<AppState>()(
         })
 
         set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+      },
+
+      importFile: (file) => {
+        const ext = file.name.split('.').pop()?.toLowerCase()
+
+        if (ext === 'xlsx' || ext === 'xls') {
+          // Excel file - use SheetJS
+          const reader = new FileReader()
+          reader.onload = (ev) => {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-require-imports
+              const XLSX = require('xlsx')
+              const wb = XLSX.read(ev.target!.result, { type: 'array' })
+              const sheetName = wb.SheetNames[0]
+              const ws = wb.Sheets[sheetName]
+              const jsonData = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, any>[]
+
+              if (jsonData.length === 0) return
+
+              const headers = Object.keys(jsonData[0])
+              const data: Record<string, any[]> = {}
+              const variables: Variable[] = []
+
+              headers.forEach(name => {
+                data[name] = []
+                variables.push({
+                  id: uid(), name, type: 'numeric', label: name, width: 8, decimals: 2, missing: '', values: {},
+                })
+              })
+
+              for (const row of jsonData) {
+                headers.forEach(h => {
+                  const raw = String(row[h] ?? '').trim()
+                  const num = parseFloat(raw)
+                  data[h].push(isNaN(num) || raw === '' ? raw : num)
+                })
+              }
+
+              variables.forEach(v => {
+                const col = data[v.name]
+                const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
+                if (nonEmpty.length === 0) return
+                if (nonEmpty.every(x => typeof x === 'number')) {
+                  v.type = 'numeric'
+                } else if (nonEmpty.every(x => /^\d{4}[\/-]\d{1,2}[\/-]\d{1,2}$/.test(String(x)))) {
+                  v.type = 'date'
+                  v.decimals = 0
+                } else {
+                  v.type = 'string'
+                  v.decimals = 0
+                }
+              })
+
+              set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+            } catch (err) {
+              console.error('Excel import error:', err)
+            }
+          }
+          reader.readAsArrayBuffer(file)
+        } else {
+          // CSV or text file
+          const reader = new FileReader()
+          reader.onload = (ev) => {
+            const text = ev.target?.result as string
+            if (text) get().importCSV(text)
+          }
+          reader.readAsText(file)
+        }
       },
 
       exportCSV: () => {
