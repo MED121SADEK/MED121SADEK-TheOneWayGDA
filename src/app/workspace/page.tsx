@@ -697,7 +697,7 @@ export default function WorkspacePage() {
       <nav className="h-12 border-b border-border/50 bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 flex-shrink-0 z-50">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/images/logo.png" alt="TheOneWayGDAGDA" width={28} height={28} className="rounded" />
+            <Image src="/images/logo.png" alt="TheOneWayGDA" width={28} height={28} className="rounded" />
             <span className="font-bold gradient-text text-sm hidden sm:inline">{t('brand.name')}</span>
           </Link>
           <Separator orientation="vertical" className="h-6" />

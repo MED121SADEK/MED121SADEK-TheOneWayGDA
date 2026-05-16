@@ -58,7 +58,7 @@ const INITIAL_MODULES: Omit<AppModule, 'installedAt' | 'lastUpdated'>[] = [
     category: 'statistical',
     description: 'Core computation engine for all statistical analyses.',
     enabled: true,
-    author: 'TheOneWayGDAGDA Team',
+    author: 'TheOneWayGDA Team',
     dependencies: [],
   },
   {
@@ -70,7 +70,7 @@ const INITIAL_MODULES: Omit<AppModule, 'installedAt' | 'lastUpdated'>[] = [
     category: 'ai',
     description: 'Natural language AI chat assistant powered by GLM-4.6V.',
     enabled: true,
-    author: 'TheOneWayGDAGDA Team',
+    author: 'TheOneWayGDA Team',
     dependencies: ['core-statistical-engine'],
   },
   {
@@ -82,7 +82,7 @@ const INITIAL_MODULES: Omit<AppModule, 'installedAt' | 'lastUpdated'>[] = [
     category: 'ai',
     description: 'Document scanning with AI-powered OCR.',
     enabled: true,
-    author: 'TheOneWayGDAGDA Team',
+    author: 'TheOneWayGDA Team',
     dependencies: ['ai-assistant'],
   },
   {
@@ -94,7 +94,7 @@ const INITIAL_MODULES: Omit<AppModule, 'installedAt' | 'lastUpdated'>[] = [
     category: 'statistical',
     description: 'AI-powered data cleaning and normalization.',
     enabled: true,
-    author: 'TheOneWayGDAGDA Team',
+    author: 'TheOneWayGDA Team',
     dependencies: ['core-statistical-engine', 'ai-assistant'],
   },
   {
@@ -106,7 +106,7 @@ const INITIAL_MODULES: Omit<AppModule, 'installedAt' | 'lastUpdated'>[] = [
     category: 'visualization',
     description: 'Compute and visualize correlation matrices.',
     enabled: true,
-    author: 'TheOneWayGDAGDA Team',
+    author: 'TheOneWayGDA Team',
     dependencies: ['core-statistical-engine'],
   },
   {
@@ -118,7 +118,7 @@ const INITIAL_MODULES: Omit<AppModule, 'installedAt' | 'lastUpdated'>[] = [
     category: 'statistical',
     description: 'Simple and multiple linear regression with diagnostics.',
     enabled: true,
-    author: 'TheOneWayGDAGDA Team',
+    author: 'TheOneWayGDA Team',
     dependencies: ['core-statistical-engine'],
   },
   {
@@ -130,7 +130,7 @@ const INITIAL_MODULES: Omit<AppModule, 'installedAt' | 'lastUpdated'>[] = [
     category: 'statistical',
     description: 'Comprehensive descriptive statistics calculations.',
     enabled: true,
-    author: 'TheOneWayGDAGDA Team',
+    author: 'TheOneWayGDA Team',
     dependencies: ['core-statistical-engine'],
   },
   {
@@ -142,7 +142,7 @@ const INITIAL_MODULES: Omit<AppModule, 'installedAt' | 'lastUpdated'>[] = [
     category: 'statistical',
     description: 'Smart data validation with AI-powered suggestions.',
     enabled: true,
-    author: 'TheOneWayGDAGDA Team',
+    author: 'TheOneWayGDA Team',
     dependencies: ['core-statistical-engine', 'ai-assistant'],
   },
   {
@@ -154,7 +154,7 @@ const INITIAL_MODULES: Omit<AppModule, 'installedAt' | 'lastUpdated'>[] = [
     category: 'ui',
     description: 'Full interface translation for 8 languages.',
     enabled: true,
-    author: 'TheOneWayGDAGDA Team',
+    author: 'TheOneWayGDA Team',
     dependencies: [],
   },
   {
@@ -166,7 +166,7 @@ const INITIAL_MODULES: Omit<AppModule, 'installedAt' | 'lastUpdated'>[] = [
     category: 'integration',
     description: 'Export data and results in multiple formats.',
     enabled: true,
-    author: 'TheOneWayGDAGDA Team',
+    author: 'TheOneWayGDA Team',
     dependencies: ['core-statistical-engine'],
   },
 ]
