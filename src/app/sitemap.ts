@@ -4,7 +4,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://theonewaygda.com'
 
   const staticPages = [
-    '', '/about', '/community', '/company', '/leaderboard',
+    '', '/about', '/community', '/company', '/directory', '/leaderboard',
     '/modules', '/privacy', '/security', '/terms', '/tutorials', '/updates',
   ]
 

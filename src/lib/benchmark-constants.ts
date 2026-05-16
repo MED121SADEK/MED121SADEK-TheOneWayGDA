@@ -2,19 +2,16 @@ export const BENCHMARK_CATEGORIES = ['overall', 'reasoning', 'coding', 'math', '
 export type BenchmarkCategory = typeof BENCHMARK_CATEGORIES[number]
 
 export const BENCHMARKS: Record<string, { name: string; category: string; maxScore: number; description: string }> = {
-  GPQA: { name: 'GPQA', category: 'reasoning', maxScore: 100, description: 'Google-Proof Q&A — graduate-level reasoning' },
-  MMLU: { name: 'MMLU', category: 'knowledge', maxScore: 100, description: 'Massive Multitask Language Understanding' },
-  HumanEval: { name: 'HumanEval', category: 'coding', maxScore: 100, description: 'Python code generation benchmark' },
-  MATH: { name: 'MATH', category: 'math', maxScore: 100, description: 'Competition mathematics problems' },
-  GSM8K: { name: 'GSM8K', category: 'math', maxScore: 100, description: 'Grade school math word problems' },
-  ARC: { name: 'ARC', category: 'reasoning', maxScore: 100, description: 'AI2 Reasoning Challenge' },
-  HellaSwag: { name: 'HellaSwag', category: 'language', maxScore: 100, description: 'Common-sense natural language inference' },
-  TruthfulQA: { name: 'TruthfulQA', category: 'knowledge', maxScore: 100, description: 'Truthfulness in question answering' },
+  'GPQA Diamond': { name: 'GPQA Diamond', category: 'reasoning', maxScore: 100, description: 'Google-Proof Q&A Diamond — graduate-level STEM reasoning' },
+  'MMLU-Pro': { name: 'MMLU-Pro', category: 'knowledge', maxScore: 100, description: 'Massive Multitask Language Understanding Pro — harder expert-level questions' },
+  'HumanEval+': { name: 'HumanEval+', category: 'coding', maxScore: 100, description: 'Extended HumanEval — rigorous Python code generation with extra test cases' },
+  'MATH-500': { name: 'MATH-500', category: 'math', maxScore: 100, description: 'MATH-500 subset — competition mathematics from MATH benchmark' },
+  'MT-Bench': { name: 'MT-Bench', category: 'language', maxScore: 10, description: 'Multi-turn conversation benchmark — LLM-as-judge scoring' },
+  'IFEval': { name: 'IFEval', category: 'language', maxScore: 100, description: 'Instruction Following Evaluation — format and constraint adherence' },
 }
 
 export const PROVIDERS = [
-  'OpenAI', 'Anthropic', 'Google', 'Meta', 'DeepSeek', 'Mistral AI',
-  'Alibaba', 'Cohere', 'Zhipu AI', 'Microsoft', '01.AI', 'xAI',
+  'OpenAI', 'Anthropic', 'Google', 'Meta', 'DeepSeek', 'Mistral', 'Qwen',
 ] as const
 
 export const SORT_OPTIONS = [

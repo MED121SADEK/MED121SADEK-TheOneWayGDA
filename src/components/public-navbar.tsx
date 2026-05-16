@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   Menu, Globe, ChevronDown, ArrowRight, LayoutDashboard,
-  Trophy, Users, Sparkles, BookOpen, Bell, User,
+  Trophy, Users, Sparkles, BookOpen, Bell, User, Map,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -34,6 +34,7 @@ const NAV_LINKS = [
   { label: 'About', href: '/about' },
   { label: 'Tutorials', href: '/tutorials' },
   { label: 'Updates', href: '/updates' },
+  { label: 'Directory', href: '/directory' },
 ]
 
 const AI_DROPDOWN = [
@@ -104,7 +105,7 @@ export function PublicNavbar() {
 
         {/* Desktop Nav Links */}
         <div className="hidden lg:flex items-center gap-1 flex-shrink-0">
-          {NAV_LINKS.filter((l) => l.label !== 'AI').map((link) => (
+          {NAV_LINKS.filter((l) => l.label !== 'AI' && l.label !== 'Directory').map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -227,7 +228,7 @@ export function PublicNavbar() {
 
               <div className="h-px bg-border/50 my-2" />
 
-              {NAV_LINKS.map((link) => (
+              {NAV_LINKS.filter((l) => l.label !== 'AI' && l.label !== 'Directory').map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
@@ -242,6 +243,21 @@ export function PublicNavbar() {
                   {link.label}
                 </Link>
               ))}
+
+              {/* Sitemap link */}
+              <Link
+                href="/directory"
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  'flex items-center gap-2 text-left text-sm font-medium py-2.5 px-3 rounded-lg transition-colors',
+                  isActive('/directory')
+                    ? 'text-primary bg-primary/10'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                )}
+              >
+                <Map className="size-3.5" />
+                Directory
+              </Link>
 
               {/* AI sub-links */}
               <div className="pl-3 border-l-2 border-primary/20 space-y-0.5 mt-1">

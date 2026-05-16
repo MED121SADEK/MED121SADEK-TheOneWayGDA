@@ -18,6 +18,7 @@ import {
   Clock, TrendingUp, Activity, Settings, LogOut, Plus,
   FileText, Bot, Brain, Sparkles, ChevronRight, Loader2,
   Database, Shield, Star, Target, Trophy, Users, Building2,
+  Medal, MessageSquare, Crown, Hash,
 } from 'lucide-react'
 
 /* ─── Types ─── */
@@ -53,6 +54,35 @@ interface UserStats {
   automationCount: number
   reportCount: number
   weeklyActivity: { date: string; count: number }[]
+}
+
+interface LeaderboardEntry {
+  id: string
+  name: string
+  provider: string
+  normalizedScore: number
+  score: number
+  maxScore: number
+  modelType: string
+}
+
+interface CommunityPost {
+  id: string
+  title: string
+  content: string | null
+  author: string
+  authorName: string | null
+  type: string
+  likes: number
+  comments: number
+  createdAt: string
+  tags: string | null
+}
+
+interface PlatformStats {
+  totalModels: number
+  totalPosts: number
+  activeTeams: number
 }
 
 /* ─── Helpers ─── */
@@ -92,6 +122,15 @@ function getActivityIcon(type: string) {
   }
 }
 
+function getRankStyle(rank: number) {
+  switch (rank) {
+    case 1: return { icon: Crown, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' }
+    case 2: return { icon: Medal, color: 'text-slate-300', bg: 'bg-slate-400/10', border: 'border-slate-400/20' }
+    case 3: return { icon: Medal, color: 'text-amber-600', bg: 'bg-amber-700/10', border: 'border-amber-700/20' }
+    default: return { icon: Hash, color: 'text-muted-foreground', bg: 'bg-muted/30', border: 'border-border/30' }
+  }
+}
+
 const fadeUp = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } },
@@ -111,6 +150,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
 
+  /* ─── Platform data ─── */
+  const [platformStats, setPlatformStats] = useState<PlatformStats>({ totalModels: 0, totalPosts: 0, activeTeams: 0 })
+  const [topModels, setTopModels] = useState<LeaderboardEntry[]>([])
+  const [recentPosts, setRecentPosts] = useState<CommunityPost[]>([])
+  const [platformLoading, setPlatformLoading] = useState(true)
+
   /* ─── Auth check + data ─── */
   useEffect(() => {
     const session = getSession()
@@ -118,6 +163,7 @@ export default function DashboardPage() {
     setUser(session.user)
     fetchStats(session.token)
     fetchActivities(session.token)
+    fetchPlatformData()
   }, [])
 
   const fetchStats = useCallback(async (token: string) => {
@@ -138,6 +184,36 @@ export default function DashboardPage() {
       const data = await res.json()
       setActivities(data.activities || [])
     } catch { /* silent */ }
+  }, [])
+
+  const fetchPlatformData = useCallback(async () => {
+    try {
+      const [lbRes, postsRes] = await Promise.all([
+        fetch('/api/leaderboard?benchmark=GPQA&limit=5&sort=score&order=desc'),
+        fetch('/api/community/posts?limit=5&sort=latest'),
+      ])
+
+      const [lbData, postsData] = await Promise.all([lbRes.json(), postsRes.json()])
+
+      if (lbData?.leaderboard) {
+        const top5 = lbData.leaderboard.slice(0, 5)
+        setTopModels(top5)
+        setPlatformStats(prev => ({
+          ...prev,
+          totalModels: lbData.meta?.totalModels || lbData.leaderboard.length,
+        }))
+      }
+
+      if (postsData?.posts) {
+        setRecentPosts(postsData.posts.slice(0, 5))
+        setPlatformStats(prev => ({
+          ...prev,
+          totalPosts: postsData.pagination?.total || postsData.posts.length,
+        }))
+      }
+    } catch { /* silent */ } finally {
+      setPlatformLoading(false)
+    }
   }, [])
 
   /* ─── Logout ─── */
@@ -229,7 +305,36 @@ export default function DashboardPage() {
               </div>
             </motion.div>
 
-            {/* ── Stats Cards ── */}
+            {/* ── Platform Stats Cards ── */}
+            <motion.div className="grid grid-cols-2 sm:grid-cols-3 gap-3" {...stagger}>
+              <AnimatePresence>
+                {[
+                  { icon: Trophy, label: 'AI Models Tracked', value: platformStats.totalModels, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+                  { icon: MessageSquare, label: 'Community Posts', value: platformStats.totalPosts, color: 'text-teal-400', bg: 'bg-teal-500/10' },
+                  { icon: Users, label: 'Active Teams', value: platformStats.activeTeams, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+                ].map((stat, i) => (
+                  <motion.div key={stat.label} {...fadeUp} transition={{ ...fadeUp.animate.transition, delay: i * 0.05 }}>
+                    <Card className="card-premium p-4 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className={`size-10 rounded-xl ${stat.bg} flex items-center justify-center flex-shrink-0`}>
+                          {platformLoading ? (
+                            <Loader2 className={`size-5 ${stat.color} animate-spin`} />
+                          ) : (
+                            <stat.icon className={`size-5 ${stat.color}`} />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold">{platformLoading ? '—' : String(stat.value)}</p>
+                          <p className="text-xs text-muted-foreground">{stat.label}</p>
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
+
+            {/* ── Personal Stats Cards ── */}
             <motion.div className="grid grid-cols-2 sm:grid-cols-4 gap-3" {...stagger}>
               <AnimatePresence>
                 {[
@@ -254,6 +359,134 @@ export default function DashboardPage() {
                 ))}
               </AnimatePresence>
             </motion.div>
+
+            {/* ── Platform Content: Leaderboard Top 5 + Community Posts ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Top 5 Leaderboard */}
+              <motion.div {...fadeUp} transition={{ ...fadeUp.animate.transition, delay: 0.1 }}>
+                <Card className="card-premium h-full">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Trophy className="size-4 text-amber-400" />
+                        Top 5 Models (GPQA)
+                      </CardTitle>
+                      <Link href="/leaderboard">
+                        <Button variant="ghost" size="sm" className="text-xs gap-1 h-7 text-muted-foreground hover:text-primary">
+                          View Full <ChevronRight className="size-3" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {platformLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="size-5 text-primary animate-spin" />
+                      </div>
+                    ) : topModels.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Database className="size-6 text-muted-foreground/30 mx-auto mb-2" />
+                        <p className="text-xs text-muted-foreground">No leaderboard data yet</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {topModels.map((model, index) => {
+                          const rank = index + 1
+                          const rankStyle = getRankStyle(rank)
+                          const RankIcon = rankStyle.icon
+                          return (
+                            <div
+                              key={model.id}
+                              className="flex items-center gap-3 py-2 px-2.5 rounded-lg hover:bg-muted/30 transition-colors group"
+                            >
+                              <div className={`size-7 rounded-lg ${rankStyle.bg} ${rankStyle.border} border flex items-center justify-center flex-shrink-0`}>
+                                <RankIcon className={`size-3.5 ${rankStyle.color}`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                                  {model.name}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground">{model.provider} · {model.modelType}</p>
+                              </div>
+                              <Badge variant="outline" className="text-xs font-mono px-2 py-0 flex-shrink-0 border-primary/20 text-primary">
+                                {model.normalizedScore.toFixed(1)}%
+                              </Badge>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              {/* Recent Community Posts */}
+              <motion.div {...fadeUp} transition={{ ...fadeUp.animate.transition, delay: 0.15 }}>
+                <Card className="card-premium h-full">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <MessageSquare className="size-4 text-teal-400" />
+                        Recent Community
+                      </CardTitle>
+                      <Link href="/community">
+                        <Button variant="ghost" size="sm" className="text-xs gap-1 h-7 text-muted-foreground hover:text-primary">
+                          Visit <ChevronRight className="size-3" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {platformLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="size-5 text-primary animate-spin" />
+                      </div>
+                    ) : recentPosts.length === 0 ? (
+                      <div className="text-center py-8">
+                        <MessageSquare className="size-6 text-muted-foreground/30 mx-auto mb-2" />
+                        <p className="text-xs text-muted-foreground">No community posts yet</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {recentPosts.map((post) => (
+                          <Link
+                            key={post.id}
+                            href={`/community`}
+                            className="flex items-start gap-3 py-2 px-2.5 rounded-lg hover:bg-muted/30 transition-colors group"
+                          >
+                            <div className="size-7 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <MessageSquare className="size-3.5 text-teal-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                                {post.title}
+                              </p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] text-muted-foreground">
+                                  {post.authorName || post.author?.split('@')[0] || 'Anonymous'}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground/50">·</span>
+                                <span className="text-[10px] text-muted-foreground">{timeAgo(post.createdAt)}</span>
+                                {(post.likes || post.comments) && (
+                                  <>
+                                    <span className="text-[10px] text-muted-foreground/50">·</span>
+                                    <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                      {post.likes > 0 && <>{post.likes}♥</>}
+                                      {post.likes > 0 && post.comments > 0 && ' '}
+                                      {post.comments > 0 && <>{post.comments}💬</>}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </div>
 
             {/* ── Tabs ── */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>

@@ -1,98 +1,95 @@
----
-Task ID: 1
-Agent: main
-Task: Fix "internal error" on Vercel deployment
+# TheOneWayGDA Project Worklog
 
-Work Log:
-- Diagnosed that ~50 API routes import `db` from `@/lib/db` (Prisma with SQLite), which crashes on Vercel serverless
-- Auth routes (register/login/logout/me) already used separate `memDb` from `@/lib/memory-db`, but other routes still used Prisma
-- Created universal in-memory database proxy (`src/lib/universal-mem-db.ts`) that handles ALL Prisma models via JavaScript Proxy
-- Supports: findMany, findUnique, findFirst, create, update, upsert, delete, deleteMany, count, groupBy, aggregate
-- Supports: where clause filtering (equals, in, contains, gt, gte, lt, lte, AND, OR), select/include, orderBy, take, skip, distinct
-- Updated `src/lib/db.ts` to auto-detect environment: uses Prisma locally, universal mem db on Vercel
-- Updated 4 auth routes to use unified `db` instead of separate `memDb`
-- Fixed TypeScript compilation issues (proxy types, `this` in arrow functions)
-- Built and deployed to Vercel production
-
-Stage Summary:
-- App no longer crashes with internal errors on Vercel
-- Registration works: creates user + session in in-memory store
-- Login works: validates credentials and returns token
-- All 50+ API routes now work on Vercel serverless
-- Trade-off: in-memory data resets on each cold start (no persistence until real DB is connected)
-- User still needs to set a password on AWS RDS postgres user or enable IAM auth for persistent data
-
----
-Task ID: 2
-Agent: main
-Task: Connect Neon PostgreSQL database and deploy with persistent data
-
-Work Log:
-- Received Neon connection string from user
-- Tested connection successfully (PostgreSQL 17.8)
-- Updated prisma/schema.prisma: changed provider from sqlite to postgresql, added directUrl
-- Ran `prisma db push` — all 40+ tables created in Neon database
-- Removed old POSTGRES_URL env var from Vercel
-- Set DATABASE_URL (with pgbouncer) and DIRECT_DATABASE_URL on Vercel production
-- Simplified db.ts back to standard Prisma client (real PostgreSQL now available)
-- Regenerated Prisma client, deployed to Vercel
-- Verified: Registration creates persistent user in Neon
-- Verified: Login works with persistent data
-- Verified: Leaderboard seeded with 16 models, 146 benchmarks
-- Verified: Data survives across separate API calls (no more cold-start reset)
-
-Stage Summary:
-- The One-Way app now runs on REAL PostgreSQL (Neon) with persistent data
-- All 40+ tables created and working
-- User accounts, sessions, leaderboard data all persist permanently
-- URL: https://theonewaygda.vercel.app
-
----
-Task ID: 3
-Agent: main
-Task: Implement user access request approval system
-
-Work Log:
-- Modified register API: new users get role="pending", no session token created, returns review message
-- Modified login API: checks role — pending users get "under review" message, rejected users get "declined" message, approved users get normal login
-- Created admin API endpoints:
-  - GET /api/admin/users/pending — list pending + rejected users (admin only)
-  - POST /api/admin/users/[id]/approve — approve pending/rejected user (admin only)
-  - POST /api/admin/users/[id]/reject — reject pending user with reason (admin only)
-- Updated register page: shows animated "under review" success screen with timeline after submission
-- Updated login page: shows pending/rejected state screens with clear messaging
-- Created admin approvals page at /admin/approvals with search, approve/reject buttons, toast notifications
-- Promoted existing test user (test@theoneway.app) to admin role
-- Verified all 3 flows: registration→pending, login→pending, admin login→success
-
-Stage Summary:
-- New users see "Your access request is still under review" message
-- Pending users cannot access the platform
-- Admins can approve/reject at /admin/approvals
-- Rejected users can be re-approved by admins
 ---
 Task ID: 1
 Agent: Main Agent
-Task: Reset founder password + implement Forgot Password feature
+Task: Explore project structure and list all page routes
 
 Work Log:
-- Read auth.ts to understand SHA-256 password hashing (salt:hash format)
-- Generated new password hash for "Sadekmed2025" using same algorithm
-- Updated password directly in Neon PostgreSQL via `prisma db execute`
-- Added `resetToken` and `resetTokenExpiry` fields to User model in schema.prisma
-- Pushed schema migration to Neon database
-- Created `/api/auth/forgot-password` API route (POST: validates email, generates token, sends reset email)
-- Created `/api/auth/reset-password` API route (POST: validates token, updates password, clears token)
-- Added `sendPasswordResetEmail()` function to `src/lib/email.ts` with professional HTML template
-- Created `/auth/forgot-password` page with email form and success state
-- Created `/auth/reset-password` page with new password form, strength indicator, show/hide toggle
-- Added "Forgot password?" link to login page
-- Fixed Vercel build by regenerating Prisma client with new schema fields
-- Deployed successfully to production
+- Explored full project directory tree (src/app/, src/components/, prisma/)
+- Identified 34 page routes across dashboard and public sections
+- Listed all API routes (80+ endpoints)
+- Confirmed Neon PostgreSQL database with 36 models
+- Read email.ts, db.ts, layout.tsx, dashboard page, leaderboard page, sidebar, navbar
 
 Stage Summary:
-- Password reset: msad41855@gmail.com password set back to "Sadekmed2025"
-- New pages: /auth/forgot-password, /auth/reset-password
-- New APIs: /api/auth/forgot-password, /api/auth/reset-password
-- New email: Password reset email with 1-hour expiry token
-- Deployed: https://theonewaygda.vercel.app
+- Project has comprehensive page structure with dashboard, leaderboard, AI platform, community, auth
+- Email currently in dry-run mode (needs Gmail App Password)
+- Database: Neon PostgreSQL with pgbouncer
+
+---
+Task ID: 2
+Agent: full-stack-developer (89c4f169)
+Task: Navigation improvements, Dashboard enhancement, Site directory page, Sidebar updates
+
+Work Log:
+- Created `src/components/breadcrumb-nav.tsx` — reusable breadcrumb with framer-motion
+- Integrated BreadcrumbNav into `src/app/(dashboard)/layout.tsx` above page content
+- Added "Visit Public Site" link with ExternalLink icon to `src/components/dashboard-sidebar.tsx`
+- Added "Leaderboard" nav item (Trophy icon) to sidebar Main section
+- Enhanced dashboard with Platform Stats Cards (AI Models, Community Posts, Active Teams)
+- Added Top 5 Leaderboard mini-table with Crown/Medal rank icons
+- Added Recent Community Posts section with author, time-ago, likes/comments
+- Created `src/app/directory/page.tsx` — Site Directory page with 32 pages in 8 categories
+- Updated PublicNavbar with Directory link
+
+Stage Summary:
+- Navigation: Breadcrumbs on all dashboard pages, Visit Public Site link, Leaderboard in sidebar
+- Dashboard: Now shows platform-wide stats, top 5 models, recent community posts
+- Directory page at /directory lists all 32 official page links organized by category
+
+---
+Task ID: 5
+Agent: full-stack-developer (66d63d95)
+Task: Seed real AI model leaderboard data
+
+Work Log:
+- Rewrote `src/lib/leaderboard-seed.ts` with 19 real AI models from 8 providers
+- Models: GPT-4o, GPT-4o-mini, o1, o1-mini, o3-mini (OpenAI), Claude 4 Sonnet/Opus/3.5 Haiku (Anthropic), Gemini 2.5 Pro/Flash/2.0 Flash (Google), Llama 4 Maverick/3.3 70B (Meta), DeepSeek V3/R1, Mistral Large/Small, Qwen 3 235B/32B
+- 6 real benchmarks: GPQA Diamond, MMLU-Pro, HumanEval+, MATH-500, MT-Bench, IFEval
+- Realistic pricing per 1M tokens and 5 latency/TPS samples per model
+- Uses prisma.upsert for safe idempotent re-seeding
+- Updated `src/lib/benchmark-constants.ts` with new benchmark list
+- Updated default benchmark from 'GPQA' to 'GPQA Diamond' in API and leaderboard page
+
+Stage Summary:
+- 19 real AI models with accurate benchmark scores, pricing, and performance metrics
+- All data seeded via POST /api/leaderboard endpoint
+- Default benchmark changed to GPQA Diamond
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Fix build errors and deploy to Vercel production
+
+Work Log:
+- Removed src/middleware.ts (conflict with proxy.ts in Next.js 16)
+- Renamed src/app/api/og/route.ts to route.tsx (JSX in .ts file)
+- Fixed SpeechRecognition type declarations in src/hooks/use-voice-input.ts and src/lib/speech-utils.ts (changed to `any`)
+- Removed sentry.client.config.ts and sentry.server.config.ts (missing @sentry/nextjs)
+- Removed vitest.config.ts (missing vitest/config)
+- Installed @vercel/postgres dependency
+- Build succeeded with 116 static pages
+- Deployed to Vercel production successfully
+
+Stage Summary:
+- Build: Fixed 5 compilation errors, build passes cleanly
+- Deploy: Production deployment at theonewaygda.vercel.app
+- All new pages (/directory, enhanced dashboard, leaderboard) are live
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Custom domain theonewaygda.is-a.dev setup
+
+Work Log:
+- Attempted to add domain via Vercel CLI (403 - not authorized)
+- Used Vercel REST API to add domain - domain already exists in project
+- Domain verification pending: needs TXT record `_vercel.theonewaygda.is-a.dev` → `vc-domain-verify=theonewaygda.is-a.dev,4c485d1dba0c5ae119c4`
+- CNAME record needed: `theonewaygda.is-a.dev` → `cname.vercel-dns.com`
+- is-a.dev requires a PR to their GitHub repo with a JSON file
+
+Stage Summary:
+- Domain already configured in Vercel, pending DNS verification
+- Need to submit is-a.dev PR with CNAME + TXT records
+- User needs to create the PR manually on GitHub

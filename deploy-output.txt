@@ -1,0 +1,28 @@
+Retrieving project…
+Deploying the-one-ways-projects/theonewaygda
+Uploading [--------------------] (0.0B/67B)
+Uploading [====================] (67.0B/67B)
+Inspect: https://vercel.com/the-one-ways-projects/theonewaygda/EZj3o1yopo8PEhyqCTSRbARPRcdG [2s]
+Production: https://theonewaygda-jxy0r28uy-the-one-ways-projects.vercel.app [2s]
+https://theonewaygda-jxy0r28uy-the-one-ways-projects.vercel.appBuilding...
+Building...
+Building: Running build in Washington, D.C., USA (East) – iad1
+Building: Build machine configuration: 2 cores, 8 GB
+Building: Retrieving list of deployment files...
+Building: Downloading 779 deployment files...
+Building: Restored build cache from previous deployment (2LRz9J9ozDgPoi8EN4oLdASQ2NkN)
+Building: Running "vercel build"
+Building: Vercel CLI 53.3.2
+Building: Installing dependencies...
+Building: up to date in 1s
+Building: 301 packages are looking for funding
+Building: run `npm fund` for details
+Building: Detected Next.js version: 16.1.3
+Building: Running "npm run build"
+Building: > nextjs_tailwind_shadcn_ts@0.2.0 build
+Building: > next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/
+Building: ▲ Next.js 16.1.3 (Turbopack)
+Building: - Environments: .env
+Building: Creating an optimized production build ...
+Building: ✓ Compiled successfully in 34.9s
+Building: Running TypeScript ...

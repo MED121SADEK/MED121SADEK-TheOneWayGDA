@@ -6,7 +6,7 @@ import { seedLeaderboardData } from '@/lib/leaderboard-seed';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const benchmark = searchParams.get('benchmark') || 'GPQA';
+    const benchmark = searchParams.get('benchmark') || 'GPQA Diamond';
     const provider = searchParams.get('provider');
     const modelType = searchParams.get('modelType');
     const sort = searchParams.get('sort') || 'score';

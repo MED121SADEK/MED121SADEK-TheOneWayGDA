@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, BarChart3, Settings, CreditCard, Bell, Code2,
   Bot, Users, PanelLeftClose, PanelLeft, Menu, LogOut, Globe,
-  FolderOpen, Workflow, Sparkles, ChevronDown,
+  FolderOpen, Workflow, Sparkles, ChevronDown, Trophy, ExternalLink,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -68,6 +68,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       { label: 'Analytics', href: '/analytics', icon: BarChart3 },
+      { label: 'Leaderboard', href: '/leaderboard', icon: Trophy },
     ],
   },
   {
@@ -238,8 +239,19 @@ function SidebarContent({
         </nav>
       </ScrollArea>
 
-      {/* ── Footer: User + Locale + Logout ── */}
+      {/* ── Footer: User + Locale + Logout + Public Link ── */}
       <div className="border-t border-border/50 px-3 py-3 flex-shrink-0 space-y-2">
+        {/* Visit Public Site */}
+        <Link
+          href="/"
+          className={cn(
+            'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 text-muted-foreground hover:text-primary hover:bg-primary/5',
+            collapsed && 'justify-center px-2'
+          )}
+        >
+          <ExternalLink className="size-3.5 flex-shrink-0" />
+          {!collapsed && <span>Visit Public Site</span>}
+        </Link>
         {/* Locale selector */}
         {!collapsed && (
           <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
