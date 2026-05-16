@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator'
 import { Cookie, Shield, ChevronDown, ChevronUp, BarChart3, Megaphone } from 'lucide-react'
 import Link from 'next/link'
 
-const CONSENT_KEY = 'theoneway_cookie_consent'
+const CONSENT_KEY = 'TheOneWayGDA_cookie_consent'
 
 type ConsentState = {
   essential: boolean

@@ -697,7 +697,7 @@ export default function WorkspacePage() {
       <nav className="h-12 border-b border-border/50 bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 flex-shrink-0 z-50">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/images/logo.png" alt="The One-Way" width={28} height={28} className="rounded" />
+            <Image src="/images/logo.png" alt="TheOneWayGDAGDA" width={28} height={28} className="rounded" />
             <span className="font-bold gradient-text text-sm hidden sm:inline">{t('brand.name')}</span>
           </Link>
           <Separator orientation="vertical" className="h-6" />
@@ -732,7 +732,7 @@ export default function WorkspacePage() {
               </div>
               <Separator />
               <div><p className="text-sm font-medium mb-2">{t('share.link')}</p>
-                <div className="flex gap-2"><Input readOnly value={shareLink || `https://theoneway.app/share/${store.currentProject?.id}`} /><Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(`https://theoneway.app/share/${store.currentProject?.id}`) }}><Copy className="size-3.5" /> {t('share.copyLink')}</Button></div>
+                <div className="flex gap-2"><Input readOnly value={shareLink || `https://TheOneWayGDA.app/share/${store.currentProject?.id}`} /><Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(`https://TheOneWayGDA.app/share/${store.currentProject?.id}`) }}><Copy className="size-3.5" /> {t('share.copyLink')}</Button></div>
               </div>
               <DialogFooter><Button onClick={() => setShareDialogOpen(false)}>{t('workspace.close')}</Button></DialogFooter>
             </DialogContent>

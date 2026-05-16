@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const varsInfo = (variables || []).map((v: any) => `${v.name} (${v.type})`).join(', ')
     const dataPreview = JSON.stringify(data || {}).slice(0, 2000)
 
-    const systemPrompt = `You are an expert statistical analysis AI assistant for "The One-Way" platform.
+    const systemPrompt = `You are an expert statistical analysis AI assistant for "TheOneWayGDAGDA" platform.
 Help users analyze their data professionally. When they ask to run statistical tests, provide structured results.
 Current variables: ${varsInfo}
 Data preview: ${dataPreview}

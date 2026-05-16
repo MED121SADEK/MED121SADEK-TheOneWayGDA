@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       ? `\n\nTemplate Hint: The document appears to be a ${templateHint}. Use this context to better understand the form structure and expected fields.`
       : ''
 
-    const systemPrompt = `You are an expert OCR and document analysis AI for "The One-Way" statistical analysis platform. Your job is to analyze document images (scanned forms, surveys, questionnaires, data tables) and extract structured data.
+    const systemPrompt = `You are an expert OCR and document analysis AI for "TheOneWayGDAGDA" statistical analysis platform. Your job is to analyze document images (scanned forms, surveys, questionnaires, data tables) and extract structured data.
 
 Analyze the document image thoroughly and extract:
 

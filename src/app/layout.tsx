@@ -16,11 +16,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "The One-Way - AI-Powered Statistical Analysis Platform",
+  title: "TheOneWayGDA - AI-Powered Statistical Analysis Platform",
   description:
     "The all-in-one AI-powered statistical analysis platform. Works offline, supports all languages, auto-updates, and makes data science accessible to everyone. Superior to SPSS.",
   keywords: [
-    "The One-Way",
+    "TheOneWayGDA",
     "statistical analysis",
     "AI analytics",
     "SPSS alternative",
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     "multilingual",
     "collaboration",
   ],
-  authors: [{ name: "The One-Way Team" }],
+  authors: [{ name: "TheOneWayGDA Team" }],
   icons: {
     icon: "/images/logo.png",
   },
