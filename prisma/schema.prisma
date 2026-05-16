@@ -578,6 +578,8 @@ model User {
 
   sessions UserSession[]
   activities UserActivity[]
+  ownedTeams Team[] @relation("TeamOwner")
+  teamMemberships TeamMember[] @relation("TeamMemberships")
 }
 
 model UserSession {
@@ -632,5 +634,123 @@ model AnalysisRun {
   @@index([userId])
   @@index([type])
   @@index([status])
+  @@index([createdAt])
+}
+
+// ═══ Phase 3: Collaboration & Teams ═══
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  slug        String   @unique
+  avatar      String?  // team logo/gradient color
+  ownerId     String
+  owner       User     @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  isPublic    Boolean  @default(false) // visible in team directory
+  maxMembers  Int      @default(10)
+  inviteCode  String   @unique // 8-char alphanumeric join code
+  settings    String?  // JSON: {defaultRole, allowFork, requireApproval, ...}
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([isPublic])
+  @@index([inviteCode])
+
+  members     TeamMember[]
+  invites     TeamInvite[]
+  sharedItems TeamShare[]
+  activity    TeamActivity[]
+}
+
+model TeamMember {
+  id          String   @id @default(cuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation("TeamMemberships", fields: [userId], references: [id], onDelete: Cascade)
+  role        String   @default("member") // "owner" | "admin" | "member" | "viewer"
+  nickname    String?
+  joinedAt    DateTime @default(now())
+  lastActive  DateTime @updatedAt
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+  @@index([role])
+}
+
+model TeamInvite {
+  id          String   @id @default(cuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  invitedBy   String   // userId who sent the invite
+  email       String?  // target email (for email invites)
+  userId      String?  // target userId (for direct invites)
+  role        String   @default("member")
+  status      String   @default("pending") // "pending" | "accepted" | "rejected" | "expired"
+  message     String?  // personal message from inviter
+  expiresAt   DateTime // invite expiry
+  createdAt   DateTime @default(now())
+  respondedAt DateTime?
+
+  @@index([teamId])
+  @@index([email])
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model TeamShare {
+  id          String   @id @default(cuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sharedBy    String   // userId who shared
+  resourceType String  // "workflow" | "analysis" | "project" | "benchmark_config" | "template"
+  resourceId  String   // ID of the shared resource
+  resourceName String  // snapshot of resource name
+  description String?
+  permissions String   @default("view") // JSON: ["view"] | ["view", "edit", "fork", "delete"]
+  isPinned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([teamId])
+  @@index([resourceType])
+  @@index([sharedBy])
+  @@index([isPinned])
+}
+
+model TeamActivity {
+  id          String   @id @default(cuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId      String   // user who performed the action
+  userName    String?  // snapshot of user name
+  type        String   // "member_joined" | "member_left" | "invite_sent" | "invite_accepted" | "resource_shared" | "resource_created" | "comment_added" | "team_updated"
+  details     String?  // JSON: additional context
+  createdAt   DateTime @default(now())
+
+  @@index([teamId])
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model TeamComment {
+  id          String   @id @default(cuid())
+  teamId      String
+  shareId     String?  // nullable = general team comment, otherwise linked to a shared resource
+  userId      String
+  userName    String?
+  content     String
+  editedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([teamId])
+  @@index([shareId])
+  @@index([userId])
   @@index([createdAt])
 }

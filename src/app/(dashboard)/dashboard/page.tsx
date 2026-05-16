@@ -17,7 +17,7 @@ import {
   ArrowLeft, Globe, BarChart3, FolderOpen, Workflow, Zap,
   Clock, TrendingUp, Activity, Settings, LogOut, Plus,
   FileText, Bot, Brain, Sparkles, ChevronRight, Loader2,
-  Database, Shield, Star, Target, Trophy,
+  Database, Shield, Star, Target, Trophy, Users, Building2,
 } from 'lucide-react'
 
 /* ─── Types ─── */
@@ -203,6 +203,9 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => router.push('/workspace')}>
               <Database className="size-3 mr-1" />Workspace
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => router.push('/teams')}>
+              <Building2 className="size-3 mr-1" />Teams
             </Button>
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => router.push('/settings')}>
               <Settings className="size-3 mr-1" />Settings
@@ -450,6 +453,7 @@ export default function DashboardPage() {
                     { icon: Workflow, title: 'Start Workflow', desc: 'Launch an AI-guided analysis pipeline', href: '/workflow/new', color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
                     { icon: Bot, title: 'AI Copilot', desc: 'Get AI-powered suggestions and insights', href: '/ai', color: 'text-purple-400 bg-purple-500/10 border-purple-500/20' },
                     { icon: Trophy, title: 'Leaderboard', desc: 'Compare AI models and benchmarks', href: '/leaderboard', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+                    { icon: Building2, title: 'Teams', desc: 'Collaborate with your team on analyses', href: '/teams', color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
                     { icon: Shield, title: 'Community', desc: 'Browse shared workflows and templates', href: '/community', color: 'text-teal-400 bg-teal-500/10 border-teal-500/20' },
                     { icon: Settings, title: 'Settings', desc: 'Manage your profile and preferences', href: '/settings', color: 'text-pink-400 bg-pink-500/10 border-pink-500/20' },
                   ].map((action, i) => (
