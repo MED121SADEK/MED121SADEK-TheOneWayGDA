@@ -283,6 +283,75 @@ export async function POST() {
       }
     }
 
+    // 4. Seed verified researchers & official bots
+    try {
+      const verifiedResearchers = [
+        {
+          email: 'theonewaygda_ai',
+          displayName: 'THEONEWAYGDA AI',
+          institution: 'TheOneWayGDA',
+          role: 'News Bot',
+          badgeType: 'bot',
+          bio: 'Official AI news bot that curates and publishes the latest AI, research, and innovation updates.',
+        },
+        {
+          email: 'theonewaygda',
+          displayName: 'TheOneWayGDA Official',
+          institution: 'TheOneWayGDA',
+          role: 'Platform',
+          badgeType: 'official',
+          bio: 'Official account for TheOneWayGDA — AI-powered statistical analysis platform.',
+        },
+        {
+          email: 'deepmind-research@google.com',
+          displayName: 'DeepMind Research',
+          institution: 'Google DeepMind',
+          role: 'AI Research Lab',
+          badgeType: 'institution',
+          bio: 'Cutting-edge AI research lab advancing science and humanity.',
+          websiteUrl: 'https://deepmind.google',
+        },
+        {
+          email: 'openai-research@openai.com',
+          displayName: 'OpenAI Research',
+          institution: 'OpenAI',
+          role: 'AI Research Lab',
+          badgeType: 'institution',
+          bio: 'Creating safe AGI that benefits all of humanity.',
+          websiteUrl: 'https://openai.com/research',
+        },
+        {
+          email: 'anthropic-research@anthropic.com',
+          displayName: 'Anthropic Research',
+          institution: 'Anthropic',
+          role: 'AI Safety Lab',
+          badgeType: 'institution',
+          bio: 'AI safety research company building reliable, interpretable, and steerable AI systems.',
+          websiteUrl: 'https://www.anthropic.com/research',
+        },
+        {
+          email: 'meta-ai@meta.com',
+          displayName: 'Meta AI',
+          institution: 'Meta',
+          role: 'AI Lab',
+          badgeType: 'institution',
+          bio: 'Meta AI — advancing AI through open science and community-driven development.',
+          websiteUrl: 'https://ai.meta.com',
+        },
+      ]
+
+      for (const r of verifiedResearchers) {
+        await db.verifiedResearcher.upsert({
+          where: { email: r.email },
+          update: r,
+          create: { ...r, verifiedBy: 'system' },
+        })
+      }
+      console.log(`[Seed] Seeded ${verifiedResearchers.length} verified researchers`)
+    } catch (err) {
+      console.error('[Seed] Error creating verified researchers:', err)
+    }
+
     return NextResponse.json({
       success: true,
       message: `Portal seeded with ${created} new posts`,
