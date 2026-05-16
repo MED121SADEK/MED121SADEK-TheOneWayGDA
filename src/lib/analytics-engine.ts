@@ -177,9 +177,14 @@ const AnalyticsEngine = {
   _sessionStart: 0,
   _pageEnterTime: 0,
   _visibilityHandler: (() => {}) as () => void,
+  _originalPushState: null as typeof history.pushState | null,
+  _popstateHandler: null as (() => void) | null,
 
   /**
    * Call once to start tracking (usually from a top-level layout or provider).
+   * IMPORTANT: Provides a destroy() method to restore original history.pushState
+   * and prevent conflicts with other components (e.g., AiCopilot) that also
+   * monkey-patch the History API.
    */
   init(): void {
     if (typeof window === 'undefined' || this._initialized) return;
@@ -214,20 +219,15 @@ const AnalyticsEngine = {
     };
     document.addEventListener('visibilitychange', this._visibilityHandler);
 
-    // Track SPA navigation via popstate
-    const originalPushState = history.pushState.bind(history);
-    history.pushState = (...args: Parameters<typeof history.pushState>) => {
+    // Track SPA navigation via popstate — use addEventListener instead of
+    // monkey-patching history.pushState to avoid conflicts with other
+    // components (e.g., AiCopilot) that also wrap pushState/replaceState.
+    this._popstateHandler = () => {
       const from = this._currentPage;
-      originalPushState(...args);
       const to = window.location.pathname;
       this.trackNavigation(from, to);
     };
-
-    window.addEventListener('popstate', () => {
-      const from = this._currentPage;
-      const to = window.location.pathname;
-      this.trackNavigation(from, to);
-    });
+    window.addEventListener('popstate', this._popstateHandler);
 
     // Start flush loop
     startFlushLoop();
@@ -461,17 +461,26 @@ const AnalyticsEngine = {
   destroy(): void {
     if (typeof window === 'undefined') return;
     document.removeEventListener('visibilitychange', this._visibilityHandler);
+    if (this._popstateHandler) {
+      window.removeEventListener('popstate', this._popstateHandler);
+    }
+    // Restore original pushState if we had replaced it
+    if (this._originalPushState) {
+      history.pushState = this._originalPushState;
+      this._originalPushState = null;
+    }
+    // Stop flush loop and flush remaining events
     if (flushTimer) {
       clearInterval(flushTimer);
       flushTimer = null;
     }
-    // Flush remaining events
     if (pendingEvents.length > 0) {
       const events = getStoredEvents();
       events.push(...pendingEvents);
       persistEvents(events);
       pendingEvents = [];
     }
+    this._initialized = false;
   },
 };
 
