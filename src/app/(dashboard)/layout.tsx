@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { DashboardSidebar } from '@/components/dashboard-sidebar'
+import { BreadcrumbNav } from '@/components/breadcrumb-nav'
 import { Loader2 } from 'lucide-react'
 
 function getSession() {
@@ -54,6 +55,10 @@ export default function DashboardLayout({
           initial={false}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         >
+          {/* Breadcrumb Navigation */}
+          <div className="px-4 sm:px-6 pt-4 pb-0">
+            <BreadcrumbNav />
+          </div>
           <div className="flex-1">
             {children}
           </div>

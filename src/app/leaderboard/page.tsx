@@ -229,7 +229,7 @@ export default function LeaderboardPage() {
   const [lbFilters, setLbFilters] = useState<{ benchmarks: string[]; providers: string[]; modelTypes: string[] }>({ benchmarks: [], providers: [], modelTypes: [] })
   const [lbMeta, setLbMeta] = useState<{ totalModels: number; lastUpdated: string }>({ totalModels: 0, lastUpdated: '' })
   const [lbFromCache, setLbFromCache] = useState(false)
-  const [benchmark, setBenchmark] = useState('GPQA')
+  const [benchmark, setBenchmark] = useState('GPQA Diamond')
   const [provider, setProvider] = useState('all')
   const [modelType, setModelType] = useState('all')
   const [sortField, setSortField] = useState('score')
