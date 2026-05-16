@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // output: "standalone", // Uncomment for Docker/production deployment
   typescript: {
     ignoreBuildErrors: false,
   },
