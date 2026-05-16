@@ -77,4 +77,83 @@ ${data.ipAddress ? `<tr><td style="color:#64748b;font-size:12px;font-weight:600;
   }
 }
 
+export async function sendVisitorApprovalEmail(visitorEmail: string, visitorName: string | null): Promise<boolean> {
+  try {
+    const transporter = getTransporter()
+    const displayName = visitorName || visitorEmail
+    const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://theoneway.app'
+    const subject = `[TheOneWayGDA] Access Approved - Welcome, ${displayName}!`
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+<tr><td style="background:linear-gradient(135deg,#10b981,#059669);padding:28px 32px;">
+<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Access Approved!</h1>
+<p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Your TheOneWayGDA access request has been accepted</p>
+</td></tr>
+<tr><td style="padding:28px 32px;">
+<p style="margin:0 0 8px;color:#1e293b;font-size:16px;font-weight:600;">Hi ${displayName},</p>
+<p style="margin:0 0 20px;color:#334155;font-size:14px;line-height:1.7;">Great news! Your access request to TheOneWayGDA has been approved by our team. You now have full access to our AI-powered statistical analysis platform.</p>
+<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+<p style="margin:0;color:#166534;font-size:13px;line-height:1.6;"><strong>What you can do now:</strong></p>
+<ul style="margin:8px 0 0;padding-left:20px;color:#166534;font-size:13px;line-height:1.8;">
+<li>Upload and analyze datasets with AI assistance</li>
+<li>Run statistical tests and generate professional reports</li>
+<li>Access the AI Model Leaderboard and benchmarks</li>
+</ul>
+</div>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<a href="${siteUrl}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;text-decoration:none;border-radius:10px;font-size:15px;font-weight:600;">Go to TheOneWayGDA</a>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:16px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;">
+<p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; AI-Powered Statistical Analysis Platform<br>If you did not request access, please ignore this email.</p>
+</td></tr></table></td></tr></table></body></html>`
+
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: visitorEmail, subject, html })
+    console.log(`[Email] Approval email sent to ${visitorEmail}`)
+    return true
+  } catch (error: any) {
+    console.error('[Email] Failed to send approval email:', error.message)
+    return false
+  }
+}
+
+export async function sendVisitorRejectionEmail(visitorEmail: string, visitorName: string | null): Promise<boolean> {
+  try {
+    const transporter = getTransporter()
+    const displayName = visitorName || visitorEmail
+    const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://theoneway.app'
+    const subject = `[TheOneWayGDA] Access Request Update`
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+<tr><td style="background:linear-gradient(135deg,#6b7280,#4b5563);padding:28px 32px;">
+<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Access Request Update</h1>
+<p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">TheOneWayGDA Visitor Registration</p>
+</td></tr>
+<tr><td style="padding:28px 32px;">
+<p style="margin:0 0 8px;color:#1e293b;font-size:16px;font-weight:600;">Hi ${displayName},</p>
+<p style="margin:0 0 20px;color:#334155;font-size:14px;line-height:1.7;">Thank you for your interest in TheOneWayGDA. After reviewing your request, we are unable to approve access at this time. This decision may be due to capacity constraints or suitability criteria.</p>
+<p style="margin:0 0 20px;color:#334155;font-size:14px;line-height:1.7;">If you believe this was a mistake, or if your circumstances have changed, you are welcome to submit a new request at any time.</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<a href="${siteUrl}" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;">Submit New Request</a>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:16px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;">
+<p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; AI-Powered Statistical Analysis Platform<br>If you did not request access, please ignore this email.</p>
+</td></tr></table></td></tr></table></body></html>`
+
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: visitorEmail, subject, html })
+    console.log(`[Email] Rejection email sent to ${visitorEmail}`)
+    return true
+  } catch (error: any) {
+    console.error('[Email] Failed to send rejection email:', error.message)
+    return false
+  }
+}
+
 export { ADMIN_EMAIL }

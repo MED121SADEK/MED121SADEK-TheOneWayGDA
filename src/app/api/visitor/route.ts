@@ -76,15 +76,37 @@ export async function POST(request: NextRequest) {
       sendVisitorNotification({ name: name?.trim() || null, email: normalizedEmail, visitorType: validatedType, country, language, ipAddress: ip !== 'unknown' ? ip : null, userAgent, path }).catch(() => {})
     }
 
-    return NextResponse.json({ success: true, message: 'Welcome to TheOneWayGDA!', isNew })
+    return NextResponse.json({ success: true, message: 'Registration submitted successfully!', isNew, status: result.status })
   } catch (error) {
     console.error('Visitor registration error:', error)
     return NextResponse.json({ error: 'An internal error occurred.' }, { status: 500 })
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const email = searchParams.get('email')
+
+    // If email is provided, return that visitor's status
+    if (email) {
+      const normalizedEmail = email.trim().toLowerCase()
+      if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
+        return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
+      }
+      const visitor = await db.visitor.findUnique({ where: { email: normalizedEmail } })
+      if (!visitor) {
+        return NextResponse.json({ status: 'unknown' })
+      }
+      return NextResponse.json({
+        status: visitor.status,
+        visitorType: visitor.visitorType,
+        name: visitor.name,
+        createdAt: visitor.createdAt,
+      })
+    }
+
+    // Otherwise return aggregate stats
     const totalVisitors = await db.visitor.count()
     const recentVisitors = await db.visitor.count({ where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } } })
     const pendingCount = await db.visitor.count({ where: { status: 'pending' } })
