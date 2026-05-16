@@ -40,8 +40,9 @@ import {
   Download, Upload, Plus, Trash2, Edit3, Table2, Variable, Terminal,
   Send, Bot, User, FileText, Copy, ChevronDown, Languages,
   LayoutDashboard, Settings, LogOut, MoreHorizontal, Database,
-  TrendingUp, PieChart, FileSpreadsheet, ClipboardList, PenLine,
+  TrendingUp, PieChart, FileSpreadsheet, ClipboardList, PenLine, ShieldCheck,
 } from 'lucide-react'
+import { UpdateBanner } from '@/components/update-banner'
 
 /* ─── animation helpers ─── */
 const fadeUp = {
@@ -377,6 +378,8 @@ export default function Home() {
   if (store.view === 'workspace') {
     return (
       <div className="h-screen flex flex-col" dir={dir}>
+        {/* Update Notification Banner */}
+        <UpdateBanner />
         {/* Workspace Navbar */}
         <nav className="h-12 border-b border-border/50 bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 flex-shrink-0 z-50">
           <div className="flex items-center gap-3">
@@ -869,6 +872,7 @@ export default function Home() {
               { label: t('nav.pricing'), href: '#pricing' },
               { label: t('nav.about'), href: '/about' },
               { label: t('nav.security'), href: '/privacy' },
+              { label: t('nav.company'), href: '/company' },
               { label: t('nav.updates'), href: '/updates' },
               { label: t('nav.tutorials'), href: '/tutorials' },
             ].map((l) => (
@@ -895,13 +899,23 @@ export default function Home() {
                   <SelectTrigger className="h-9 text-xs"><Globe className="size-3.5 mr-1" /><SelectValue /></SelectTrigger>
                   <SelectContent>{localeNames.map(l => <SelectItem key={l} value={l} className="text-xs">{t(`lang.${l}`)}</SelectItem>)}</SelectContent>
                 </Select>
-                {[{ label: t('nav.features'), href: '#features' }, { label: t('nav.comparison'), href: '#comparison' }, { label: t('nav.workspace'), href: '#demo' }, { label: t('nav.pricing'), href: '#pricing' }, { label: t('nav.about'), href: '/about' }, { label: t('nav.security'), href: '/privacy' }, { label: t('nav.updates'), href: '/updates' }, { label: t('nav.tutorials'), href: '/tutorials' }].map((l) => (
+                {[
+                  { label: t('nav.features'), href: '#features' },
+                  { label: t('nav.comparison'), href: '#comparison' },
+                  { label: t('nav.workspace'), href: '#demo' },
+                  { label: t('nav.pricing'), href: '#pricing' },
+                  { label: t('nav.about'), href: '/about' },
+                  { label: t('nav.security'), href: '/privacy' },
+                  { label: t('nav.company'), href: '/company' },
+                  { label: t('nav.updates'), href: '/updates' },
+                  { label: t('nav.tutorials'), href: '/tutorials' },
+                ].map((l) => (
                   l.href.startsWith('/') ? (
                     <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)} className="text-left text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2">{l.label}</Link>
                   ) : (
                     <button key={l.href} onClick={() => scrollTo(l.href)} className="text-left text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2">{l.label}</button>
                   )
-                ))
+                ))}
               </div>
             </SheetContent>
           </Sheet>
@@ -1128,9 +1142,10 @@ export default function Home() {
             <p className="text-sm text-muted-foreground">{t('footer.copyright')}</p>
             <div className="flex items-center gap-4">
               <Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('nav.about')}</Link>
+              <Link href="/company" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('nav.company')}</Link>
               <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.privacy')}</Link>
               <span className="text-muted-foreground">|</span>
-              <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.terms')}</button>
+              <Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.terms')}</Link>
             </div>
           </div>
         </div>
