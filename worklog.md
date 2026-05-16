@@ -287,3 +287,23 @@ Stage Summary:
 - Translations verified complete for all 8 languages
 - Language switcher works (en, ar, fr, es, de, zh, ja, ru) with RTL support for Arabic
 - Dev server running at http://localhost:3000
+---
+Task ID: 7
+Agent: Main Agent
+Task: Add email address, LinkedIn link, and founder page for The One-Way Community
+
+Work Log:
+- Updated i18n translations (8 languages): changed email from hello@theoneway.app to msad41855@gmail.com
+- Updated i18n translations (8 languages): changed website to LinkedIn profile URL
+- Updated company page: replaced CEO "Dr. Sarah Chen" with "Mohammed Essadek - Founder & CEO"
+- Added LinkedIn profile link with ExternalLink icon to founder card on company page
+- Replaced simple contact section with rich contact grid (email + LinkedIn cards)
+- Added email and LinkedIn links to homepage footer (below GDPR compliance)
+- Rebuilt production, all 9 routes verified HTTP 200
+- Verified msad41855@gmail.com and mohammed-essadek present on company page and homepage
+
+Stage Summary:
+- Email msad41855@gmail.com added across all 8 languages + company page + footer
+- LinkedIn profile linked from company leadership section and homepage footer
+- Founder Mohammed Essadek featured as Founder & CEO with LinkedIn link
+- All changes verified in production build
