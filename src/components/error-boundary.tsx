@@ -81,12 +81,18 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     window.location.href = '/'
   }
 
+  // Auto-recovery: clear error state after 5 errors via useEffect-like pattern
+  componentDidUpdate() {
+    if (this.state.hasError && this.state.errorCount >= 5) {
+      // Use setTimeout to avoid setState during render
+      setTimeout(() => {
+        this.setState({ hasError: false, error: null, errorInfo: null, errorCount: 0 })
+      }, 0)
+    }
+  }
+
   render() {
     if (this.state.hasError) {
-      // Auto-recovery after 5 errors (likely a transient issue)
-      if (this.state.errorCount >= 5) {
-        this.handleRetry()
-      }
 
       if (this.props.fallback) {
         return this.props.fallback

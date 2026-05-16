@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 // ═══════════════════════════════════════════════════════════════
 // PageTransition — Fast page navigation with skeleton loading
@@ -166,6 +166,9 @@ export function PageTransition({ children }: PageTransitionProps) {
   // Use smart prefetch
   useSmartPrefetch(currentPath)
 
+  // Store timeout ref so it can be cleared on unmount
+  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Intercept navigation for smooth transitions
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -181,11 +184,12 @@ export function PageTransition({ children }: PageTransitionProps) {
           !anchor.hasAttribute('download') &&
           !anchor.hasAttribute('target')
         ) {
+          // Clear any existing timer
+          if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
           // Show skeleton briefly for perceived instant loading
           setIsTransitioning(true)
           // Remove skeleton quickly (real page loads fast with prefetch)
-          const timer = setTimeout(() => setIsTransitioning(false), 1500)
-          return () => clearTimeout(timer)
+          transitionTimerRef.current = setTimeout(() => setIsTransitioning(false), 1500)
         }
       }
     }
@@ -209,6 +213,7 @@ export function PageTransition({ children }: PageTransitionProps) {
     return () => {
       document.removeEventListener('mousedown', handleMouseDown)
       document.removeEventListener('click', handleClick)
+      if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
     }
   }, [router])
 
