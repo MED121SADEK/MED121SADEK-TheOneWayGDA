@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { hashPassword, generateToken } from '@/lib/auth'
+import { hashPassword } from '@/lib/auth'
 import { db } from '@/lib/db'
-
-// Use unified database (auto-selects in-memory on Vercel, Prisma locally)
-const database = db
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,46 +16,60 @@ export async function POST(request: NextRequest) {
 
     const normalizedEmail = email.toLowerCase().trim()
 
-    const existing = await database.user.findUnique({ where: { email: normalizedEmail } })
+    const existing = await db.user.findUnique({ where: { email: normalizedEmail } })
     if (existing) {
+      // If user exists and is pending, tell them to wait
+      if (existing.role === 'pending') {
+        return NextResponse.json({
+          status: 'pending',
+          message: 'Your access request is still under review. Our team is evaluating your application. You will receive an email notification as soon as a decision is made.',
+          email: existing.email,
+        }, { status: 202 })
+      }
+      // If user was rejected, let them know
+      if (existing.role === 'rejected') {
+        return NextResponse.json({
+          error: 'Your previous access request was declined. Please contact support for more information.',
+        }, { status: 403 })
+      }
       return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 })
     }
 
-    const user = await database.user.create({
+    // Create user with "pending" role — no access until approved by admin
+    const user = await db.user.create({
       data: {
         email: normalizedEmail,
         name: name?.trim() || null,
         password: hashPassword(password),
+        role: 'pending',
         preferences: JSON.stringify({ theme: 'dark', language: 'en', notifications: true, aiSensitivity: 0.7 }),
       },
     })
 
-    const token = generateToken()
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-
-    await database.userSession.create({
+    await db.userActivity.create({
       data: {
         userId: user.id,
-        token,
+        type: 'registration_pending',
+        details: JSON.stringify({ method: 'register', name: name?.trim() || null }),
         ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null,
-        userAgent: request.headers.get('user-agent') || null,
-        expiresAt,
       },
     })
 
-    await database.userActivity.create({
-      data: { userId: user.id, type: 'login', details: JSON.stringify({ method: 'register' }), ipAddress: request.headers.get('x-forwarded-for') || null },
-    })
-
-    await database.visitor.upsert({
+    await db.visitor.upsert({
       where: { email: normalizedEmail },
-      update: { name: user.name, status: 'active' },
-      create: { email: normalizedEmail, name: user.name, status: 'active' },
+      update: { name: user.name, status: 'pending' },
+      create: { email: normalizedEmail, name: user.name, status: 'pending' },
     })
 
-    const { password: _pw, ...safeUser } = user
-
-    return NextResponse.json({ user: safeUser, token, message: 'Account created successfully' }, { status: 201 })
+    return NextResponse.json({
+      status: 'pending',
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+      message: 'Your access request is still under review. Our team is evaluating your application. You will receive an email notification as soon as a decision is made.',
+    }, { status: 201 })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Registration failed'
     return NextResponse.json({ error: message }, { status: 500 })

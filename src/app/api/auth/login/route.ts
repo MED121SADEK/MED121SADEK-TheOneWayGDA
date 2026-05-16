@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPassword, generateToken } from '@/lib/auth'
 import { db } from '@/lib/db'
 
-// Use unified database (auto-selects in-memory on Vercel, Prisma locally)
-const database = db
-
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
@@ -15,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     const normalizedEmail = email.toLowerCase().trim()
 
-    const user = await database.user.findUnique({ where: { email: normalizedEmail } })
+    const user = await db.user.findUnique({ where: { email: normalizedEmail } })
     if (!user) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
@@ -24,10 +21,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
+    // ─── Pending users: show "under review" message ───
+    if (user.role === 'pending') {
+      return NextResponse.json({
+        status: 'pending',
+        email: user.email,
+        name: user.name,
+        message: 'Your access request is still under review. Our team is evaluating your application. You will receive an email notification as soon as a decision is made.',
+      }, { status: 202 })
+    }
+
+    // ─── Rejected users: show declined message ───
+    if (user.role === 'rejected') {
+      return NextResponse.json({
+        status: 'rejected',
+        email: user.email,
+        message: 'Your access request was declined. If you believe this is an error, please contact our support team.',
+      }, { status: 403 })
+    }
+
+    // ─── Approved users: normal login flow ───
     const token = generateToken()
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 
-    await database.userSession.create({
+    await db.userSession.create({
       data: {
         userId: user.id,
         token,
@@ -37,9 +54,9 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    await database.user.update({ where: { id: user.id }, data: { lastSeen: new Date() } })
+    await db.user.update({ where: { id: user.id }, data: { lastSeen: new Date() } })
 
-    await database.userActivity.create({
+    await db.userActivity.create({
       data: { userId: user.id, type: 'login', details: JSON.stringify({ method: 'password' }), ipAddress: request.headers.get('x-forwarded-for') || null },
     })
 

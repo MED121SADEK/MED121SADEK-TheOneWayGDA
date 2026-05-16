@@ -46,3 +46,27 @@ Stage Summary:
 - All 40+ tables created and working
 - User accounts, sessions, leaderboard data all persist permanently
 - URL: https://theonewaygda.vercel.app
+
+---
+Task ID: 3
+Agent: main
+Task: Implement user access request approval system
+
+Work Log:
+- Modified register API: new users get role="pending", no session token created, returns review message
+- Modified login API: checks role — pending users get "under review" message, rejected users get "declined" message, approved users get normal login
+- Created admin API endpoints:
+  - GET /api/admin/users/pending — list pending + rejected users (admin only)
+  - POST /api/admin/users/[id]/approve — approve pending/rejected user (admin only)
+  - POST /api/admin/users/[id]/reject — reject pending user with reason (admin only)
+- Updated register page: shows animated "under review" success screen with timeline after submission
+- Updated login page: shows pending/rejected state screens with clear messaging
+- Created admin approvals page at /admin/approvals with search, approve/reject buttons, toast notifications
+- Promoted existing test user (test@theoneway.app) to admin role
+- Verified all 3 flows: registration→pending, login→pending, admin login→success
+
+Stage Summary:
+- New users see "Your access request is still under review" message
+- Pending users cannot access the platform
+- Admins can approve/reject at /admin/approvals
+- Rejected users can be re-approved by admins
