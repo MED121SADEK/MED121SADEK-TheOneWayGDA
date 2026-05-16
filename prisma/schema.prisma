@@ -507,3 +507,48 @@ model EvaluationRun {
   @@index([configVersion])
   @@index([status])
 }
+
+// ═══ DevOps — Application Error Logging ═══
+
+model AppErrorLog {
+  id          String   @id @default(cuid())
+  level       String   @default("error") // "error" | "warn" | "fatal"
+  domain      String   @default("application") // "api" | "database" | "ai" | "auth" | "system"
+  route       String?  // API route or page path where error occurred
+  message     String   // Error message
+  stack       String?  // Stack trace (truncated)
+  requestId   String?  // Request ID for correlation
+  statusCode  Int?     // HTTP status code (if applicable)
+  method      String?  // HTTP method
+  ipAddress   String?
+  userAgent   String?
+  metadata    String?  // JSON: additional context
+  resolved    Boolean  @default(false)
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([level])
+  @@index([domain])
+  @@index([route])
+  @@index([createdAt])
+  @@index([resolved])
+}
+
+model DeployLog {
+  id          String   @id @default(cuid())
+  environment String   @default("production") // "staging" | "production"
+  version     String   // git SHA or version tag
+  deployer    String?  // who triggered the deploy
+  strategy    String   @default("rolling") // "rolling" | "blue-green" | "canary"
+  status      String   @default("pending") // "pending" | "running" | "success" | "failed" | "rolled_back"
+  durationMs  Int?
+  backupPath  String?  // path to database backup
+  rollbackTo  String?  // version rolled back to (if applicable)
+  notes       String?
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  @@index([environment])
+  @@index([status])
+  @@index([createdAt])
+}

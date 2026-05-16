@@ -1,4 +1,106 @@
+# ═══════════════════════════════════════════════════════════════════
+# The One-Way — Caddy Reverse Proxy Configuration
+#
+# Features:
+#  - HTTPS auto-certification (via Let's Encrypt)
+#  - Rate limiting (API routes: 100 req/min, Global: 200 req/min)
+#  - Security headers
+#  - Health check bypass
+#  - Compression
+#  - Static file caching
+#
+# Usage:
+#   Development: caddy run --config Caddyfile (port 81, no HTTPS)
+#   Production:  Replace ":81" with your domain (e.g., "theoneway.ai")
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Production: Uncomment and replace with your domain ──
+# theoneway.ai, www.theoneway.ai {
+#
+# ── Development: Port 81 (no HTTPS) ──
 :81 {
+
+	# ── Security Headers ──
+	header {
+		# Prevent clickjacking
+		X-Frame-Options "DENY"
+		# Prevent MIME type sniffing
+		X-Content-Type-Options "nosniff"
+		# Referrer policy
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# HSTS (HTTPS only — comment out for dev)
+		# Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		# Content Security Policy
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-ancestors 'none'"
+		# Permissions policy
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		# Remove server identity
+		-X-Powered-By
+		-Server
+	}
+
+	# ── Rate Limiting ──
+	# API routes: stricter limits
+	@api path /api/*
+	rate_limit @api {
+		zone api_rate
+		key {remote_host}
+		events 100
+		window 1m
+	}
+
+	# Global: general rate limit
+	rate_limit {
+		zone global_rate
+		key {remote_host}
+		events 200
+		window 1m
+	}
+
+	# ── Compression ──
+	encode gzip zstd
+
+	# ── Health Check (bypass rate limiting) ──
+	@health path /api/health /api/health/deep /api/metrics
+	handle @health {
+		reverse_proxy localhost:3000 {
+			header_up Host {host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Real-IP {remote_host}
+			# Longer timeout for health checks
+			transport http {
+				read_timeout 15s
+			}
+		}
+	}
+
+	# ── API Routes (with rate limiting applied) ──
+	@api_routes path /api/*
+	handle @api_routes {
+		reverse_proxy localhost:3000 {
+			header_up Host {host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Real-IP {remote_host}
+			# Timeout for API routes
+			transport http {
+				read_timeout 120s
+				write_timeout 120s
+			}
+		}
+	}
+
+	# ── Static Files (long cache) ──
+	@static path /icons/* /_next/static/* /favicon.ico /manifest.json
+	handle @static {
+		header Cache-Control "public, max-age=31536000, immutable"
+		reverse_proxy localhost:3000 {
+			header_up Host {host}
+		}
+	}
+
+	# ── Catch-all: Dynamic transform port (development) ──
 	@transform_port_query {
 		query XTransformPort=*
 	}
@@ -12,12 +114,26 @@
 		}
 	}
 
+	# ── Default: Reverse proxy to Next.js ──
 	handle {
 		reverse_proxy localhost:3000 {
 			header_up Host {host}
 			header_up X-Forwarded-For {remote_host}
 			header_up X-Forwarded-Proto {scheme}
 			header_up X-Real-IP {remote_host}
+			# WebSocket support for HMR and AI streaming
+			transport http {
+				read_timeout 300s
+			}
 		}
+	}
+
+	# ── Logging ──
+	log {
+		output file /home/z/my-project/logs/caddy-access.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+		format json
 	}
 }

@@ -7,6 +7,7 @@ import { GdprConsent } from "@/components/gdpr-consent";
 import { EmailGate } from "@/components/EmailGate";
 import AiCopilot from "@/components/ai/AiCopilot";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
+import { AppProviders } from "@/components/providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -69,12 +70,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         <I18nProvider>
-          <ServiceWorkerRegistrar />
-          <EmailGate />
-          <GdprConsent />
-          {children}
-          <AiCopilot />
-          <Toaster />
+          <AppProviders>
+            <ServiceWorkerRegistrar />
+            <EmailGate />
+            <GdprConsent />
+            {children}
+            <AiCopilot />
+            <Toaster />
+          </AppProviders>
         </I18nProvider>
       </body>
     </html>
