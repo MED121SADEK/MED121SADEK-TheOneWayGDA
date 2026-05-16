@@ -98,3 +98,32 @@ Stage Summary:
 - Zero overlap guaranteed via CSS isolation, containment, and z-index management
 - 3 responsive layouts: mobile (tabs), tablet (2D carousel), desktop (3D orbital)
 - Professional glassmorphism UI with animated particles, gradient backgrounds, grid pattern
+
+---
+Task ID: 2
+Agent: main
+Task: Rewrite TheOneWayGDA workspace layout — replace broken 3D orbital with clean sidebar + main panel
+
+Work Log:
+- Read worklog and all target files (SearchHub360.tsx, PanelWindow.tsx, globals.css, workspace/page.tsx)
+- Completely rewrote `SearchHub360.tsx` (304 lines): replaced CSS 3D orbital carousel (`rotateY` + `translateZ(620px)`) with a professional sidebar + main panel layout
+- New layout: VS Code-style left sidebar (56px activity bar) with icon buttons, tooltips on hover, active state with left border accent + bg highlight
+- Main content area displays one panel at a time with CSS fade-in transition (opacity + translateY)
+- Preserved all animated background effects the user liked: gradient blobs, floating particles, subtle grid pattern, center glow
+- Mobile responsive: screens < 768px get a bottom tab bar with icons + label text
+- Extracted `WorkspaceBackground` as a separate internal component for DRY
+- Panel switching uses `key` prop + `animKey` state for animation reset on panel change
+- Updated `PanelWindow.tsx`: changed `absolute inset-0` → `relative h-full w-full`, removed `scale-105 z-40` expansion and `scale-100 z-30` focused z-index hacks
+- Added CSS animations to `globals.css`: `panel-enter` keyframe (opacity 0→1, translateY 8px→0) and `.sidebar-tooltip` styles
+- Kept exact `PanelDefinition` and `SearchHub360Props` interface contract — no changes to `page.tsx` needed
+- Build verified: `npx next build` passes cleanly with zero errors
+- No new packages installed; no modifications to WorkspacePanels.tsx, Charts.tsx, ReportGenerator.tsx, store.ts, i18n.tsx, or useWorkspaceHandlers.ts
+
+Stage Summary:
+- Replaced disorganized 3D orbital carousel with clean, professional sidebar + main panel workspace
+- Zero panel overlap guaranteed: only one panel renders at a time in the main area
+- Activity bar sidebar (56px) with icon buttons, hover tooltips, active indicator, badge dots
+- Smooth panel-switching animation (fade + slide up, 300ms ease-out)
+- Animated gradient background, floating particles, and grid pattern preserved
+- Responsive: desktop = left sidebar, mobile = bottom tab bar
+- `page.tsx` interface contract unchanged — drop-in replacement

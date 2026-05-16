@@ -1,19 +1,15 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect, type ReactNode } from 'react'
+import { useState, useCallback, useEffect, type ReactNode } from 'react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { PanelWindow, type PanelWindowProps } from './PanelWindow'
-import {
-  RotateCw, Pause, Maximize2, Minimize2, ChevronLeft, ChevronRight,
-  LayoutGrid, Home,
-} from 'lucide-react'
+import { Home } from 'lucide-react'
 
 export interface PanelDefinition {
   id: string
   title: string
-  icon: PanelWindowProps['icon']
+  icon: PanelWindowProps['icon'] // LucideIcon
   accentColor?: string
   accentBg?: string
   badge?: number
@@ -22,28 +18,23 @@ export interface PanelDefinition {
 
 interface SearchHub360Props {
   panels: PanelDefinition[]
-  /** Brand name for the center hub */
   brandName?: string
-  /** Logo path */
   logoSrc?: string
   className?: string
 }
 
 /**
- * SearchHub360 — a 360° immersive orbital workspace.
+ * SearchHub360 — a professional sidebar + main panel workspace layout.
  *
  * Layout strategy:
- *  - Desktop (≥1024px): CSS 3D perspective orbital carousel.
- *    Panels are arranged with rotateY(i * 45deg) translateZ(radius).
- *    Click a panel or use nav arrows to bring it front-and-center.
- *  - Tablet (768–1023px): 2D horizontal carousel with snap scrolling.
- *  - Mobile (<768px): Vertical accordion / tabbed list.
+ *  - Desktop (≥768px): Left sidebar (56px) with icon buttons + main content area.
+ *    One panel visible at a time with smooth fade transitions.
+ *  - Mobile (<768px): Bottom tab bar with icons + full-screen main content area.
  *
  * Zero-overlap guarantee:
- *  - Each panel uses `position: absolute` with `contain: layout style paint`.
- *  - CSS `isolation: isolate` prevents compositing leaks.
- *  - Event handlers call `stopPropagation` inside PanelWindow.
- *  - The focused panel gets the highest z-index; siblings are pushed back.
+ *  - Only one panel rendered in the main area at a time.
+ *  - Each panel uses `contain: layout style paint` for isolation.
+ *  - Clean flexbox layout — no absolute positioning or 3D transforms.
  */
 export function SearchHub360({
   panels,
@@ -51,407 +42,262 @@ export function SearchHub360({
   logoSrc = '/images/logo.png',
   className,
 }: SearchHub360Props) {
-  const [focusedIndex, setFocusedIndex] = useState(0)
-  const [autoRotate, setAutoRotate] = useState(false)
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [viewportSize, setViewportSize] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
-  const [mounted, setMounted] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const autoRotateRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [activePanel, setActivePanel] = useState(0)
+  const [hoveredIcon, setHoveredIcon] = useState<number | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+  const [animKey, setAnimKey] = useState(0)
 
-  // Entrance animation
-  useEffect(() => {
-    const timer = setTimeout(() => setMounted(true), 100)
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Detect viewport size
+  // Detect viewport for responsive layout
   useEffect(() => {
     const checkSize = () => {
-      const w = window.innerWidth
-      if (w < 768) setViewportSize('mobile')
-      else if (w < 1024) setViewportSize('tablet')
-      else setViewportSize('desktop')
+      setIsMobile(window.innerWidth < 768)
     }
     checkSize()
     window.addEventListener('resize', checkSize)
     return () => window.removeEventListener('resize', checkSize)
   }, [])
 
-  // Auto-rotate logic
-  useEffect(() => {
-    if (autoRotate && !isExpanded && viewportSize === 'desktop') {
-      autoRotateRef.current = setInterval(() => {
-        setFocusedIndex((prev) => (prev + 1) % panels.length)
-      }, 4000)
+  // Switch panel with animation reset
+  const switchPanel = useCallback((index: number) => {
+    if (index !== activePanel) {
+      setAnimKey((prev) => prev + 1)
+      setActivePanel(index)
     }
-    return () => {
-      if (autoRotateRef.current) clearInterval(autoRotateRef.current)
-    }
-  }, [autoRotate, isExpanded, viewportSize, panels.length])
+  }, [activePanel])
 
-  // Navigate panels
-  const goNext = useCallback(() => {
-    setFocusedIndex((prev) => (prev + 1) % panels.length)
-  }, [panels.length])
-
-  const goPrev = useCallback(() => {
-    setFocusedIndex((prev) => (prev - 1 + panels.length) % panels.length)
-  }, [panels.length])
-
-  const goHome = useCallback(() => {
-    setFocusedIndex(0)
-    setIsExpanded(false)
-  }, [])
-
-  const focusPanel = useCallback((index: number) => {
-    setFocusedIndex(index)
-    setIsExpanded(true)
-  }, [])
-
-  const collapsePanel = useCallback(() => {
-    setIsExpanded(false)
-  }, [])
-
-  // ── MOBILE (<768px): Vertical tab list ──
-  if (viewportSize === 'mobile') {
+  // ── MOBILE (<768px): Bottom tab bar ──
+  if (isMobile) {
+    const panel = panels[activePanel]
     return (
       <div className={cn('flex flex-col h-full', className)}>
-        {/* Center Hub */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-card/80">
-          <div className="flex items-center gap-2">
-            <Image src={logoSrc} alt={brandName} width={24} height={24} className="rounded" />
-            <span className="font-bold text-sm gradient-text">{brandName}</span>
-          </div>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goHome}>
-            <Home className="w-4 h-4" />
-          </Button>
-        </div>
+        {/* Main content area */}
+        <div className="flex-1 overflow-hidden relative">
+          {/* Animated background effects */}
+          <WorkspaceBackground />
 
-        {/* Panel tabs */}
-        <div className="flex overflow-x-auto border-b border-border/50 bg-muted/30 px-1 gap-0.5 flex-shrink-0">
-          {panels.map((panel, i) => (
-            <button
-              key={panel.id}
-              onClick={() => setFocusedIndex(i)}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-medium whitespace-nowrap transition-colors flex-shrink-0',
-                focusedIndex === i
-                  ? 'text-primary border-b-2 border-primary bg-primary/5'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
+          {/* Active panel */}
+          <div
+            key={`mobile-${panel.id}-${animKey}`}
+            className="animate-panel-enter h-full p-2 relative z-10"
+          >
+            <PanelWindow
+              panelId={panel.id}
+              title={panel.title}
+              icon={panel.icon}
+              accentColor={panel.accentColor}
+              accentBg={panel.accentBg}
+              isFocused
+              isExpanded={false}
+              badge={panel.badge}
+              className="relative"
             >
-              <panel.icon className="w-3.5 h-3.5" />
-              {panel.title}
-              {panel.badge != null && panel.badge > 0 && (
-                <span className="ml-1 text-[9px] font-bold px-1 py-0.5 rounded-full bg-primary/15 text-primary">
-                  {panel.badge}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Active panel content */}
-        <div className="flex-1 overflow-hidden p-2">
-          <PanelWindow
-            panelId={panels[focusedIndex].id}
-            title={panels[focusedIndex].title}
-            icon={panels[focusedIndex].icon}
-            accentColor={panels[focusedIndex].accentColor}
-            accentBg={panels[focusedIndex].accentBg}
-            isFocused
-            isExpanded={false}
-            className="relative"
-          >
-            {panels[focusedIndex].content}
-          </PanelWindow>
-        </div>
-      </div>
-    )
-  }
-
-  // ── TABLET (768–1023px): Horizontal 2D carousel ──
-  if (viewportSize === 'tablet') {
-    return (
-      <div className={cn('flex flex-col h-full', className)}>
-        {/* Center Hub */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50 bg-card/80 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Image src={logoSrc} alt={brandName} width={22} height={22} className="rounded" />
-            <span className="font-bold text-sm gradient-text">{brandName}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goHome}>
-              <Home className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goPrev}>
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <span className="text-[11px] text-muted-foreground font-mono px-2">
-              {focusedIndex + 1}/{panels.length}
-            </span>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goNext}>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
+              {panel.content}
+            </PanelWindow>
           </div>
         </div>
 
-        {/* Panel thumbnails bar */}
-        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border/50 bg-muted/30 overflow-x-auto flex-shrink-0">
-          {panels.map((panel, i) => (
-            <button
-              key={panel.id}
-              onClick={() => setFocusedIndex(i)}
-              className={cn(
-                'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-all flex-shrink-0',
-                focusedIndex === i
-                  ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
-                  : 'text-muted-foreground hover:bg-muted/50',
-              )}
-            >
-              <panel.icon className="w-3 h-3" />
-              {panel.title}
-            </button>
-          ))}
-        </div>
-
-        {/* Active panel */}
-        <div className="flex-1 overflow-hidden p-3">
-          <PanelWindow
-            panelId={panels[focusedIndex].id}
-            title={panels[focusedIndex].title}
-            icon={panels[focusedIndex].icon}
-            accentColor={panels[focusedIndex].accentColor}
-            accentBg={panels[focusedIndex].accentBg}
-            isFocused
-            isExpanded={false}
-            className="relative"
-          >
-            {panels[focusedIndex].content}
-          </PanelWindow>
-        </div>
-      </div>
-    )
-  }
-
-  // ── DESKTOP (≥1024px): 3D Orbital ──
-  const PANEL_COUNT = panels.length
-  const ANGLE_STEP = 360 / PANEL_COUNT
-  const RADIUS = 620 // px — translateZ value
-  const BACKFACE_OFFSET = -40 // slight push-back for non-focused panels
-
-  return (
-    <div className={cn('relative flex flex-col h-full overflow-hidden', className)}>
-      {/* ── Top Control Bar ── */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border/30 bg-card/40 backdrop-blur-md flex-shrink-0 z-50">
-        <div className="flex items-center gap-2">
-          {/* Home button */}
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goHome}>
-            <Home className="w-4 h-4" />
-          </Button>
-          {/* Navigation arrows */}
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goPrev}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <span className="text-[11px] text-muted-foreground font-mono tabular-nums">
-            {focusedIndex + 1} / {PANEL_COUNT}
-          </span>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={goNext}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
-
-        {/* Center hub */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
-          <div className="flex items-center gap-2 px-5 py-2 rounded-full bg-card/80 border border-border/40 shadow-lg backdrop-blur-md">
-            <Image src={logoSrc} alt={brandName} width={18} height={18} className="rounded" />
-            <span className="font-bold text-xs gradient-text">{brandName}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          {/* Auto-rotate toggle */}
-          <Button
-            variant={autoRotate ? 'default' : 'ghost'}
-            size="sm"
-            className="h-7 text-[10px] gap-1"
-            onClick={() => setAutoRotate(!autoRotate)}
-          >
-            {autoRotate ? <Pause className="w-3 h-3" /> : <RotateCw className="w-3 h-3" />}
-            {autoRotate ? 'Stop' : 'Auto'}
-          </Button>
-          {/* Expand/Collapse */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          </Button>
-        </div>
-      </div>
-
-      {/* ── Panel Thumbnail Strip (bottom) ── */}
-      <div className="flex items-center gap-1.5 px-4 py-2 border-b border-border/20 bg-muted/10 flex-shrink-0 z-40">
-        {panels.map((panel, i) => (
-          <button
-            key={panel.id}
-            onClick={() => focusPanel(i)}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-all',
-              focusedIndex === i
-                ? 'bg-primary/15 text-primary ring-1 ring-primary/30 shadow-sm shadow-primary/10'
-                : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
-            )}
-          >
-            <panel.icon className="w-3 h-3" />
-            <span className="hidden xl:inline">{panel.title}</span>
-            {panel.badge != null && panel.badge > 0 && (
-              <span className="text-[9px] font-bold px-1 py-0.5 rounded-full bg-primary/20 text-primary">
-                {panel.badge}
-              </span>
-            )}
-          </button>
-        ))}
-        <div className="flex-1" />
-        <div className="flex items-center gap-1 mr-1">
-          {Array.from({ length: PANEL_COUNT }, (_, i) => (
-            <div
-              key={i}
-              className={cn(
-                'w-2 h-2 rounded-full transition-all duration-500',
-                focusedIndex === i
-                  ? 'bg-primary shadow-sm shadow-primary/50 scale-125'
-                  : 'bg-muted-foreground/20 hover:bg-muted-foreground/40',
-              )}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* ── 3D Orbital Stage ── */}
-      <div
-        ref={containerRef}
-        className="flex-1 relative overflow-hidden"
-        style={{
-          perspective: '1200px',
-          perspectiveOrigin: '50% 50%',
-        }}
-        onClick={() => {
-          // Click on empty space collapses expansion
-          if (isExpanded) collapsePanel()
-        }}
-      >
-        {/* ── Animated Gradient Background ── */}
-        <div className="absolute inset-0 z-0 pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-radial from-primary/8 via-transparent to-transparent opacity-60" />
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-purple-500/5 blur-3xl animate-pulse-glow" />
-          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-teal-500/5 blur-3xl animate-pulse-glow" style={{ animationDelay: '1.5s' }} />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/3 blur-3xl animate-pulse-glow" style={{ animationDelay: '3s' }} />
-        </div>
-
-        {/* ── Floating Particles ── */}
-        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-          {Array.from({ length: 20 }, (_, i) => (
-            <div
-              key={i}
-              className="absolute w-1 h-1 rounded-full bg-primary/20"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animation: `float ${6 + Math.random() * 8}s ease-in-out infinite`,
-                animationDelay: `${Math.random() * 6}s`,
-                opacity: 0.2 + Math.random() * 0.4,
-              }}
-            />
-          ))}
-        </div>
-
-        {/* ── Subtle Grid Pattern ── */}
-        <div
-          className="absolute inset-0 z-0 pointer-events-none opacity-[0.03]"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
-            `,
-            backgroundSize: '60px 60px',
-          }}
-        />
-
-        {/* ── 3D Carousel Container ── */}
-        <div
-          className="absolute inset-0"
-          style={{
-            transformStyle: 'preserve-3d',
-            transition: 'transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-          }}
-        >
-          {panels.map((panel, i) => {
-            const panelBaseAngle = i * ANGLE_STEP
-            const containerRotation = -focusedIndex * ANGLE_STEP
-            const relativeAngle = panelBaseAngle + containerRotation
-            const normalizedAngle = ((relativeAngle % 360) + 360) % 360
-            const isFacingUser = normalizedAngle < 40 || normalizedAngle > 320
-            const isBack = normalizedAngle > 140 && normalizedAngle < 220
-
-            let zOffset = 0
-            if (i === focusedIndex) {
-              zOffset = isExpanded ? 280 : 120
-            } else if (isBack) {
-              zOffset = BACKFACE_OFFSET
-            } else {
-              zOffset = 0
-            }
-
-            let panelOpacity = 1
-            if (isBack) panelOpacity = 0.12
-            else if (normalizedAngle > 90 && normalizedAngle < 270) panelOpacity = 0.3
-            else if (normalizedAngle > 60 && normalizedAngle < 300) panelOpacity = 0.55
-            else panelOpacity = 0.85
-
-            if (i === focusedIndex) panelOpacity = 1
-
-            return (
-              <div
-                key={panel.id}
-                className="absolute"
-                style={{
-                  width: isExpanded && i === focusedIndex ? '72%' : '54%',
-                  height: isExpanded && i === focusedIndex ? '82%' : '70%',
-                  left: isExpanded && i === focusedIndex ? '14%' : '23%',
-                  top: isExpanded && i === focusedIndex ? '9%' : '15%',
-                  transformStyle: 'preserve-3d',
-                  transform: `rotateY(${panelBaseAngle}deg) translateZ(${RADIUS + zOffset}px)`,
-                  transition: 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-                  opacity: mounted ? panelOpacity : 0,
-                  pointerEvents: i === focusedIndex || isFacingUser ? 'auto' : 'none',
-                }}
-              >
-                <PanelWindow
-                  panelId={panel.id}
-                  title={panel.title}
-                  icon={panel.icon}
-                  accentColor={panel.accentColor}
-                  accentBg={panel.accentBg}
-                  isFocused={i === focusedIndex}
-                  isExpanded={isExpanded && i === focusedIndex}
-                  onFocus={() => focusPanel(i)}
-                  badge={panel.badge}
+        {/* Bottom tab bar */}
+        <nav className="flex-shrink-0 border-t border-border/50 bg-card/90 backdrop-blur-md z-50">
+          <div className="flex items-center justify-around px-1 py-1.5">
+            {panels.map((p, i) => {
+              const isActive = i === activePanel
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => switchPanel(i)}
+                  className={cn(
+                    'relative flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1.5 transition-all min-w-[44px]',
+                    isActive
+                      ? 'text-primary'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
                 >
-                  {panel.content}
-                </PanelWindow>
+                  <div
+                    className={cn(
+                      'flex items-center justify-center w-8 h-8 rounded-lg transition-all',
+                      isActive && 'bg-primary/15',
+                    )}
+                  >
+                    <p.icon className={cn('w-4 h-4', isActive && 'text-primary')} />
+                  </div>
+                  <span className="text-[9px] font-medium leading-tight truncate max-w-[48px]">
+                    {p.title}
+                  </span>
+                  {isActive && (
+                    <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-primary" />
+                  )}
+                  {p.badge != null && p.badge > 0 && (
+                    <span className="absolute -top-0.5 right-0 w-3.5 h-3.5 rounded-full bg-destructive text-[8px] font-bold flex items-center justify-center text-white">
+                      {p.badge > 9 ? '9+' : p.badge}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+      </div>
+    )
+  }
+
+  // ── DESKTOP (≥768px): Left sidebar + main content ──
+  const panel = panels[activePanel]
+  return (
+    <div className={cn('flex h-full overflow-hidden', className)}>
+      {/* ── Left Sidebar (Activity Bar) ── */}
+      <aside className="flex-shrink-0 w-14 bg-card/90 backdrop-blur-md border-r border-border/50 flex flex-col items-center z-50 relative">
+        {/* Logo at top */}
+        <div className="flex items-center justify-center w-14 h-12 border-b border-border/30 flex-shrink-0">
+          <Image
+            src={logoSrc}
+            alt={brandName}
+            width={24}
+            height={24}
+            className="rounded"
+          />
+        </div>
+
+        {/* Panel icon buttons */}
+        <div className="flex-1 flex flex-col items-center py-2 gap-0.5 overflow-y-auto scrollbar-none">
+          {panels.map((p, i) => {
+            const isActive = i === activePanel
+            return (
+              <div key={p.id} className="relative">
+                <button
+                  onClick={() => switchPanel(i)}
+                  onMouseEnter={() => setHoveredIcon(i)}
+                  onMouseLeave={() => setHoveredIcon(null)}
+                  className={cn(
+                    'relative flex items-center justify-center w-10 h-10 rounded-lg transition-all',
+                    isActive
+                      ? 'bg-primary/15 text-primary'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                  )}
+                  aria-label={p.title}
+                >
+                  {/* Active indicator: left border accent */}
+                  {isActive && (
+                    <div
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full bg-primary"
+                      style={{
+                        backgroundColor: p.accentColor?.replace('text-', '')
+                          ? undefined
+                          : undefined,
+                      }}
+                    />
+                  )}
+                  <p.icon className={cn('w-[18px] h-[18px]', isActive && 'text-primary')} />
+
+                  {/* Badge dot */}
+                  {p.badge != null && p.badge > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-destructive ring-2 ring-card" />
+                  )}
+                </button>
+
+                {/* Tooltip */}
+                {hoveredIcon === i && (
+                  <div className="sidebar-tooltip">{p.title}</div>
+                )}
               </div>
             )
           })}
         </div>
 
-        {/* ── Center Glow Effect ── */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-          <div className="w-96 h-96 rounded-full bg-gradient-radial from-primary/5 via-transparent to-transparent blur-3xl animate-pulse-glow" />
+        {/* Home button at bottom */}
+        <div className="flex items-center justify-center w-14 h-12 border-t border-border/30 flex-shrink-0">
+          <button
+            onClick={() => switchPanel(0)}
+            className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-all"
+            aria-label="Home"
+          >
+            <Home className="w-4 h-4" />
+          </button>
         </div>
+      </aside>
+
+      {/* ── Main Content Area ── */}
+      <main className="flex-1 overflow-hidden relative">
+        {/* Animated background effects */}
+        <WorkspaceBackground />
+
+        {/* Active panel with fade transition */}
+        <div
+          key={`desktop-${panel.id}-${animKey}`}
+          className="animate-panel-enter h-full p-3 relative z-10"
+          style={{ contain: 'layout style paint' } as React.CSSProperties}
+        >
+          <PanelWindow
+            panelId={panel.id}
+            title={panel.title}
+            icon={panel.icon}
+            accentColor={panel.accentColor}
+            accentBg={panel.accentBg}
+            isFocused
+            isExpanded={false}
+            badge={panel.badge}
+            className="relative"
+          >
+            {panel.content}
+          </PanelWindow>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+/**
+ * WorkspaceBackground — animated visual effects the user liked.
+ * Gradient blobs, floating particles, and a subtle grid pattern.
+ */
+function WorkspaceBackground() {
+  return (
+    <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+      {/* Animated gradient blobs */}
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-gradient-radial from-primary/8 via-transparent to-transparent opacity-60" />
+        <div
+          className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-purple-500/5 blur-3xl animate-pulse-glow"
+        />
+        <div
+          className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-teal-500/5 blur-3xl animate-pulse-glow"
+          style={{ animationDelay: '1.5s' }}
+        />
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/3 blur-3xl animate-pulse-glow"
+          style={{ animationDelay: '3s' }}
+        />
+      </div>
+
+      {/* Floating particles */}
+      {Array.from({ length: 20 }, (_, i) => (
+        <div
+          key={i}
+          className="absolute w-1 h-1 rounded-full bg-primary/20"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animation: `float ${6 + Math.random() * 8}s ease-in-out infinite`,
+            animationDelay: `${Math.random() * 6}s`,
+            opacity: 0.2 + Math.random() * 0.4,
+          }}
+        />
+      ))}
+
+      {/* Subtle grid pattern */}
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+          `,
+          backgroundSize: '60px 60px',
+        }}
+      />
+
+      {/* Center glow */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-96 h-96 rounded-full bg-gradient-radial from-primary/5 via-transparent to-transparent blur-3xl animate-pulse-glow" />
       </div>
     </div>
   )

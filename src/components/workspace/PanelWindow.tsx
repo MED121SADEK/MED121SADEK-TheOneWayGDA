@@ -76,8 +76,8 @@ export function PanelWindow({
     <div
       data-panel-id={panelId}
       className={cn(
-        // Base styles — absolute positioning for 3D orbital placement
-        'absolute inset-0 flex flex-col rounded-2xl border shadow-xl',
+        // Base styles — relative positioning for sidebar layout
+        'relative flex flex-col h-full w-full rounded-2xl border shadow-xl',
         'bg-card/95 backdrop-blur-md',
         'transition-all duration-500 ease-out',
         // CSS isolation — prevents compositing and stacking context leaks
@@ -86,10 +86,8 @@ export function PanelWindow({
         'pointer-events-auto',
         // Focused state styling
         isFocused
-          ? 'border-primary/40 shadow-2xl shadow-primary/10 scale-100 z-30'
-          : 'border-border/60 shadow-lg z-10 opacity-90 hover:opacity-100 hover:border-border',
-        // Expanded state
-        isExpanded && 'scale-105 z-40',
+          ? 'border-primary/40 shadow-2xl shadow-primary/10'
+          : 'border-border/60 shadow-lg opacity-90 hover:opacity-100 hover:border-border',
         className,
       )}
       onWheel={onWheel}
