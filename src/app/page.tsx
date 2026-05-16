@@ -417,6 +417,7 @@ export default function Home() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 {[
+                  { label: t('nav.community') || 'Community', href: '/community' },
                   { label: t('nav.about'), href: '/about' },
                   { label: t('nav.security'), href: '/security' },
                   { label: t('nav.company'), href: '/company' },
@@ -452,6 +453,7 @@ export default function Home() {
                   { label: t('nav.comparison'), href: '#comparison' },
                   { label: t('nav.workspace'), href: '#demo' },
                   { label: t('nav.pricing'), href: '#pricing' },
+                  { label: t('nav.community') || 'Community', href: '/community' },
                   { label: t('nav.about'), href: '/about' },
                   { label: t('nav.security'), href: '/security' },
                   { label: t('nav.company'), href: '/company' },
