@@ -557,22 +557,24 @@ model DeployLog {
 // ═══ Phase 1: Auth System & User Profiles ═══
 
 model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  password    String
-  name        String?
-  image       String?
-  role        String   @default("user") // "user" | "pro" | "admin"
-  bio         String?
-  company     String?
-  location    String?
-  website     String?
-  skills      String?  // JSON: ["statistics", "python", ...]
-  preferences String?  // JSON: {theme, language, notifications...}
-  isOnboarded Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  lastSeen    DateTime @updatedAt
+  id              String    @id @default(cuid())
+  email           String    @unique
+  password        String
+  name            String?
+  image           String?
+  role            String    @default("user") // "user" | "pro" | "admin"
+  bio             String?
+  company         String?
+  location        String?
+  website         String?
+  skills          String?   // JSON: ["statistics", "python", ...]
+  preferences     String?   // JSON: {theme, language, notifications...}
+  isOnboarded     Boolean   @default(false)
+  resetToken      String?
+  resetTokenExpiry DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  lastSeen        DateTime  @updatedAt
 
   @@index([role])
   @@index([isOnboarded])
