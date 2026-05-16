@@ -5,7 +5,7 @@ import { apiRouteLogger } from '@/lib/api-logger'
 
 const log = apiRouteLogger('/api/workflow/flagship/plan')
 
-const FLAGSHIP_SYSTEM_PROMPT = `You are the flagship AI workflow engine for The One-Way statistical analysis platform. Your role is to design comprehensive, end-to-end analysis pipelines that take users from raw data to actionable insights.
+const FLAGSHIP_SYSTEM_PROMPT = `You are the flagship AI workflow engine for The One-Way statistical analysis platform. You are a world-class data scientist and workflow architect. Your role is to design comprehensive, end-to-end analysis pipelines that take users from raw data to actionable insights.
 
 You MUST respond with ONLY valid JSON in this exact format:
 {
@@ -16,38 +16,48 @@ You MUST respond with ONLY valid JSON in this exact format:
       "id": "step_1",
       "type": "data_import",
       "name": "Step Name",
-      "description": "What this step does and why",
+      "description": "Detailed description of what this step does and why (2-3 sentences)",
       "config": {},
-      "rationale": "Why this step is needed",
-      "estimatedDuration": "2 min"
+      "rationale": "Deep explanation of why this step is critical for this specific analysis",
+      "estimatedDuration": "2 min",
+      "expectedOutput": "What we expect to learn/produce from this step"
     }
   ],
   "alternatives": [
-    { "name": "Alternative Approach", "description": "Brief description", "steps": ["step_type_1", "step_type_2"] }
+    { "name": "Alternative Approach", "description": "Detailed description of why this alternative might be better", "steps": ["step_type_1", "step_type_2"], "tradeoffs": "When to choose this over the main approach" }
   ],
-  "estimatedTotalTime": "15 min"
+  "estimatedTotalTime": "15 min",
+  "complexityNote": "Notes about expected complexity and potential challenges"
 }
 
 Available step types:
-- "data_import": Loading and validating data
-- "data_cleaning": Handling missing values, outliers, type conversion, normalization
-- "exploratory_analysis": Summary statistics, distributions, patterns, correlations
-- "statistical_test": Regression, t-test, ANOVA, chi-square, Mann-Whitney, etc.
-- "visualization": Charts, graphs, heatmaps, scatter plots, box plots
-- "interpretation": AI-powered insight extraction, pattern explanation
-- "report": Structured report generation with findings and recommendations
+- "data_import": Loading and validating data (CSV, JSON, database connections, APIs)
+- "data_cleaning": Missing values (mean/median/mode/KNN imputation), outlier detection (IQR, Z-score, isolation forest), type conversion, normalization, deduplication, encoding
+- "exploratory_analysis": Summary statistics, distributions, correlations, cross-tabulations, pattern mining, anomaly detection
+- "statistical_test": Hypothesis testing (t-test, ANOVA, chi-square, Mann-Whitney, Kruskal-Wallis, regression, logistic regression, time-series analysis, Bayesian inference)
+- "visualization": Charts, graphs, heatmaps, scatter plots, box plots, pair plots, violin plots, geographic maps, interactive dashboards
+- "interpretation": AI-powered insight extraction, pattern explanation, causal analysis, sensitivity analysis, what-if scenarios
+- "report": Structured report generation with findings, recommendations, executive summary, technical appendix
+- "feature_engineering": Create new features, polynomial features, interaction terms, dimensionality reduction (PCA, t-SNE, UMAP)
+- "model_training": Train predictive models (regression, classification, clustering), cross-validation, hyperparameter tuning
+- "model_evaluation": Evaluate model performance (confusion matrix, ROC-AUC, precision-recall, calibration plots), compare models
+- "deployment_prep": Export results, create reproducible scripts, generate API endpoints for predictions
 
 Guidelines:
-- Generate 4-7 steps forming a logical pipeline
+- Generate 5-10 steps forming a logical pipeline — be thorough
 - Always start with data preparation unless data is already clean
-- Include at least one statistical test
+- Include at least two statistical/analytical steps for depth
+- Add feature engineering when working with predictive tasks
+- Include model training and evaluation for ML tasks
 - End with interpretation and reporting
-- Each step config should contain relevant parameters
-- Provide rationale for every step
-- Suggest 1-2 alternative approaches if applicable
-- Tailor complexity to the user's described context and audience`
+- Each step config should contain relevant parameters with explanations
+- Provide detailed rationale for every step — explain the "why" deeply
+- Suggest 2-3 alternative approaches with tradeoff analysis
+- Tailor complexity to the user's described context and audience
+- Add complexity notes about potential challenges
+- Think like a senior data scientist planning a rigorous analysis`
 
-const VALID_STEP_TYPES = ['data_import', 'data_cleaning', 'exploratory_analysis', 'statistical_test', 'visualization', 'interpretation', 'report']
+const VALID_STEP_TYPES = ['data_import', 'data_cleaning', 'exploratory_analysis', 'statistical_test', 'visualization', 'interpretation', 'report', 'feature_engineering', 'model_training', 'model_evaluation', 'deployment_prep']
 
 export async function POST(request: NextRequest) {
   const end = log.start('POST')
@@ -96,13 +106,16 @@ export async function POST(request: NextRequest) {
       if (pastPipelines.length > 0) {
         parts.push(`User's past workflows: ${pastPipelines.map(p => `"${p.name}" (${p.status})`).join(', ')}`)
       }
+      if (pastDecisions.length > 0) {
+        parts.push(`User's past decisions: ${pastDecisions.map(d => `"${d.question}" [${d.context}]`).join(', ')}`)
+      }
       if (preferences) {
         parts.push(`Skill level: ${preferences.skillLevel}, language: ${preferences.preferredLang}`)
       }
       if (parts.length > 0) memoryBlock = `\n\nUser context: ${parts.join('. ')}`
     } catch { /* memory fetch failure is non-blocking */ }
 
-    // Call AI
+    // Call AI with increased token limit for deeper plans
     const zai = await ZAI.create()
     const completion = await zai.chat.completions.create({
       messages: [
@@ -110,6 +123,7 @@ export async function POST(request: NextRequest) {
         { role: 'user', content: `${intent.trim()}${contextBlock}${memoryBlock}` },
       ],
       temperature: 0.7,
+      max_tokens: 4096,
     })
 
     const rawContent = completion.choices?.[0]?.message?.content || ''
@@ -127,16 +141,20 @@ export async function POST(request: NextRequest) {
         name: `Analysis: ${intent.slice(0, 50)}`,
         description: `Flagship workflow for: ${intent}`,
         steps: [
-          { id: 'step_1', type: 'data_import', name: 'Data Import', description: 'Load and validate dataset', config: {}, rationale: 'Required starting point', estimatedDuration: '1 min' },
-          { id: 'step_2', type: 'data_cleaning', name: 'Data Cleaning', description: 'Handle missing values and outliers', config: { action: 'auto_clean' }, rationale: 'Ensure data quality', estimatedDuration: '2 min' },
-          { id: 'step_3', type: 'exploratory_analysis', name: 'Exploratory Analysis', description: 'Summary statistics and distributions', config: { methods: ['summary', 'distribution', 'correlation'] }, rationale: 'Understand data patterns', estimatedDuration: '3 min' },
-          { id: 'step_4', type: 'statistical_test', name: 'Statistical Testing', description: 'Run appropriate statistical tests', config: { test: 'auto_detect' }, rationale: 'Validate hypotheses', estimatedDuration: '3 min' },
-          { id: 'step_5', type: 'visualization', name: 'Visualization', description: 'Create informative charts', config: { charts: ['auto'] }, rationale: 'Visual communication', estimatedDuration: '2 min' },
-          { id: 'step_6', type: 'interpretation', name: 'AI Interpretation', description: 'Extract key insights and patterns', config: {}, rationale: 'Actionable understanding', estimatedDuration: '2 min' },
-          { id: 'step_7', type: 'report', name: 'Report Generation', description: 'Generate structured report', config: { format: 'detailed' }, rationale: 'Deliverable output', estimatedDuration: '2 min' },
+          { id: 'step_1', type: 'data_import', name: 'Data Import', description: 'Load and validate dataset', config: {}, rationale: 'Required starting point', estimatedDuration: '1 min', expectedOutput: 'Clean dataset ready for analysis' },
+          { id: 'step_2', type: 'data_cleaning', name: 'Data Cleaning', description: 'Handle missing values, outliers, type conversion', config: { action: 'auto_clean' }, rationale: 'Ensure data quality for reliable results', estimatedDuration: '2 min', expectedOutput: 'Cleaned dataset with quality report' },
+          { id: 'step_3', type: 'exploratory_analysis', name: 'Exploratory Analysis', description: 'Summary statistics, distributions, correlations, patterns', config: { methods: ['summary', 'distribution', 'correlation'] }, rationale: 'Understand data structure and patterns before testing', estimatedDuration: '3 min', expectedOutput: 'Comprehensive EDA report with visualizations' },
+          { id: 'step_4', type: 'statistical_test', name: 'Statistical Testing', description: 'Run appropriate statistical tests with assumption checks', config: { test: 'auto_detect' }, rationale: 'Validate hypotheses with rigorous testing', estimatedDuration: '3 min', expectedOutput: 'Test results with p-values, effect sizes, confidence intervals' },
+          { id: 'step_5', type: 'visualization', name: 'Visualization', description: 'Create publication-quality charts and graphs', config: { charts: ['auto'] }, rationale: 'Visual communication of findings', estimatedDuration: '2 min', expectedOutput: 'Multiple publication-ready visualizations' },
+          { id: 'step_6', type: 'interpretation', name: 'AI Interpretation', description: 'Extract key insights, causal analysis, what-if scenarios', config: {}, rationale: 'Deep understanding of what the data tells us', estimatedDuration: '2 min', expectedOutput: 'Detailed insights with actionable recommendations' },
+          { id: 'step_7', type: 'report', name: 'Report Generation', description: 'Generate structured, comprehensive report', config: { format: 'detailed' }, rationale: 'Professional deliverable for stakeholders', estimatedDuration: '2 min', expectedOutput: 'Complete analysis report with executive summary' },
         ],
-        alternatives: [{ name: 'Quick Analysis', description: 'Streamlined analysis with fewer steps', steps: ['exploratory_analysis', 'statistical_test', 'report'] }],
+        alternatives: [
+          { name: 'Quick Analysis', description: 'Streamlined analysis with fewer steps', steps: ['exploratory_analysis', 'statistical_test', 'report'], tradeoffs: 'Faster but less thorough' },
+          { name: 'ML Pipeline', description: 'Machine learning approach with model training', steps: ['data_import', 'data_cleaning', 'feature_engineering', 'model_training', 'model_evaluation', 'report'], tradeoffs: 'More complex but can predict future outcomes' },
+        ],
         estimatedTotalTime: '15 min',
+        complexityNote: 'Standard analysis complexity — well-structured dataset expected',
       }
     }
 
@@ -151,6 +169,7 @@ export async function POST(request: NextRequest) {
       status: 'pending' as const,
       rationale: (step.rationale as string) || '',
       estimatedDuration: (step.estimatedDuration as string) || '',
+      expectedOutput: (step.expectedOutput as string) || '',
     }))
 
     // Save pipeline
@@ -173,8 +192,8 @@ export async function POST(request: NextRequest) {
         visitorId,
         action: 'ai_query',
         details: JSON.stringify({ action: 'flagship_plan_generated', pipelineId: pipeline.id, stepCount: steps.length }),
-        inputData: JSON.stringify({ intent: intent.trim().slice(0, 500), dataSummary, context, audience }),
-        outputData: JSON.stringify({ pipelineId: pipeline.id, stepCount: steps.length }),
+        inputData: JSON.stringify({ intent: intent.trim().slice(0, 1000), dataSummary, context, audience }),
+        outputData: JSON.stringify({ pipelineId: pipeline.id, stepCount: steps.length, alternatives: (planData.alternatives as unknown[])?.length || 0 }),
         tokensUsed,
         durationMs,
       },
@@ -192,6 +211,7 @@ export async function POST(request: NextRequest) {
       },
       alternatives: planData.alternatives || [],
       estimatedTime: (planData.estimatedTotalTime as string) || `${steps.length * 2} min`,
+      complexityNote: (planData.complexityNote as string) || null,
     })
   } catch (error: unknown) {
     end(500, error)
