@@ -35,15 +35,21 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: stale-while-revalidate for pages, cache-first for static assets
+// Fetch: cache-first for static assets ONLY — never intercept page navigation
+// This ensures the browser back/forward button works correctly without
+// the service worker serving stale or cached page content on navigation.
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip API calls and non-GET requests
+  // Skip API calls, non-GET requests, and navigation requests entirely
   if (url.pathname.startsWith('/api/') || request.method !== 'GET') return;
 
-  // Cache-first for static assets (icons, fonts, images)
+  // Never intercept navigation requests — let the browser handle them
+  // so that back/forward buttons work normally
+  if (request.mode === 'navigate') return;
+
+  // Cache-first for static assets ONLY (icons, fonts, images, stylesheets, scripts)
   if (
     url.pathname.startsWith('/icons/') ||
     url.pathname.startsWith('/images/') ||
@@ -67,25 +73,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first for pages (stale-while-revalidate)
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        }
-        return response;
-      })
-      .catch(() => {
-        return caches.match(request).then((cached) => {
-          if (cached) return cached;
-          // Fallback to offline page for navigation requests
-          if (request.mode === 'navigate') {
-            return caches.match('/');
-          }
-          return new Response('Offline', { status: 503 });
-        });
-      })
-  );
+  // Do not intercept any other requests (pages, etc.)
+  // Let them pass through to the network normally
 });

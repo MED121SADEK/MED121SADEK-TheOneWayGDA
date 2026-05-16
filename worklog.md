@@ -149,3 +149,23 @@ Stage Summary:
 - Deployment: successful to production
 - No issues found requiring fixes
 
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix browser back button not working - user unable to return to home page
+
+Work Log:
+- Diagnosed the full project structure and identified 3 root causes
+- PRIMARY BUG: `src/app/page.tsx` called `router.push('/workspace')` during component render (not in useEffect) when `store.view === 'workspace'`, creating an infinite redirect loop that consumed all back-button history entries
+- SECONDARY BUG: `src/lib/analytics-engine.ts` monkey-patched `history.pushState` permanently without providing a destroy method to restore the original, conflicting with AiCopilot's own history patches
+- TERTIARY BUG: `public/sw.js` service worker intercepted all navigation requests with stale-while-revalidate, causing stale cached content on back navigation
+- Fixed `page.tsx`: Moved router.push to useEffect, changed to router.replace, added hasRedirected ref guard to prevent loops
+- Fixed `sw.js`: Added `request.mode === 'navigate'` skip so service worker never intercepts page navigation requests
+- Fixed `analytics-engine.ts`: Removed history.pushState monkey-patching, use addEventListener('popstate') instead, added proper destroy() method with full cleanup
+- Build verified clean (0 errors), deployed to Vercel production
+
+Stage Summary:
+- All 3 back-button bugs fixed and deployed
+- Production URL: https://theonewaygda.vercel.app
+- Build: Clean, 34+ pages, all routes working
