@@ -19,6 +19,7 @@ import {
   LayoutDashboard, BarChart3, Settings, CreditCard, Bell, Code2,
   Bot, Users, PanelLeftClose, PanelLeft, Menu, LogOut, Globe,
   FolderOpen, Workflow, Sparkles, ChevronDown, Trophy, ExternalLink,
+  Shield, ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -84,6 +85,13 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Team',
     items: [
       { label: 'Teams', href: '/teams', icon: Users },
+    ],
+  },
+  {
+    title: 'Admin',
+    items: [
+      { label: 'Community', href: '/admin/community', icon: Shield },
+      { label: 'Approvals', href: '/admin/approvals', icon: ClipboardCheck },
     ],
   },
   {

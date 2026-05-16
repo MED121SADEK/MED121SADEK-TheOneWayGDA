@@ -62,7 +62,7 @@ async function getDashboardStats() {
     db.communityPost.count({ where: { author: { not: 'THEONEWAYGDA_AI' }, createdAt: { gte: twentyFourHoursAgo } } }),
     db.communityPost.count({ where: { tags: { contains: 'Flagged' } } }),
     db.communityPost.count({ where: { tags: { contains: 'Hidden' } } }),
-    db.communityPost.count({ where: { featured: true } } }),
+    db.communityPost.count({ where: { featured: true } }),
     db.cronJob.findMany({ orderBy: { lastRun: 'desc' }, take: 20 }),
     db.communityPost.findMany({ orderBy: { createdAt: 'desc' }, take: 10 }),
     // Top 5 authors by post count in last 7 days
