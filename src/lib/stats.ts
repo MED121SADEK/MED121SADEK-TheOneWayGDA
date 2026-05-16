@@ -289,7 +289,7 @@ export function calcCrosstabs(
       colTotals,
       grandTotal,
     },
-    chiSquare,
+    chiSquare: chiSq,
     degreesOfFreedom: df,
     pValue,
     expectedFrequencies: expected,

@@ -78,7 +78,7 @@ export async function GET(request: Request) {
     metricsCache.set(cacheKey, result);
     return NextResponse.json(result);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -107,6 +107,6 @@ export async function POST(request: Request) {
     leaderboardCache.clear();
     return NextResponse.json({ success: true, tested: results.length, results });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

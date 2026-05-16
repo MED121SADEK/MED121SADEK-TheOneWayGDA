@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion, useInView } from 'framer-motion'
 import { useTranslation, localeNames, Locale } from '@/lib/i18n'
 import { useAppStore } from '@/lib/store'
@@ -148,6 +149,7 @@ function calcRegression(x: number[], y: number[]): { slope: number; intercept: n
 export default function Home() {
   const { t, locale, setLocale, dir } = useTranslation()
   const store = useAppStore()
+  const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [chatInput, setChatInput] = useState('')
   const [newProjectName, setNewProjectName] = useState('')
@@ -378,7 +380,7 @@ export default function Home() {
   /* ─── WORKSPACE VIEW → redirect to /workspace route ─── */
   if (store.view === 'workspace') {
     if (typeof window !== 'undefined') {
-      window.location.href = '/workspace'
+      router.push('/workspace')
     }
     return (
       <div className="h-screen flex items-center justify-center">
