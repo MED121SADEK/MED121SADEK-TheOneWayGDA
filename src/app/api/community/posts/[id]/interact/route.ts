@@ -76,11 +76,30 @@ export async function POST(
       return NextResponse.json({ saved: false })
 
     } else if (action === 'repost') {
-      await db.communityPost.update({ where: { id }, data: { reposts: { increment: 1 } } })
+      // Check if already reposted (dedup per user)
+      const existingRepost = await db.postInteraction.findUnique({
+        where: { postId_visitorId_type: { postId: id, visitorId: normalizedVisitor, type: 'repost' } },
+      })
+      if (!existingRepost) {
+        await Promise.all([
+          db.postInteraction.create({
+            data: { postId: id, visitorId: normalizedVisitor, type: 'repost' },
+          }),
+          db.communityPost.update({ where: { id }, data: { reposts: { increment: 1 } } }),
+        ])
+      }
       return NextResponse.json({ reposted: true })
 
     } else if (action === 'unrepost') {
-      await db.communityPost.update({ where: { id }, data: { reposts: { decrement: 1 } } })
+      const existingRepost = await db.postInteraction.findUnique({
+        where: { postId_visitorId_type: { postId: id, visitorId: normalizedVisitor, type: 'repost' } },
+      })
+      if (existingRepost) {
+        await Promise.all([
+          db.postInteraction.delete({ where: { id: existingRepost.id } }),
+          db.communityPost.update({ where: { id }, data: { reposts: { decrement: 1 } } }),
+        ])
+      }
       return NextResponse.json({ reposted: false })
     }
 
@@ -109,13 +128,14 @@ export async function GET(
       where: {
         postId: id,
         visitorId: visitorId.toLowerCase(),
-        type: { in: ['like', 'save'] },
+        type: { in: ['like', 'save', 'repost'] },
       },
     })
 
     return NextResponse.json({
       liked: interactions.some(i => i.type === 'like'),
       saved: interactions.some(i => i.type === 'save'),
+      reposted: interactions.some(i => i.type === 'repost'),
     })
   } catch {
     return NextResponse.json({ liked: false, saved: false })

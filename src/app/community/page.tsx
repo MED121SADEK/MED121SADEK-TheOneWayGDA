@@ -156,6 +156,7 @@ export default function CommunityPage() {
   // Interaction state (client-side cache)
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
   const [savedPosts, setSavedPosts] = useState<Set<string>>(new Set())
+  const [repostedPosts, setRepostedPosts] = useState<Set<string>>(new Set())
 
   // Share dialog
   const [shareDialogPost, setShareDialogPost] = useState<Post | null>(null)
@@ -252,12 +253,15 @@ export default function CommunityPage() {
         )
         const liked = new Set<string>()
         const saved = new Set<string>()
+        const reposted = new Set<string>()
         results.forEach(r => {
           if (r.liked) liked.add(r.postId)
           if (r.saved) saved.add(r.postId)
+          if (r.reposted) reposted.add(r.postId)
         })
         setLikedPosts(liked)
         setSavedPosts(saved)
+        setRepostedPosts(reposted)
       } catch { /* silent */ }
     }
     fetchInteractions()
@@ -307,7 +311,8 @@ export default function CommunityPage() {
   }
 
   const handleRepost = async (postId: string) => {
-    if (!session) return
+    if (!session || repostedPosts.has(postId)) return
+    setRepostedPosts(prev => { const n = new Set(prev); n.add(postId); return n })
     setPosts(prev => prev.map(p =>
       p.id === postId ? { ...p, reposts: p.reposts + 1 } : p
     ))
@@ -450,7 +455,7 @@ export default function CommunityPage() {
 
   /* ─── Share ─── */
   const handleCopyLink = (post: Post) => {
-    const url = post.sourceUrl || `${window.location.origin}/community?post=${post.id}`
+    const url = `${window.location.origin}/community/${post.id}`
     navigator.clipboard.writeText(url)
     setCopiedLink(true)
     setTimeout(() => setCopiedLink(false), 2000)
@@ -1062,7 +1067,9 @@ function PostCard({
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-semibold">{verifiedInfo ? verifiedInfo.displayName : displayName}</span>
+                <Link href={`/profile/${encodeURIComponent(post.author)}`} className="hover:underline">
+                  <span className="text-sm font-semibold">{verifiedInfo ? verifiedInfo.displayName : displayName}</span>
+                </Link>
                 {/* Verified Researcher / Institution Badge */}
                 {verifiedInfo && (
                   <span
@@ -1139,7 +1146,9 @@ function PostCard({
 
         {/* Title & Content */}
         <div className="mt-3">
-          <h3 className="text-base font-semibold leading-snug">{post.title}</h3>
+          <Link href={`/community/${post.id}`} className="group/title">
+            <h3 className="text-base font-semibold leading-snug group-hover/title:text-primary transition-colors">{post.title}</h3>
+          </Link>
           <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
             {post.content.length > 300 ? (
               <>

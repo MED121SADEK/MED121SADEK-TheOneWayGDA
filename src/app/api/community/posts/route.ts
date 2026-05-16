@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const sort = searchParams.get('sort') || 'latest' // "latest" | "popular" | "featured"
     const tag = searchParams.get('tag')
     const search = searchParams.get('search')
+    const author = searchParams.get('author')
 
     const skip = (page - 1) * limit
 
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
       where.tags = { not: { contains: 'Hidden' } }
     }
     if (sort === 'featured') where.featured = true
+    if (author) where.author = author.toLowerCase()
     if (search) {
       where.OR = [
         { title: { contains: search } },
