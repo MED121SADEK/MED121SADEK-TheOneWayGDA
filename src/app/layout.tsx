@@ -20,21 +20,42 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TheOneWayGDA - AI-Powered Statistical Analysis Platform",
+  title: {
+    default: "TheOneWayGDA — AI Model Comparison & Leaderboard Platform",
+    template: "%s | TheOneWayGDA",
+  },
   description:
-    "The all-in-one AI-powered statistical analysis platform. Works offline, supports all languages, auto-updates, and makes data science accessible to everyone. Superior to SPSS.",
+    "Compare AI models side-by-side with real benchmarks. Collaborate with teams, run AI-powered analysis workflows, and track model performance across 50+ providers. The all-in-one AI evaluation platform.",
   keywords: [
-    "TheOneWayGDA",
-    "statistical analysis",
-    "AI analytics",
-    "SPSS alternative",
-    "data science",
-    "offline analytics",
-    "multilingual",
-    "collaboration",
-    "PWA",
+    "AI model comparison", "AI leaderboard", "LLM benchmark", "GPT vs Claude vs Gemini",
+    "AI evaluation", "model performance", "AI analytics", "machine learning",
+    "workflow automation", "team collaboration", "data science platform",
+    "TheOneWayGDA", "AI copilot", "statistical analysis",
   ],
-  authors: [{ name: "TheOneWayGDA Team" }],
+  authors: [{ name: "TheOneWayGDA Team", url: "https://github.com/MED121SADEK" }],
+  creator: "TheOneWayGDA",
+  publisher: "TheOneWayGDA",
+  metadataBase: new URL("https://theonewaygda.com"),
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://theonewaygda.com",
+    title: "TheOneWayGDA — AI Model Comparison & Leaderboard Platform",
+    description: "Compare AI models with real benchmarks. Collaborate, analyze, and deploy.",
+    siteName: "TheOneWayGDA",
+    images: [{ url: "/images/og-image.png", width: 1200, height: 630, alt: "TheOneWayGDA" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "TheOneWayGDA — AI Model Comparison Platform",
+    description: "Compare AI models with real benchmarks. Collaborate, analyze, and deploy.",
+    images: ["/images/og-image.png"],
+    creator: "@theonewaygda",
+  },
+  robots: {
+    index: true, follow: true, googleBot: { index: true, follow: true, 'max-video-preview': -1, 'max-image-preview': 'large', 'max-snippet': -1 },
+  },
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -43,19 +64,13 @@ export const metadata: Metadata = {
       { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
       { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
     ],
-    apple: [
-      { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   other: {
-    "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-status-bar-style": "black-translucent",
-    "apple-mobile-web-app-title": "TheOneWayGDA",
-    "application-name": "TheOneWayGDA",
-    "msapplication-TileColor": "#09090b",
-    "msapplication-TileImage": "/icons/icon-144x144.png",
-    "theme-color": "#0ea5e9",
+    "mobile-web-app-capable": "yes", "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent", "apple-mobile-web-app-title": "TheOneWayGDA",
+    "application-name": "TheOneWayGDA", "msapplication-TileColor": "#09090b",
+    "msapplication-TileImage": "/icons/icon-144x144.png", "theme-color": "#0ea5e9",
   },
 };
 
