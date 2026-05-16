@@ -62,20 +62,14 @@ export async function POST(request: NextRequest) {
     const userAgent = request.headers.get('user-agent') || null
     const path = request.headers.get('referer') || null
 
-    const existing = await db.visitor.findFirst({ where: { email: normalizedEmail } })
+    // Single upsert instead of findFirst + create/update (2 queries → 1)
+    const result = await db.visitor.upsert({
+      where: { email: normalizedEmail },
+      update: { name: name?.trim(), ipAddress: ip !== 'unknown' ? ip : undefined, userAgent, path, lastSeen: new Date() },
+      create: { email: normalizedEmail, name: name?.trim() || null, ipAddress: ip !== 'unknown' ? ip : null, userAgent, path },
+    })
 
-    if (existing) {
-      await db.visitor.update({
-        where: { id: existing.id },
-        data: { name: name?.trim() || existing.name, ipAddress: ip !== 'unknown' ? ip : existing.ipAddress, userAgent, path, lastSeen: new Date() },
-      })
-    } else {
-      await db.visitor.create({
-        data: { email: normalizedEmail, name: name?.trim() || null, ipAddress: ip !== 'unknown' ? ip : null, userAgent, path },
-      })
-    }
-
-    return NextResponse.json({ success: true, message: 'Welcome to TheOneWayGDA!', isNew: !existing })
+    return NextResponse.json({ success: true, message: 'Welcome to TheOneWayGDA!', isNew: result.createdAt === result.updatedAt })
   } catch (error) {
     console.error('Visitor registration error:', error)
     return NextResponse.json({ error: 'An internal error occurred.' }, { status: 500 })
