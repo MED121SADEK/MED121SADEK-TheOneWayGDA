@@ -1,0 +1,6 @@
+{
+  "description": "Vercel domain verification record for theonewaygda.is-a.dev",
+  "record": {
+    "TXT": ["vc-domain-verify=theonewaygda.is-a.dev,4c485d1dba0c5ae119c4"]
+  }
+}

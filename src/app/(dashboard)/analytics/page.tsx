@@ -147,39 +147,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col mesh-gradient noise-overlay" dir={dir}>
-      {/* ═══ NAV ═══ */}
-      <nav className="sticky top-0 z-50 nav-premium">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14 gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
-              <ArrowLeft className="size-4" />
-            </Link>
-            <Image src="/images/logo.png" alt="TheOneWayGDA" width={28} height={28} className="rounded-lg flex-shrink-0" />
-            <span className="text-lg font-bold gradient-text-premium whitespace-nowrap">Analytics Engine</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge className="gap-1.5 px-3 py-1 bg-primary/15 text-primary border border-primary/25">
-              <Brain className="size-3" />Advanced Analytics
-            </Badge>
-            <Select value={locale} onValueChange={(v) => setLocale(v as 'en' | 'fr' | 'ar' | 'es')}>
-              <SelectTrigger className="h-8 w-24 text-xs">
-                <Globe className="size-3 mr-0.5" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="en" className="text-xs">EN</SelectItem>
-                <SelectItem value="fr" className="text-xs">FR</SelectItem>
-                <SelectItem value="ar" className="text-xs">AR</SelectItem>
-                <SelectItem value="es" className="text-xs">ES</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </nav>
-
-      {/* ═══ MAIN ═══ */}
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+    <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6" dir={dir}>
         {/* Hero */}
         <motion.div {...fadeUp} className="hero-gradient rounded-2xl p-6 sm:p-8 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-violet-500/5 pointer-events-none" />
@@ -386,7 +354,6 @@ export default function AnalyticsPage() {
             )}
           </TabsContent>
         </Tabs>
-      </div>
     </div>
   )
 }

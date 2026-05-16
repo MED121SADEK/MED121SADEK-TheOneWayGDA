@@ -74,9 +74,9 @@ export default function NotificationsPage() {
   const [markingAll, setMarkingAll] = useState(false)
 
   useEffect(() => {
-    if (!session) { router.push('/auth/login'); return }
+    if (!session) return
     fetchNotifs(false)
-  }, [router, session, filter])
+  }, [session, filter])
 
   const fetchNotifs = useCallback(async (append: boolean) => {
     if (!session) return
@@ -134,29 +134,7 @@ export default function NotificationsPage() {
   if (!session) return null
 
   return (
-    <div className="min-h-screen flex flex-col mesh-gradient noise-overlay" dir={dir}>
-      <nav className="sticky top-0 z-50 nav-premium">
-        <div className="max-w-4xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14 gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link href="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"><ArrowLeft className="size-4" /></Link>
-            <Image src="/images/logo.png" alt="TheOneWayGDA" width={28} height={28} className="rounded-lg flex-shrink-0" />
-            <span className="text-lg font-bold gradient-text-premium whitespace-nowrap">Notifications</span>
-            {unreadCount > 0 && <Badge className="text-[10px] px-1.5 bg-primary text-primary-foreground">{unreadCount}</Badge>}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={handleMarkAllRead} disabled={markingAll || unreadCount === 0}>
-              {markingAll ? <Loader2 className="size-3 animate-spin" /> : <CheckCheck className="size-3" />}
-              Mark All Read
-            </Button>
-            <Select value={locale} onValueChange={(v) => setLocale(v as 'en' | 'fr' | 'ar' | 'zh' | 'es' | 'de' | 'ja' | 'ko')}>
-              <SelectTrigger className="h-8 w-20 text-xs"><Globe className="size-3 mr-0.5" /><SelectValue /></SelectTrigger>
-              <SelectContent>{['en','fr','ar','zh','es','de','ja','ko'].map(l => <SelectItem key={l} value={l} className="text-xs">{l.toUpperCase()}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-        </div>
-      </nav>
-
-      <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-6 space-y-4">
+    <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-6 space-y-4" dir={dir}>
         {loading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="size-8 text-primary animate-spin" /></div>
         ) : (
@@ -237,7 +215,6 @@ export default function NotificationsPage() {
             )}
           </>
         )}
-      </div>
     </div>
   )
 }

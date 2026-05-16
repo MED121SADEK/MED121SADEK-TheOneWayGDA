@@ -130,7 +130,7 @@ export default function AdminApprovalsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen mesh-gradient noise-overlay flex items-center justify-center">
+      <div className="flex items-center justify-center py-32">
         <Loader2 className="size-8 animate-spin text-primary" />
       </div>
     )
@@ -151,20 +151,6 @@ export default function AdminApprovalsPage() {
           {toast.message}
         </motion.div>
       )}
-
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 nav-premium">
-        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14">
-          <Link href="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="size-4" />
-            <span className="text-xs">Back to Dashboard</span>
-          </Link>
-          <Link href="/" className="flex items-center gap-2">
-            <Image src="/images/logo.png" alt="TheOneWayGDA" width={28} height={28} className="rounded-lg" />
-            <span className="font-bold gradient-text-premium text-sm">TheOneWayGDA</span>
-          </Link>
-        </div>
-      </nav>
 
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">

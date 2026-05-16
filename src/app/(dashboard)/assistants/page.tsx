@@ -234,7 +234,7 @@ export default function AssistantsPage() {
 
   if (fetchingSpecialists) {
     return (
-      <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
+      <div className="flex items-center justify-center py-32">
         <div className="flex flex-col items-center gap-3">
           <div className="flex gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-zinc-500 animate-bounce [animation-delay:0ms]" />
@@ -248,35 +248,7 @@ export default function AssistantsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-900 flex flex-col">
-      {/* ═══════════════════════════════════════════════════════════
-          HEADER
-          ═══════════════════════════════════════════════════════════ */}
-      <header className="border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-violet-500/30 flex items-center justify-center">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-400">
-                <path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" />
-                <path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-zinc-50 tracking-tight">
-                AI Assistants
-              </h1>
-              <p className="text-sm text-zinc-400 mt-0.5">
-                Choose a specialist for deep, expert-level assistance
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* ═══════════════════════════════════════════════════════════
-          MAIN CONTENT
-          ═══════════════════════════════════════════════════════════ */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
         {/* ─── Specialist Selection Grid ─── */}
         <section>
@@ -583,7 +555,6 @@ export default function AssistantsPage() {
             </div>
           </section>
         )}
-      </main>
-    </div>
+    </main>
   )
 }

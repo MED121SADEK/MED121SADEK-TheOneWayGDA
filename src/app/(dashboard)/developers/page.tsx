@@ -111,9 +111,9 @@ export default function DevelopersPage() {
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    if (!session) { router.push('/auth/login'); return }
+    if (!session) return
     fetchKeys()
-  }, [router])
+  }, [])
 
   const fetchKeys = useCallback(async () => {
     if (!session) return
@@ -225,45 +225,15 @@ export default function DevelopersPage() {
 
   if (!session) {
     return (
-      <div className="h-screen flex items-center justify-center mesh-gradient">
+      <div className="flex items-center justify-center py-32">
         <Loader2 className="size-8 text-primary animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col mesh-gradient noise-overlay" dir={dir}>
-      {/* ═══ NAV ═══ */}
-      <nav className="sticky top-0 z-50 nav-premium">
-        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14 gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link href="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
-              <ArrowLeft className="size-4" />
-            </Link>
-            <Image src="/images/logo.png" alt="TheOneWayGDA" width={28} height={28} className="rounded-lg flex-shrink-0" />
-            <span className="text-lg font-bold gradient-text-premium whitespace-nowrap">Developer Portal</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge className="gap-1.5 px-3 py-1 bg-primary/15 text-primary border border-primary/25 hidden sm:flex">
-              <Terminal className="size-3" />API v1
-            </Badge>
-            <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
-              <SelectTrigger className="h-8 w-24 text-xs">
-                <Globe className="size-3 mr-0.5" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {localeNames.map((l) => (
-                  <SelectItem key={l} value={l} className="text-xs">{l.toUpperCase()}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </nav>
-
-      {/* ═══ MAIN ═══ */}
-      <div className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+    <>
+    <div className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6" dir={dir}>
         {/* Hero */}
         <motion.div {...fadeUp} className="hero-gradient rounded-2xl p-6 sm:p-8 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-violet-500/5 pointer-events-none" />
@@ -720,7 +690,7 @@ const data = await res.json();`,
         </Tabs>
       </div>
 
-      {/* ═══ Success Dialog (Full Key) ═══ */}
+      {/* Success Dialog (Full Key) */}
       <Dialog open={successOpen} onOpenChange={setSuccessOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -763,7 +733,7 @@ const data = await res.json();`,
         </DialogContent>
       </Dialog>
 
-      {/* ═══ Delete Confirm Dialog ═══ */}
+      {/* Delete Confirm Dialog */}
       <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -783,6 +753,6 @@ const data = await res.json();`,
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }
