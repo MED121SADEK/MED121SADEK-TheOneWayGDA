@@ -216,3 +216,38 @@ Stage Summary:
 - News API now returns category tags, improved relevance scoring, and up to 50 results
 - Redesigned News Hub with trending section, category filters, and country breakdown
 - Build verified: all pages compile successfully
+---
+Task ID: 4
+Agent: Main Agent
+Task: Build AI News & Community Portal (Twitter/X-style social feed)
+
+Work Log:
+- Explored existing community infrastructure: social feed, AI news, posts API, comments, likes, reposts
+- Added UserFollow and TopicFollow Prisma models for social graph and topic subscriptions
+- Created /api/community/follow — follow/unfollow users API (GET + POST)
+- Created /api/community/topics — topic follow/unfollow API (GET + POST), 20+ allowed topics
+- Created /api/community/publish — auto-publisher cron that creates 280-char micro-posts with:
+  - Headline (max 120 chars)
+  - 1-2 key facts (max 140 chars)
+  - 2-3 relevant hashtags (AI, Research, Innovation, niche tags)
+  - Classification as AI/Research/Innovation category
+  - Source link
+- Created /api/community/seed — portal initialization with 8 starter posts + welcome pinned post
+- Enhanced community page with:
+  - Category filter chips (All Topics, AI, Research, Innovation)
+  - Top Stories banner showing top 3 trending posts
+  - AI/Research/Innovation badges on post cards
+  - Topic following integration
+  - Auto-seed on first visit
+- Updated vercel.json with hourly publish cron (2 cron entries, 30min apart)
+- Ran prisma generate for new models
+- Build verified clean (0 errors)
+
+Stage Summary:
+- New Prisma models: UserFollow, TopicFollow
+- New API routes: /api/community/follow, /api/community/topics, /api/community/publish, /api/community/seed
+- Enhanced community page with Top Stories, category filtering, classification badges
+- Auto-publishing runs hourly via Vercel Cron, creating 280-char formatted posts with hashtags
+- Portal auto-seeds 8 starter posts + 1 welcome post on first visit
+- Build verified: all pages compile successfully
+- Deployment pending (Vercel token not available in environment)

@@ -81,6 +81,28 @@ model PostInteraction {
   @@index([visitorId])
 }
 
+model UserFollow {
+  id          String   @id @default(cuid())
+  followerId  String   // visitor email of the follower
+  followingId String   // visitor email being followed
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model TopicFollow {
+  id        String   @id @default(cuid())
+  visitorId String   // visitor email
+  topic     String   // "AI" | "Research" | "Innovation" | specific tags
+  createdAt DateTime @default(now())
+
+  @@unique([visitorId, topic])
+  @@index([visitorId])
+  @@index([topic])
+}
+
 model Visitor {
   id          String   @id @default(cuid())
   email       String   @unique

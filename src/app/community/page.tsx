@@ -24,7 +24,7 @@ import {
   ChevronUp, X, Newspaper, Users, Flame, Clock, Tag,
   TrendingUp, Link2, Image as ImageIcon, Filter, Loader2,
   MoreHorizontal, ArrowLeft, Sparkles, Check, Copy,
-  Mail, RefreshCw, Bell, Pin,
+  Mail, RefreshCw, Bell, Pin, Zap, Brain, Beaker, Lightbulb,
 } from 'lucide-react'
 
 /* ─── Types ─── */
@@ -130,6 +130,12 @@ export default function CommunityPage() {
   // News fetching
   const [newsLoading, setNewsLoading] = useState(false)
   const [newsFetchedAt, setNewsFetchedAt] = useState<string | null>(null)
+
+  // Category filter (AI | Research | Innovation)
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
+
+  // Topic following
+  const [followedTopics, setFollowedTopics] = useState<string[]>([])
 
   /* ─── Fetch Posts ─── */
   const fetchPosts = useCallback(async (pageNum: number, append: boolean = false) => {
@@ -357,12 +363,36 @@ export default function CommunityPage() {
       const res = await fetch('/api/community/news')
       const data = await res.json()
       setNewsFetchedAt(data.fetchedAt)
-      // Refresh posts
       setPage(1)
       await fetchPosts(1, false)
     } catch { /* silent */ }
     setNewsLoading(false)
   }
+
+  /* ─── Fetch Topic Follows ─── */
+  useEffect(() => {
+    if (!session) return
+    const fetchTopics = async () => {
+      try {
+        const res = await fetch(`/api/community/topics?visitorId=${session.email}`)
+        const data = await res.json()
+        if (data.topics) setFollowedTopics(data.topics)
+      } catch { /* silent */ }
+    }
+    fetchTopics()
+  }, [session])
+
+  /* ─── Seed Portal on First Visit ─── */
+  useEffect(() => {
+    const seeded = localStorage.getItem('oneway-community-seeded')
+    if (!seeded) {
+      fetch('/api/community/seed', { method: 'POST' }).then(() => {
+        localStorage.setItem('oneway-community-seeded', 'true')
+        setPage(1)
+        fetchPosts(1, false)
+      }).catch(() => { /* silent */ })
+    }
+  }, [])
 
   /* ─── Share ─── */
   const handleCopyLink = (post: Post) => {
@@ -383,10 +413,25 @@ export default function CommunityPage() {
     setShareEmail('')
   }
 
-  /* ─── Saved Posts Filter ─── */
-  const filteredPosts = activeTab === 'saved'
-    ? posts.filter(p => savedPosts.has(p.id))
-    : posts
+  /* ─── Saved Posts + Category Filter ─── */
+  const filteredPosts = (() => {
+    let result = activeTab === 'saved'
+      ? posts.filter(p => savedPosts.has(p.id))
+      : posts
+    if (categoryFilter !== 'all') {
+      result = result.filter(p => {
+        const tags = parseTags(p.tags)
+        return tags.includes(categoryFilter)
+      })
+    }
+    return result
+  })()
+
+  // Top Stories: featured posts with most likes from last 24h
+  const topStories = posts
+    .filter(p => p.featured || p.likes >= 3)
+    .sort((a, b) => b.likes - a.likes)
+    .slice(0, 5)
 
   /* ─── RENDER ─── */
   return (
@@ -499,6 +544,73 @@ export default function CommunityPage() {
           >
             <Sparkles className="size-3.5 text-emerald-500" />
             <span>{t('community.newsUpdated') || 'AI News updated'}: {new Date(newsFetchedAt).toLocaleString()}</span>
+          </motion.div>
+        )}
+
+        {/* Category Filter: AI | Research | Innovation */}
+        {activeTab !== 'saved' && (
+          <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
+            {[
+              { key: 'all', label: 'All Topics', icon: Flame, color: '' },
+              { key: 'AI', label: 'AI', icon: Brain, color: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
+              { key: 'Research', label: 'Research', icon: Beaker, color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' },
+              { key: 'Innovation', label: 'Innovation', icon: Lightbulb, color: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
+            ].map(cat => (
+              <button
+                key={cat.key}
+                onClick={() => setCategoryFilter(cat.key)}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all border ${
+                  categoryFilter === cat.key
+                    ? cat.color || 'bg-primary/10 text-primary border-primary/30'
+                    : 'bg-muted/20 text-muted-foreground hover:text-foreground border-transparent'
+                }`}
+              >
+                <cat.icon className="size-3" />
+                {cat.label}
+                {cat.key !== 'all' && followedTopics.includes(cat.key) && (
+                  <Zap className="size-2.5 text-primary" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Top Stories Banner — show when on 'all' tab with no search/category filter */}
+        {activeTab === 'all' && categoryFilter === 'all' && !searchQuery && topStories.length >= 3 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-blue-500/5 to-purple-500/5 p-4"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Zap className="size-4 text-primary" />
+              <h3 className="text-sm font-semibold">Top Stories</h3>
+              <Badge variant="outline" className="text-[9px] bg-primary/5 text-primary border-primary/20">
+                Trending
+              </Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {topStories.slice(0, 3).map((post, i) => (
+                <a
+                  key={post.id}
+                  href={post.sourceUrl || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex gap-2.5 p-2.5 rounded-lg bg-card/60 hover:bg-card/90 border border-border/30 hover:border-primary/30 transition-all"
+                >
+                  <span className="text-xs font-bold text-primary/40 flex-shrink-0 w-4 text-right">#{i + 1}</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium line-clamp-2 group-hover:text-primary transition-colors leading-snug">
+                      {post.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                      {post.likes > 0 && <span>{post.likes} likes</span>}
+                      <span>{timeAgo(post.createdAt)}</span>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
           </motion.div>
         )}
 
@@ -794,6 +906,22 @@ function PostCard({
                 {post.type === 'news' && (
                   <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[10px] border-blue-500/30 text-blue-400 bg-blue-500/5">
                     <Newspaper className="size-2.5" /> AI News
+                  </Badge>
+                )}
+                {/* Category Badge: AI | Research | Innovation */}
+                {tags.includes('AI') && !tags.includes('Research') && !tags.includes('Innovation') && post.type === 'news' && (
+                  <Badge variant="outline" className="gap-0.5 px-1.5 py-0 text-[9px] border-blue-500/20 text-blue-300 bg-blue-500/5">
+                    <Brain className="size-2" /> AI
+                  </Badge>
+                )}
+                {tags.includes('Research') && (
+                  <Badge variant="outline" className="gap-0.5 px-1.5 py-0 text-[9px] border-purple-500/20 text-purple-300 bg-purple-500/5">
+                    <Beaker className="size-2" /> Research
+                  </Badge>
+                )}
+                {tags.includes('Innovation') && (
+                  <Badge variant="outline" className="gap-0.5 px-1.5 py-0 text-[9px] border-amber-500/20 text-amber-300 bg-amber-500/5">
+                    <Lightbulb className="size-2" /> Innovation
                   </Badge>
                 )}
               </div>
