@@ -14,7 +14,7 @@ import {
   Briefcase, Newspaper, Rocket, ChevronRight, Eye, Sparkles,
   Calendar, Building, User, Banknote, FileText, Crown, ExternalLink,
 } from 'lucide-react'
-import { LinkedInIcon, InstagramIcon, TikTokIcon } from '@/components/BrandIcons'
+import { LinkedInIcon, InstagramIcon, TikTokIcon, GitHubIcon } from '@/components/BrandIcons'
 
 const fadeUp = { hidden: { opacity: 0, y: 30 }, visible: (i: number = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' as const } }) }
 const stagger = { visible: { transition: { staggerChildren: 0.08 } } }
@@ -51,7 +51,7 @@ export default function CompanyPage() {
   ]
 
   const LEADERS = [
-    { name: 'Mohammed Essadek', title: 'Founder & CEO', icon: Crown, linkedin: 'https://www.linkedin.com/in/mohammed-essadek-549a17229' },
+    { name: 'Mohammed Essadek', title: 'Founder & CEO', icon: Crown, linkedin: 'https://www.linkedin.com/in/mohammed-essadek-549a17229', github: 'https://github.com/MED121SADEK' },
   ]
 
   const PRESS: string[] = []
@@ -170,6 +170,11 @@ export default function CompanyPage() {
                       {leader.linkedin && (
                         <a href={leader.linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 mt-3 text-xs text-muted-foreground hover:text-primary transition-colors">
                           <ExternalLink className="size-3.5" /> Connect on LinkedIn
+                        </a>
+                      )}
+                      {leader.github && (
+                        <a href={leader.github} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 mt-1 text-xs text-muted-foreground hover:text-white transition-colors">
+                          <ExternalLink className="size-3.5" /> View on GitHub
                         </a>
                       )}
                     </CardContent>
@@ -408,6 +413,15 @@ export default function CompanyPage() {
                   <div className="text-left">
                     <p className="text-xs text-muted-foreground mb-1">TikTok</p>
                     <p className="text-sm font-semibold group-hover:text-[#ff0050] transition-colors">@the1way1</p>
+                  </div>
+                </a>
+                <a href="https://github.com/MED121SADEK" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-6 rounded-xl bg-card border border-primary/20 hover:border-primary/40 transition-all duration-300 group">
+                  <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center flex-shrink-0">
+                    <GitHubIcon size={24} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs text-muted-foreground mb-1">GitHub</p>
+                    <p className="text-sm font-semibold group-hover:text-white transition-colors">@MED121SADEK</p>
                   </div>
                 </a>
               </div>

@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useTranslation } from '@/lib/i18n'
 import { ShieldCheck, Mail } from 'lucide-react'
-import { LinkedInIcon, InstagramIcon, TikTokIcon } from '@/components/BrandIcons'
+import { LinkedInIcon, InstagramIcon, TikTokIcon, GitHubIcon } from '@/components/BrandIcons'
 
 export function FooterSection() {
   const { t } = useTranslation()
@@ -60,6 +60,9 @@ export function FooterSection() {
             </a>
             <a href="https://www.tiktok.com/@the1way1" target="_blank" rel="noopener noreferrer" className="size-9 rounded-lg border border-border/50 bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/30 transition-all">
               <TikTokIcon size={16} />
+            </a>
+            <a href="https://github.com/MED121SADEK" target="_blank" rel="noopener noreferrer" className="size-9 rounded-lg border border-border/50 bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/30 transition-all">
+              <GitHubIcon size={16} />
             </a>
           </div>
         </div>
