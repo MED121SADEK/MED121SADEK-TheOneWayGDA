@@ -21,3 +21,28 @@ Stage Summary:
 - All 50+ API routes now work on Vercel serverless
 - Trade-off: in-memory data resets on each cold start (no persistence until real DB is connected)
 - User still needs to set a password on AWS RDS postgres user or enable IAM auth for persistent data
+
+---
+Task ID: 2
+Agent: main
+Task: Connect Neon PostgreSQL database and deploy with persistent data
+
+Work Log:
+- Received Neon connection string from user
+- Tested connection successfully (PostgreSQL 17.8)
+- Updated prisma/schema.prisma: changed provider from sqlite to postgresql, added directUrl
+- Ran `prisma db push` — all 40+ tables created in Neon database
+- Removed old POSTGRES_URL env var from Vercel
+- Set DATABASE_URL (with pgbouncer) and DIRECT_DATABASE_URL on Vercel production
+- Simplified db.ts back to standard Prisma client (real PostgreSQL now available)
+- Regenerated Prisma client, deployed to Vercel
+- Verified: Registration creates persistent user in Neon
+- Verified: Login works with persistent data
+- Verified: Leaderboard seeded with 16 models, 146 benchmarks
+- Verified: Data survives across separate API calls (no more cold-start reset)
+
+Stage Summary:
+- The One-Way app now runs on REAL PostgreSQL (Neon) with persistent data
+- All 40+ tables created and working
+- User accounts, sessions, leaderboard data all persist permanently
+- URL: https://theonewaygda.vercel.app
