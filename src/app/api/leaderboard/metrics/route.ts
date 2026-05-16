@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ metrics, modelId });
     }
 
-    const models = await prisma.aIModel.findMany({ where: { isActive: true }, select: { id: true, name: true, provider: true } });
+    const models = await prisma.aiModel.findMany({ where: { isActive: true }, select: { id: true, name: true, provider: true } });
     const summary: any[] = [];
 
     for (const model of models) {
@@ -87,11 +87,11 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const modelId = body.modelId;
 
-    if ((await prisma.aIModel.count()) === 0) await seedLeaderboardData();
+    if ((await prisma.aiModel.count()) === 0) await seedLeaderboardData();
 
     const models = modelId
-      ? await prisma.aIModel.findMany({ where: { id: modelId, isActive: true } })
-      : await prisma.aIModel.findMany({ where: { isActive: true } });
+      ? await prisma.aiModel.findMany({ where: { id: modelId, isActive: true } })
+      : await prisma.aiModel.findMany({ where: { isActive: true } });
 
     const results: any[] = [];
     for (const model of models) {

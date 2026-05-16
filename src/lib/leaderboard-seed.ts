@@ -55,7 +55,7 @@ export async function seedLeaderboardData() {
   let modelsCount = 0, benchmarksCount = 0, pricingCount = 0;
 
   for (const m of SEED_MODELS) {
-    const model = await prisma.aIModel.upsert({
+    const model = await prisma.aiModel.upsert({
       where: { name_provider: { name: m.name, provider: m.provider } },
       create: { name: m.name, provider: m.provider, description: m.description, modelType: m.modelType, contextWindow: m.contextWindow, parameters: m.parameters, releaseDate: m.releaseDate, websiteUrl: m.websiteUrl, tags: JSON.stringify([m.provider.toLowerCase(), m.modelType]) },
       update: { description: m.description, modelType: m.modelType, contextWindow: m.contextWindow, parameters: m.parameters, releaseDate: m.releaseDate, websiteUrl: m.websiteUrl, tags: JSON.stringify([m.provider.toLowerCase(), m.modelType]) },

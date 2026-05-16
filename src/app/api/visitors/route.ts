@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { sendVisitorApprovalEmail, sendVisitorRejectionEmail } from '@/lib/email'
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET || 'oneway-admin-2026'
+const ADMIN_SECRET = process.env.ADMIN_SECRET || ''
 
 function isAuthenticated(request: NextRequest): boolean {
   const auth = request.headers.get('authorization')

@@ -19,13 +19,13 @@ export async function GET(request: Request) {
     if (cached) return NextResponse.json({ ...cached, fromCache: true });
 
     // Auto-seed if empty
-    if ((await prisma.aIModel.count()) === 0) await seedLeaderboardData();
+    if ((await prisma.aiModel.count()) === 0) await seedLeaderboardData();
 
     const where: any = { isActive: true, BenchmarkScores: { some: { benchmark, version: 'latest' } } };
     if (provider) where.provider = provider;
     if (modelType) where.modelType = modelType;
 
-    const models = await prisma.aIModel.findMany({
+    const models = await prisma.aiModel.findMany({
       where,
       include: {
         BenchmarkScores: { where: { benchmark, version: 'latest' }, select: { score: true, maxScore: true, source: true } },
@@ -66,8 +66,8 @@ export async function GET(request: Request) {
 
     const [availBenchmarks, availProviders, availModelTypes] = await Promise.all([
       prisma.benchmarkScore.findMany({ where: { version: 'latest' }, select: { benchmark: true }, distinct: ['benchmark'], orderBy: { benchmark: 'asc' } }),
-      prisma.aIModel.findMany({ where: { isActive: true }, select: { provider: true }, distinct: ['provider'], orderBy: { provider: 'asc' } }),
-      prisma.aIModel.findMany({ where: { isActive: true }, select: { modelType: true }, distinct: ['modelType'] }),
+      prisma.aiModel.findMany({ where: { isActive: true }, select: { provider: true }, distinct: ['provider'], orderBy: { provider: 'asc' } }),
+      prisma.aiModel.findMany({ where: { isActive: true }, select: { modelType: true }, distinct: ['modelType'] }),
     ]);
 
     const result = {
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
         currentBenchmark: benchmark, currentProvider: provider, currentModelType: modelType,
       },
       pagination: { page, limit, total: leaderboard.length, totalPages: Math.ceil(leaderboard.length / limit) },
-      meta: { totalModels: await prisma.aIModel.count({ where: { isActive: true } }), lastUpdated: new Date().toISOString() },
+      meta: { totalModels: await prisma.aiModel.count({ where: { isActive: true } }), lastUpdated: new Date().toISOString() },
     };
 
     leaderboardCache.set(cacheKey, result);

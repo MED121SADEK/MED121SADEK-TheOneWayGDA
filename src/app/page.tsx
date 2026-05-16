@@ -418,6 +418,7 @@ export default function Home() {
               <DropdownMenuContent align="end" className="w-48">
                 {[
                   { label: t('nav.community') || 'Community', href: '/community' },
+                  { label: t('lb.badge') || 'Leaderboard', href: '/leaderboard' },
                   { label: t('nav.about'), href: '/about' },
                   { label: t('nav.security'), href: '/security' },
                   { label: t('nav.company'), href: '/company' },
@@ -454,6 +455,7 @@ export default function Home() {
                   { label: t('nav.workspace'), href: '#demo' },
                   { label: t('nav.pricing'), href: '#pricing' },
                   { label: t('nav.community') || 'Community', href: '/community' },
+                  { label: t('lb.badge') || 'Leaderboard', href: '/leaderboard' },
                   { label: t('nav.about'), href: '/about' },
                   { label: t('nav.security'), href: '/security' },
                   { label: t('nav.company'), href: '/company' },
@@ -750,6 +752,8 @@ export default function Home() {
               <Link href="/security" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('nav.security')}</Link>
               <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.privacy')}</Link>
               <Link href="/modules" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('modules.title')}</Link>
+              <Link href="/leaderboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('lb.badge') || 'Leaderboard'}</Link>
+              <Link href="/community" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('nav.community') || 'Community'}</Link>
               <span className="text-muted-foreground">|</span>
               <Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('footer.terms')}</Link>
             </div>
