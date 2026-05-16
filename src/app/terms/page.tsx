@@ -85,7 +85,7 @@ export default function TermsPage() {
           <Link href="/" className="flex items-center gap-2">
             <Image
               src="/images/logo.png"
-              alt="The One-Way"
+              alt="TheOneWayGDAGDA"
               width={32}
               height={32}
               className="rounded"

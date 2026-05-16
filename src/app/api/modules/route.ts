@@ -16,7 +16,7 @@ const SERVER_MODULES: AppModule[] = [
     enabled: true,
     installedAt: '2026-02-20T00:00:00.000Z',
     lastUpdated: '2026-04-18T00:00:00.000Z',
-    author: 'The One-Way Team',
+    author: 'TheOneWayGDAGDA Team',
     dependencies: [],
   },
   {
@@ -30,7 +30,7 @@ const SERVER_MODULES: AppModule[] = [
     enabled: true,
     installedAt: '2026-02-20T00:00:00.000Z',
     lastUpdated: '2026-04-18T00:00:00.000Z',
-    author: 'The One-Way Team',
+    author: 'TheOneWayGDAGDA Team',
     dependencies: ['core-statistical-engine'],
   },
   {
@@ -44,7 +44,7 @@ const SERVER_MODULES: AppModule[] = [
     enabled: true,
     installedAt: '2026-02-20T00:00:00.000Z',
     lastUpdated: '2026-04-18T00:00:00.000Z',
-    author: 'The One-Way Team',
+    author: 'TheOneWayGDAGDA Team',
     dependencies: ['ai-assistant'],
   },
   {
@@ -58,7 +58,7 @@ const SERVER_MODULES: AppModule[] = [
     enabled: true,
     installedAt: '2026-02-20T00:00:00.000Z',
     lastUpdated: '2026-04-10T00:00:00.000Z',
-    author: 'The One-Way Team',
+    author: 'TheOneWayGDAGDA Team',
     dependencies: ['core-statistical-engine', 'ai-assistant'],
   },
   {
@@ -72,7 +72,7 @@ const SERVER_MODULES: AppModule[] = [
     enabled: true,
     installedAt: '2026-02-20T00:00:00.000Z',
     lastUpdated: '2026-03-28T00:00:00.000Z',
-    author: 'The One-Way Team',
+    author: 'TheOneWayGDAGDA Team',
     dependencies: ['core-statistical-engine'],
   },
   {
@@ -86,7 +86,7 @@ const SERVER_MODULES: AppModule[] = [
     enabled: true,
     installedAt: '2026-02-20T00:00:00.000Z',
     lastUpdated: '2026-03-28T00:00:00.000Z',
-    author: 'The One-Way Team',
+    author: 'TheOneWayGDAGDA Team',
     dependencies: ['core-statistical-engine'],
   },
   {
@@ -100,7 +100,7 @@ const SERVER_MODULES: AppModule[] = [
     enabled: true,
     installedAt: '2026-02-20T00:00:00.000Z',
     lastUpdated: '2026-03-15T00:00:00.000Z',
-    author: 'The One-Way Team',
+    author: 'TheOneWayGDAGDA Team',
     dependencies: ['core-statistical-engine'],
   },
   {
@@ -114,7 +114,7 @@ const SERVER_MODULES: AppModule[] = [
     enabled: true,
     installedAt: '2026-02-20T00:00:00.000Z',
     lastUpdated: '2026-03-01T00:00:00.000Z',
-    author: 'The One-Way Team',
+    author: 'TheOneWayGDAGDA Team',
     dependencies: ['core-statistical-engine', 'ai-assistant'],
   },
   {
@@ -128,7 +128,7 @@ const SERVER_MODULES: AppModule[] = [
     enabled: true,
     installedAt: '2026-02-20T00:00:00.000Z',
     lastUpdated: '2026-02-20T00:00:00.000Z',
-    author: 'The One-Way Team',
+    author: 'TheOneWayGDAGDA Team',
     dependencies: [],
   },
   {
@@ -142,7 +142,7 @@ const SERVER_MODULES: AppModule[] = [
     enabled: true,
     installedAt: '2026-02-20T00:00:00.000Z',
     lastUpdated: '2026-02-20T00:00:00.000Z',
-    author: 'The One-Way Team',
+    author: 'TheOneWayGDAGDA Team',
     dependencies: ['core-statistical-engine'],
   },
 ]

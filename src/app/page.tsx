@@ -394,7 +394,7 @@ export default function Home() {
       <nav className="sticky top-0 z-50 glass-card">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16">
           <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2">
-            <Image src="/images/logo.png" alt="The One-Way" width={40} height={40} className="rounded-lg" />
+            <Image src="/images/logo.png" alt="TheOneWayGDAGDA" width={40} height={40} className="rounded-lg" />
             <span className="text-xl font-bold gradient-text">{t('brand.name')}</span>
           </button>
           <div className="hidden md:flex items-center gap-8">
@@ -427,7 +427,7 @@ export default function Home() {
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild><Button variant="ghost" size="icon" className="md:hidden"><Menu className="size-5" /></Button></SheetTrigger>
             <SheetContent side="right" className="w-72">
-              <SheetHeader><SheetTitle className="flex items-center gap-2"><Image src="/images/logo.png" alt="The One-Way" width={28} height={28} className="rounded" />{t('brand.name')}</SheetTitle></SheetHeader>
+              <SheetHeader><SheetTitle className="flex items-center gap-2"><Image src="/images/logo.png" alt="TheOneWayGDAGDA" width={28} height={28} className="rounded" />{t('brand.name')}</SheetTitle></SheetHeader>
               <div className="flex flex-col gap-4 mt-8 px-4">
                 <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
                   <SelectTrigger className="h-9 text-xs"><Globe className="size-3.5 mr-1" /><SelectValue /></SelectTrigger>
@@ -479,7 +479,7 @@ export default function Home() {
             </motion.div>
             <motion.div variants={fadeUp} custom={5} className="mt-16 w-full max-w-4xl">
               <div className="glow-border rounded-2xl overflow-hidden border border-border/30">
-                <Image src="/images/hero.png" alt="The One-Way Dashboard" width={1200} height={680} className="w-full h-auto" priority />
+                <Image src="/images/hero.png" alt="TheOneWayGDAGDA Dashboard" width={1200} height={680} className="w-full h-auto" priority />
               </div>
             </motion.div>
           </motion.div>
@@ -657,7 +657,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10">
             <div className="lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4"><Image src="/images/logo.png" alt="The One-Way" width={32} height={32} className="rounded-lg" /><span className="text-lg font-bold gradient-text">{t('brand.name')}</span></div>
+              <div className="flex items-center gap-2 mb-4"><Image src="/images/logo.png" alt="TheOneWayGDAGDA" width={32} height={32} className="rounded-lg" /><span className="text-lg font-bold gradient-text">{t('brand.name')}</span></div>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">{t('footer.desc')}</p>
             </div>
             {[{ title: t('footer.product'), links: [t('nav.features'), t('nav.pricing')] }, { title: t('footer.resources'), links: ['Documentation', 'API', 'Community'] }, { title: t('footer.company'), links: [t('footer.about'), t('footer.blog'), t('footer.contact')] }].map(col => (
