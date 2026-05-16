@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { title, content, author, authorName, imageUrl, tags } = body
+    const { title, content, author, authorName, imageUrl, sourceUrl, sourceName, tags } = body
 
     if (!title?.trim() || !content?.trim()) {
       return NextResponse.json({ error: 'Title and content are required.' }, { status: 400 })
@@ -83,6 +83,8 @@ export async function POST(request: NextRequest) {
         author: author.trim().toLowerCase(),
         authorName: authorName?.trim() || null,
         imageUrl: imageUrl?.trim() || null,
+        sourceUrl: sourceUrl?.trim() || null,
+        sourceName: sourceName?.trim() || null,
         tags: tags ? JSON.stringify(tags) : null,
       },
     })
