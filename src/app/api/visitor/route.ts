@@ -94,6 +94,25 @@ export async function GET(request: NextRequest) {
       if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
         return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
       }
+
+      // Auto-accept users who have an active User account (admin/FOUNDER/pro/user)
+      const existingUser = await db.user.findUnique({ where: { email: normalizedEmail } })
+      if (existingUser && existingUser.role !== 'pending' && existingUser.role !== 'rejected') {
+        // Also update visitor status if it exists
+        try {
+          await db.visitor.update({
+            where: { email: normalizedEmail },
+            data: { status: 'accepted' },
+          })
+        } catch { /* visitor may not exist */ }
+        return NextResponse.json({
+          status: 'accepted',
+          visitorType: 'professional',
+          name: existingUser.name || normalizedEmail.split('@')[0],
+          createdAt: existingUser.createdAt,
+        })
+      }
+
       const visitor = await db.visitor.findUnique({ where: { email: normalizedEmail } })
       if (!visitor) {
         return NextResponse.json({ status: 'unknown' })
