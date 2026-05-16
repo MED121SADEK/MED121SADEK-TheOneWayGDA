@@ -97,6 +97,7 @@ const SITEMAP_CATEGORIES: SitemapCategory[] = [
       { title: 'Sign In', href: '/auth/login', description: 'Sign in to your account', icon: Lock },
       { title: 'Register', href: '/auth/register', description: 'Request access to the platform', icon: User },
       { title: 'Forgot Password', href: '/auth/forgot-password', description: 'Reset your password', icon: KeyRound },
+      { title: 'Reset Password', href: '/auth/reset-password', description: 'Set a new password with your reset link', icon: Shield },
     ],
   },
   {
@@ -117,6 +118,7 @@ const SITEMAP_CATEGORIES: SitemapCategory[] = [
     pages: [
       { title: 'Modules', href: '/modules', description: 'Browse available modules and integrations', icon: Puzzle },
       { title: 'Workflow Builder', href: '/workflow/new', description: 'Create and configure AI workflows', icon: Workflow },
+      { title: 'Site Directory', href: '/directory', description: 'Browse all pages and features of the platform', icon: Map },
     ],
   },
 ]

@@ -6,6 +6,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const staticPages = [
     '', '/about', '/community', '/company', '/directory', '/leaderboard',
     '/modules', '/privacy', '/security', '/terms', '/tutorials', '/updates',
+    '/ai', '/ai/sdk', '/ai/extensions', '/ai/workflows', '/ai/templates', '/ai/governance',
+    '/auth/login', '/auth/register', '/auth/forgot-password',
+    '/workspace', '/workflow/new',
   ]
 
   return staticPages.map((path) => ({
