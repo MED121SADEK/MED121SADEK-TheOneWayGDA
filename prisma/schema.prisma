@@ -94,16 +94,23 @@ model PostInteraction {
 }
 
 model Visitor {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  ipAddress String?
-  userAgent String?
-  path      String?
-  createdAt DateTime @default(now())
-  lastSeen  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  visitorType String   @default("general")
+  status      String   @default("pending")
+  ipAddress   String?
+  userAgent   String?
+  path        String?
+  notes       String?
+  country     String?
+  language    String?
+  createdAt   DateTime @default(now())
+  lastSeen    DateTime @updatedAt
 
   @@index([createdAt])
+  @@index([visitorType])
+  @@index([status])
 }
 
 model AIModel {

@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import {
   Mail, ArrowRight, ShieldCheck, Globe, Users, Sparkles,
-  Check, AlertCircle, Loader2, ChevronRight,
+  Check, AlertCircle, Loader2, ChevronRight, UserCircle,
 } from 'lucide-react'
 
 // Lightweight animation variants — reduced from heavy spring/bounce to fast linear
@@ -59,8 +59,9 @@ export function EmailGate() {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
-  const [showNameField, setShowNameField] = useState(false)
-  const [currentStep, setCurrentStep] = useState<'email' | 'name' | 'success'>('email')
+  const [showExtraFields, setShowExtraFields] = useState(false)
+  const [visitorType, setVisitorType] = useState('general')
+  const [currentStep, setCurrentStep] = useState<'email' | 'details' | 'success'>('email')
   const inputRef = useRef<HTMLInputElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
 
@@ -79,7 +80,7 @@ export function EmailGate() {
   }, [isGateVisible, isSubmitted, currentStep])
 
   useEffect(() => {
-    if (isGateVisible && currentStep === 'name') {
+    if (isGateVisible && currentStep === 'details') {
       nameInputRef.current?.focus()
     }
   }, [isGateVisible, currentStep])
@@ -89,7 +90,7 @@ export function EmailGate() {
   const handleSubmitEmail = () => {
     if (!email.trim()) { setError(t('gate.emailRequired') || 'Please enter your email address.'); return }
     if (!isValidEmail(email.trim())) { setError(t('gate.emailInvalid') || 'Please enter a valid email address.'); return }
-    setError(''); setShowNameField(true); setCurrentStep('name')
+    setError(''); setShowExtraFields(true); setCurrentStep('details')
   }
 
   const handleSubmit = async () => {
@@ -100,7 +101,7 @@ export function EmailGate() {
       const res = await fetch('/api/visitor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, name: name.trim() || null }),
+        body: JSON.stringify({ email: normalizedEmail, name: name.trim() || null, visitorType }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || (t('gate.error') || 'Something went wrong.')); setIsLoading(false); return }
@@ -158,12 +159,29 @@ export function EmailGate() {
                         </div>
                       </div>
                       <AnimatePresence>
-                        {showNameField && (
-                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2 overflow-hidden">
-                            <label className="text-sm font-medium text-foreground">{t('gate.nameLabel') || 'Your Name'} <span className="text-muted-foreground font-normal ml-1">({t('gate.optional') || 'optional'})</span></label>
-                            <div className="relative">
-                              <Users className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                              <Input ref={nameInputRef} type="text" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={handleKeyDown} placeholder={t('gate.namePlaceholder') || 'John Doe'} className="pl-10 h-12 rounded-xl bg-muted/30 border-border/50 focus:border-primary/50 transition-all" disabled={isLoading} autoComplete="name" />
+                        {showExtraFields && (
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-3 overflow-hidden">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-foreground">{t('gate.nameLabel') || 'Your Name'} <span className="text-muted-foreground font-normal ml-1">({t('gate.optional') || 'optional'})</span></label>
+                              <div className="relative">
+                                <Users className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                                <Input ref={nameInputRef} type="text" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={handleKeyDown} placeholder={t('gate.namePlaceholder') || 'John Doe'} className="pl-10 h-12 rounded-xl bg-muted/30 border-border/50 focus:border-primary/50 transition-all" disabled={isLoading} autoComplete="name" />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                                <UserCircle className="size-4 text-primary" />
+                                {t('gate.visitorType') || 'I am a...'}
+                              </label>
+                              <div className="grid grid-cols-4 gap-1.5">
+                                {[{ value: 'researcher', icon: '🔬' }, { value: 'student', icon: '🎓' }, { value: 'professional', icon: '💼' }, { value: 'enterprise', icon: '🏢' }, { value: 'developer', icon: '💻' }, { value: 'educator', icon: '📚' }, { value: 'general', icon: '🌐' }].map((vt) => (
+                                  <button key={vt.value} type="button" onClick={() => setVisitorType(vt.value)} disabled={isLoading}
+                                    className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-center transition-all ${visitorType === vt.value ? 'border-primary bg-primary/10 ring-1 ring-primary/20' : 'border-border/40 bg-muted/20 hover:border-border/60 hover:bg-muted/30'}`}>
+                                    <span className="text-base">{vt.icon}</span>
+                                    <span className={`text-[10px] leading-tight ${visitorType === vt.value ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>{t(`gate.type.${vt.value}`) || vt.value}</span>
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           </motion.div>
                         )}

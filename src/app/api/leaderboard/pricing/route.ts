@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db as prisma } from '@/lib/db';
 import { pricingCache } from '@/lib/cache';
 
 export async function GET(request: Request) {

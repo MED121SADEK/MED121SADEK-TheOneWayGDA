@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db as prisma } from '@/lib/db';
 import { cronManager } from '@/lib/cron-manager';
 import { leaderboardCache, pricingCache, benchmarkCache, metricsCache } from '@/lib/cache';
 

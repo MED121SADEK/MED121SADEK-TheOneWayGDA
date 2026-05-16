@@ -1,4 +1,4 @@
-import { prisma } from './db';
+import { db as prisma } from './db';
 
 const cronIntervalToMs: Record<string, number> = {
   '5m': 5 * 60 * 1000,
