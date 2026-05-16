@@ -25,7 +25,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const session = getSession()
     if (!session) {
-      router.push('/auth/login')
+      // Use replace to avoid polluting browser history (prevents back-button loops)
+      router.replace('/auth/login')
     }
   }, [router])
 
