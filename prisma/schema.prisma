@@ -365,3 +365,97 @@ model DecisionRecord {
   @@index([context])
   @@index([createdAt])
 }
+
+// ═══ Community-Driven Learning ═══
+
+model SharedWorkflow {
+  id               String   @id @default(cuid())
+  sourcePipelineId String?  // ID of the original WorkflowPipeline (if forked from one)
+  author           String   // visitor email
+  authorName       String?
+  name             String
+  description      String?
+  intent           String?  // Snapshot of the original intent
+  steps            String   // JSON: snapshot of pipeline steps
+  category         String   @default("general") // "data_analysis" | "reporting" | "ml_pipeline" | "data_cleaning" | "benchmarking" | "general"
+  difficulty       String   @default("intermediate") // "beginner" | "intermediate" | "advanced"
+  tags             String?  // JSON array of tag strings
+  rating           Float    @default(0)
+  ratingCount      Int      @default(0)
+  usageCount       Int      @default(0)
+  forkCount        Int      @default(0)
+  isFeatured       Boolean  @default(false)
+  isOfficial       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([author])
+  @@index([category])
+  @@index([difficulty])
+  @@index([rating])
+  @@index([usageCount])
+  @@index([isFeatured])
+}
+
+model BenchmarkConfig {
+  id               String   @id @default(cuid())
+  sourceConfigId   String?  // ID of the config this was forked from
+  author           String   // visitor email
+  authorName       String?
+  name             String
+  description      String?
+  category         String   @default("general") // "reasoning" | "coding" | "creative" | "math" | "multilingual" | "safety" | "general"
+  difficulty       String   @default("intermediate") // "easy" | "intermediate" | "hard" | "expert"
+  testPrompts      String   // JSON: array of {prompt, expectedKeywords?, expectedLength?}
+  evaluationCriteria String // JSON: {metrics: [...], weights: {...}, rubric: string}
+  expectedOutputs  String?  // JSON: array of expected output patterns/keywords
+  modelIds         String?  // JSON: array of model IDs this config has been tested against
+  results          String?  // JSON: aggregated results per model
+  rating           Float    @default(0)
+  ratingCount      Int      @default(0)
+  usageCount       Int      @default(0)
+  forkCount        Int      @default(0)
+  isFeatured       Boolean  @default(false)
+  isOfficial       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([author])
+  @@index([category])
+  @@index([difficulty])
+  @@index([rating])
+  @@index([usageCount])
+  @@index([isFeatured])
+}
+
+model CommunityAnalysisTemplate {
+  id                 String   @id @default(cuid())
+  sourceTemplateId   String?  // ID of the template this was forked/improved from
+  author             String   // visitor email
+  authorName         String?
+  name               String
+  description        String?
+  category           String   @default("statistical") // "statistical" | "machine_learning" | "data_cleaning" | "visualization" | "reporting" | "benchmarking"
+  difficulty         String   @default("intermediate") // "beginner" | "intermediate" | "advanced"
+  steps              String   // JSON: array of {id, order, name, description, type, config}
+  requiredVariables  String?  // JSON array of required variable names
+  estimatedDuration  String?  // e.g. "15 min", "1 hour", "2-3 hours"
+  tags               String?  // JSON array of tag strings
+  rating             Float    @default(0)
+  ratingCount        Int      @default(0)
+  usageCount         Int      @default(0)
+  improvementCount   Int      @default(0)
+  isFeatured         Boolean  @default(false)
+  isOfficial         Boolean  @default(false)
+  version            Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([author])
+  @@index([category])
+  @@index([difficulty])
+  @@index([rating])
+  @@index([usageCount])
+  @@index([isFeatured])
+  @@index([isOfficial])
+}
