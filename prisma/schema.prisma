@@ -95,7 +95,7 @@ model PostInteraction {
 
 model Visitor {
   id        String   @id @default(cuid())
-  email     String
+  email     String   @unique
   name      String?
   ipAddress String?
   userAgent String?
@@ -103,6 +103,5 @@ model Visitor {
   createdAt DateTime @default(now())
   lastSeen  DateTime @updatedAt
 
-  @@index([email])
   @@index([createdAt])
 }
