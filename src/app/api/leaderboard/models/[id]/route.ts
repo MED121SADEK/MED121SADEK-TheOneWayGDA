@@ -30,7 +30,7 @@ export async function GET(
       LiveMetrics: metrics,
       aggregates: { avgLatency, avgTps, avgBenchmark, totalTests: metrics.length, successfulTests: success.length },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
