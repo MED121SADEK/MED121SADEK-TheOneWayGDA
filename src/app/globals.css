@@ -194,3 +194,55 @@
 .glow-border {
   box-shadow: 0 0 20px oklch(0.62 0.22 262.881 / 0.15), 0 0 60px oklch(0.62 0.22 262.881 / 0.05);
 }
+
+/* ── Gradient Radial ── */
+.bg-gradient-radial {
+  background: radial-gradient(ellipse at center, var(--tw-gradient-from) 0%, var(--tw-gradient-via) 50%, var(--tw-gradient-to) 100%);
+}
+
+.bg-gradient-radial-from-primary\/8 {
+  --tw-gradient-from: oklch(0.62 0.22 262.881 / 0.08);
+  --tw-gradient-via: transparent;
+  --tw-gradient-to: transparent;
+}
+
+.bg-gradient-radial-from-primary\/5 {
+  --tw-gradient-from: oklch(0.62 0.22 262.881 / 0.05);
+  --tw-gradient-via: transparent;
+  --tw-gradient-to: transparent;
+}
+
+.bg-gradient-radial-from-primary\/3 {
+  --tw-gradient-from: oklch(0.62 0.22 262.881 / 0.03);
+  --tw-gradient-via: transparent;
+  --tw-gradient-to: transparent;
+}
+
+/* ── Scrollbar ── */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.65 0.02 280 / 0.2) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: oklch(0.65 0.02 280 / 0.2);
+  border-radius: 9999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.65 0.02 280 / 0.4);
+}
+
+.scrollbar-thin * {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.65 0.02 280 / 0.2) transparent;
+}
