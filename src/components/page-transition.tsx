@@ -1,29 +1,15 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { usePathname, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 
 // ═══════════════════════════════════════════════════════════════
-// PageTransition — Smooth page navigation with framer-motion
-// Provides fade + slide-up transitions between pages
+// PageTransition — Lightweight page enter animation
+// Uses usePathname() for reliable route tracking (no popstate hacks)
 // ═══════════════════════════════════════════════════════════════
 
 interface PageTransitionProps {
   children: ReactNode
-}
-
-// Prefetch links on hover for instant navigation
-function usePrefetch() {
-  const router = useRouter()
-
-  const prefetch = useCallback((href: string) => {
-    if (href.startsWith('/') && !href.startsWith('//')) {
-      router.prefetch(href)
-    }
-  }, [router])
-
-  return prefetch
 }
 
 // Global prefetch provider — prefetches likely next pages
@@ -31,7 +17,6 @@ export function useSmartPrefetch(currentPath: string) {
   const router = useRouter()
 
   useEffect(() => {
-    // Prefetch dashboard-related pages immediately (most visited)
     const criticalPages = [
       '/dashboard',
       '/analytics',
@@ -46,7 +31,6 @@ export function useSmartPrefetch(currentPath: string) {
       '/workspace',
     ]
 
-    // Prefetch the top 5 most likely pages based on current location
     let pagesToPrefetch: string[] = []
 
     if (currentPath === '/' || currentPath === '/dashboard') {
@@ -62,7 +46,6 @@ export function useSmartPrefetch(currentPath: string) {
       }
     }
 
-    // Prefetch with staggered timing to avoid burst
     pagesToPrefetch.forEach((page, idx) => {
       const timer = setTimeout(() => {
         router.prefetch(page)
@@ -84,7 +67,13 @@ export function PrefetchLink({
   className?: string
   onClick?: () => void
 }) {
-  const prefetch = usePrefetch()
+  const router = useRouter()
+
+  const prefetch = useCallback((path: string) => {
+    if (path.startsWith('/') && !path.startsWith('//')) {
+      router.prefetch(path)
+    }
+  }, [router])
 
   return (
     <a
@@ -103,57 +92,45 @@ export function PrefetchLink({
   )
 }
 
-// Page transition variants
-const pageVariants = {
-  initial: { opacity: 0, y: 8 },
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.2, ease: 'easeOut' as const },
-  },
-  exit: {
-    opacity: 0,
-    y: 4,
-    transition: { duration: 0.12, ease: 'easeIn' as const },
-  },
-}
-
-// Main PageTransition wrapper
+// Simple page enter animation — no AnimatePresence needed
+// CSS-based fade-in so it never interferes with browser back/forward
 export function PageTransition({ children }: PageTransitionProps) {
-  const router = useRouter()
-  const [transitionKey, setTransitionKey] = useState(0)
-  const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+  const pathname = usePathname()
 
   // Use smart prefetch
-  useSmartPrefetch(currentPath)
+  useSmartPrefetch(pathname)
 
-  // Track route changes to trigger AnimatePresence
-  useEffect(() => {
-    const handleChange = () => {
-      setTransitionKey((k) => k + 1)
-    }
-    window.addEventListener('popstate', handleChange)
-    // Also detect pushes via a custom event or MutationObserver
-    // Next.js App Router handles this internally, so we use pathname tracking
-    return () => window.removeEventListener('popstate', handleChange)
-  }, [])
+  // Track route changes for animation
+  const [animKey, setAnimKey] = useState(0)
 
-  // Detect route changes via pathname
   useEffect(() => {
-    setTransitionKey((k) => k + 1)
-  }, [currentPath])
+    // Small delay to ensure the new page content is ready before animating in
+    const timer = requestAnimationFrame(() => {
+      setAnimKey((k) => k + 1)
+    })
+    return () => cancelAnimationFrame(timer)
+  }, [pathname])
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={transitionKey}
-        variants={pageVariants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
+    <div
+      key={animKey}
+      style={{
+        animation: 'pageEnter 0.25s ease-out',
+      }}
+    >
+      {children}
+      <style jsx global>{`
+        @keyframes pageEnter {
+          from {
+            opacity: 0;
+            transform: translateY(6px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+    </div>
   )
 }

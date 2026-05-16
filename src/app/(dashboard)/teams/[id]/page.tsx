@@ -178,7 +178,7 @@ export default function TeamDetailPage() {
 
   /* ─── Auth check ─── */
   useEffect(() => {
-    if (!session) { router.push('/auth/login'); return }
+    if (!session) { router.replace('/auth/login'); return }
     fetchTeam()
   }, [router, session, teamId])
 

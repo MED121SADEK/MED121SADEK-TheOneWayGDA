@@ -224,7 +224,8 @@ export default function DashboardPage() {
     }
     localStorage.removeItem('oneway-auth-token')
     localStorage.removeItem('oneway-user')
-    router.push('/')
+    // Use replace so back button doesn't loop back after logout
+    router.replace('/')
   }
 
   /* ─── Weekly chart data ─── */

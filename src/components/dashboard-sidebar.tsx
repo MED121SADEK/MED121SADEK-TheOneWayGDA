@@ -126,7 +126,8 @@ function SidebarContent({
     }
     localStorage.removeItem('oneway-auth-token')
     localStorage.removeItem('oneway-user')
-    router.push('/')
+    // Use replace so back button doesn't loop back to dashboard after logout
+    router.replace('/')
   }, [session, router])
 
   const user = session?.user
