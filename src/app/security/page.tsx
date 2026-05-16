@@ -136,7 +136,7 @@ export default function SecurityPage() {
       <nav className="sticky top-0 z-50 glass-card">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16">
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/images/logo.png" alt="TheOneWayGDAGDA" width={32} height={32} className="rounded" />
+            <Image src="/images/logo.png" alt="TheOneWayGDA" width={32} height={32} className="rounded" />
             <span className="text-lg font-bold gradient-text">{t('brand.name')}</span>
           </Link>
           <Link href="/">
