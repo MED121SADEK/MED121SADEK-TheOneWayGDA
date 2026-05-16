@@ -105,3 +105,110 @@ model Visitor {
 
   @@index([createdAt])
 }
+
+model AIModel {
+  id            String   @id @default(cuid())
+  name          String
+  provider      String
+  description   String?
+  modelType     String   @default("chat")
+  contextWindow Int      @default(8192)
+  parameters    String?
+  releaseDate   String?
+  isActive      Boolean  @default(true)
+  websiteUrl    String?
+  apiDocsUrl    String?
+  tags          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([name, provider])
+  @@index([provider])
+  @@index([modelType])
+  @@index([isActive])
+}
+
+model BenchmarkScore {
+  id        String   @id @default(cuid())
+  modelId   String
+  benchmark String
+  score     Float
+  maxScore  Float    @default(100)
+  source    String   @default("verified")
+  sourceUrl String?
+  version   String   @default("latest")
+  sampledAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([modelId, benchmark, version])
+  @@index([modelId])
+  @@index([benchmark])
+  @@index([score])
+}
+
+model ModelPricing {
+  id              String   @id @default(cuid())
+  modelId         String
+  provider        String
+  inputPrice      Float
+  outputPrice     Float
+  batchInputPrice Float?
+  batchOutputPrice Float?
+  currency        String   @default("USD")
+  effectiveDate   DateTime @default(now())
+  isActive        Boolean  @default(true)
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@index([modelId])
+  @@index([provider])
+  @@index([isActive])
+}
+
+model LiveMetric {
+  id           String   @id @default(cuid())
+  modelId      String
+  prompt       String
+  response     String?
+  latencyMs    Int?
+  tps          Float?
+  inputTokens  Int?
+  outputTokens Int?
+  status       String   @default("pending")
+  errorMessage String?
+  testedAt     DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([modelId])
+  @@index([testedAt])
+  @@index([status])
+}
+
+model LeaderboardSnapshot {
+  id           String   @id @default(cuid())
+  benchmark    String
+  ranking      String
+  snapshotDate DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([benchmark])
+  @@index([snapshotDate])
+}
+
+model CronJob {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  type        String
+  interval    String    @default("1h")
+  status      String    @default("idle")
+  lastRun     DateTime?
+  nextRun     DateTime?
+  lastError   String?
+  runCount    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([nextRun])
+}
