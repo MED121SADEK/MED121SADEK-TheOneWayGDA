@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTokenFromRequest } from '@/lib/auth'
-import { memDb } from '@/lib/memory-db'
+import { db } from '@/lib/db'
 
-const database = memDb
+const database = db
 
 export async function GET(request: NextRequest) {
   try {

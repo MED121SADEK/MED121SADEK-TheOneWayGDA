@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTokenFromRequest } from '@/lib/auth'
-import { memDb } from '@/lib/memory-db'
+import { db } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     if (!token) {
       return NextResponse.json({ error: 'No token provided' }, { status: 401 })
     }
-    await memDb.userSession.delete({ where: { token } })
+    await db.userSession.delete({ where: { token } })
     return NextResponse.json({ message: 'Logged out successfully' })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Logout failed'
