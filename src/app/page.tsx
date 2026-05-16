@@ -38,7 +38,7 @@ import {
   Sparkles, Play, Menu, Check, X, BarChart3, ArrowRight,
   Zap, Star, ChevronRight, Globe, Save, FolderOpen, Share2,
   Download, Upload, Plus, Trash2, Edit3, Table2, Variable, Terminal,
-  Send, Bot, User, FileText, Copy, ChevronDown, Languages, Home,
+  Send, Bot, User, FileText, Copy, ChevronDown, Languages,
   LayoutDashboard, Settings, LogOut, MoreHorizontal, Database,
   TrendingUp, PieChart, FileSpreadsheet, ClipboardList, PenLine,
 } from 'lucide-react'
