@@ -12,7 +12,7 @@ import {
   BookOpen, Mail, ArrowLeft, Award, MapPin, Clock, TrendingUp,
   Star, Target, Handshake, FileCheck, Lock, CheckCircle, Zap,
   Briefcase, Newspaper, Rocket, ChevronRight, Eye, Sparkles,
-  Calendar, Building, User, Banknote, FileText, Crown,
+  Calendar, Building, User, Banknote, FileText, Crown, ExternalLink,
 } from 'lucide-react'
 
 const fadeUp = { hidden: { opacity: 0, y: 30 }, visible: (i: number = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' } }) }
@@ -59,7 +59,7 @@ export default function CompanyPage() {
   ]
 
   const LEADERS = [
-    { name: t('company.ceoName'), title: t('company.ceoTitle'), icon: Crown },
+    { name: 'Mohammed Essadek', title: 'Founder & CEO', icon: Crown, linkedin: 'https://www.linkedin.com/in/mohammed-essadek-549a17229' },
     { name: t('company.ctoName'), title: t('company.ctoTitle'), icon: Sparkles },
     { name: t('company.cooName'), title: t('company.cooTitle'), icon: Briefcase },
   ]
@@ -182,6 +182,11 @@ export default function CompanyPage() {
                       </div>
                       <h3 className="text-lg font-bold">{leader.name}</h3>
                       <p className="text-sm text-primary mt-1">{leader.title}</p>
+                      {leader.linkedin && (
+                        <a href={leader.linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 mt-3 text-xs text-muted-foreground hover:text-primary transition-colors">
+                          <ExternalLink className="size-3.5" /> Connect on LinkedIn
+                        </a>
+                      )}
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -452,14 +457,31 @@ export default function CompanyPage() {
       </section>
 
       {/* Contact */}
-      <section className="py-16 bg-muted/30">
+      <section className="py-20 bg-muted/30">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
           <AnimatedSection>
             <motion.div variants={fadeUp}>
-              <Mail className="size-8 text-primary mx-auto mb-3" />
-              <h2 className="text-2xl font-bold mb-2">{t('about.contact')}</h2>
-              <p className="text-muted-foreground mb-1">{t('about.email')}</p>
-              <p className="text-muted-foreground">{t('about.website')}</p>
+              <h2 className="text-3xl font-bold mb-8">{t('about.contact')}</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                <a href="mailto:msad41855@gmail.com" className="flex items-center gap-4 p-6 rounded-xl bg-card border border-primary/20 hover:border-primary/40 transition-all duration-300 group">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Mail className="size-6 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs text-muted-foreground mb-1">Email</p>
+                    <p className="text-sm font-semibold group-hover:text-primary transition-colors">msad41855@gmail.com</p>
+                  </div>
+                </a>
+                <a href="https://www.linkedin.com/in/mohammed-essadek-549a17229" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-6 rounded-xl bg-card border border-primary/20 hover:border-primary/40 transition-all duration-300 group">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <ExternalLink className="size-6 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs text-muted-foreground mb-1">LinkedIn</p>
+                    <p className="text-sm font-semibold group-hover:text-primary transition-colors">Mohammed Essadek</p>
+                  </div>
+                </a>
+              </div>
             </motion.div>
           </AnimatedSection>
         </div>

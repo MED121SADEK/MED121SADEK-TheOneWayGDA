@@ -41,6 +41,7 @@ import {
   Send, Bot, User, FileText, Copy, ChevronDown, Languages,
   LayoutDashboard, Settings, LogOut, MoreHorizontal, Database,
   TrendingUp, PieChart, FileSpreadsheet, ClipboardList, PenLine, ShieldCheck,
+  Mail, ExternalLink,
 } from 'lucide-react'
 import { UpdateBanner } from '@/components/update-banner'
 
@@ -1138,6 +1139,15 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <ShieldCheck className="size-4 text-emerald-500" />
               <span className="text-xs text-muted-foreground">GDPR · SOC 2 · ISO 27001 · HIPAA Compliant</span>
+            </div>
+            <div className="flex items-center gap-4 mt-2">
+              <a href="mailto:msad41855@gmail.com" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
+                <Mail className="size-3.5" /> msad41855@gmail.com
+              </a>
+              <span className="text-muted-foreground">|</span>
+              <a href="https://www.linkedin.com/in/mohammed-essadek-549a17229" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
+                <ExternalLink className="size-3.5" /> LinkedIn
+              </a>
             </div>
           </div>
           <div className="mt-4 pt-6 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-4">
