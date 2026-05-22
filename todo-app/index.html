@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List Application</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📝 My To-Do List</h1>
+            <p class="subtitle">Stay organized and track your tasks</p>
+        </header>
+
+        <main>
+            <!-- Input Section -->
+            <div class="input-section">
+                <div class="input-wrapper">
+                    <input 
+                        type="text" 
+                        id="todoInput" 
+                        placeholder="Add a new task..."
+                        class="todo-input"
+                    >
+                    <button id="addBtn" class="add-btn">Add Task</button>
+                </div>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="active">Active</button>
+                    <button class="filter-btn" data-filter="completed">Completed</button>
+                </div>
+            </div>
+
+            <!-- Stats Section -->
+            <div class="stats">
+                <span class="stat-item">Total: <strong id="totalCount">0</strong></span>
+                <span class="stat-item">Active: <strong id="activeCount">0</strong></span>
+                <span class="stat-item">Completed: <strong id="completedCount">0</strong></span>
+            </div>
+
+            <!-- To-Do List -->
+            <div class="todo-list" id="todoList">
+                <p class="empty-state">No tasks yet. Add one to get started! 🎯</p>
+            </div>
+
+            <!-- Clear Completed Button -->
+            <div class="action-buttons">
+                <button id="clearCompleted" class="clear-btn">Clear Completed</button>
+                <button id="clearAll" class="clear-all-btn">Clear All</button>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
