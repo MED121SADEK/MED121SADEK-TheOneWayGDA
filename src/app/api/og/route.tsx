@@ -39,6 +39,7 @@ const TYPE_STYLES: Record<string, {
   },
 }
 
+// Edge runtime required for ImageResponse JSX in Next.js 16
 export const runtime = 'edge'
 export const alt = 'TheOneWayGDA - AI Model Comparison Platform'
 export const size = { width: 1200, height: 630 }

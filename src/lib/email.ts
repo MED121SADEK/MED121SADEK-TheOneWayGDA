@@ -13,7 +13,7 @@ function getTransporter() {
   return nodemailer.createTransport({ jsonTransport: true })
 }
 
-const SITE_URL = 'https://theonewaygda.vercel.app'
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://theonewaygda.com'
 
 // ── Signed token for secure email action links ──
 import { createHmac } from 'crypto'
@@ -120,7 +120,7 @@ ${ipAddress ? `<tr><td style="color:#64748b;font-size:12px;font-weight:600;text-
 
 </td></tr>
 <tr><td style="padding:12px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;">
-<p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; Admin Notification<br>You can also manage all requests at <a href="${SITE_URL}/admin/approvals" style="color:#6366f1;">theonewaygda.vercel.app/admin/approvals</a></p>
+<p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; Admin Notification<br>You can also manage all requests at <a href="${SITE_URL}/admin/approvals" style="color:#6366f1;">theonewaygda.com/admin/approvals</a></p>
 </td></tr></table></td></tr></table></body></html>`
 
     await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: ADMIN_EMAIL, subject, html })

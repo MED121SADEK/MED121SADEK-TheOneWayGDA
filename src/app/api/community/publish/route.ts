@@ -199,7 +199,7 @@ const EVERGREEN_POSTS: { category: 'AI' | 'Research' | 'Innovation'; title: stri
     category: 'Innovation',
     title: 'Asia Emerges as a Global Powerhouse in AI Innovation and Deployment',
     content: 'China, India, Japan, South Korea and Singapore are investing billions in AI. Companies like DeepSeek, Alibaba, and Kuaishou are producing world-class models. Asia is setting the pace in applied AI.',
-    url: 'https://theonewaygda.com',
+    url: process.env.NEXT_PUBLIC_SITE_URL || 'https://theonewaygda.com',
     hashtags: ['#Innovation', '#AsiaAI', '#GlobalTech'],
   },
   {
