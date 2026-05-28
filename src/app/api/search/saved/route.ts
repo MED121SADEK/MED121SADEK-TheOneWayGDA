@@ -51,8 +51,8 @@ export async function POST(request: NextRequest) {
     const saved = await db.savedSearch.create({
       data: {
         visitorId: visitorId.trim().toLowerCase(),
-        userId: userId || null,
         name: name.trim().slice(0, 100),
+        query: name.trim().slice(0, 100),
         filters: JSON.stringify(filters),
       },
     })
