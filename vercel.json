@@ -18,15 +18,15 @@
     },
     {
       "path": "/api/community/publish?shift=0",
-      "schedule": "5 * * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/community/publish?shift=1",
-      "schedule": "35 * * * *"
+      "schedule": "0 18 * * *"
     },
     {
       "path": "/api/community/engagement?cycle=highlights",
-      "schedule": "0 */4 * * *"
+      "schedule": "0 4 * * *"
     },
     {
       "path": "/api/community/engagement?cycle=digest",
@@ -34,7 +34,7 @@
     },
     {
       "path": "/api/community/monitor",
-      "schedule": "45 * * * *"
+      "schedule": "30 6 * * *"
     },
     {
       "path": "/api/community/engagement?cycle=highlights&catchup=true",
