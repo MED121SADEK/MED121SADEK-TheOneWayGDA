@@ -1,12 +1,14 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useTranslation } from '@/lib/i18n'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Zap, Check, ChevronRight } from 'lucide-react'
+import { Zap, Check, ChevronRight, Loader2 } from 'lucide-react'
 import { AnimatedSection } from './AnimatedSection'
 
 const fadeUp = {
@@ -20,12 +22,65 @@ const fadeUp = {
 export function PricingSection() {
   const { t } = useTranslation()
   const store = useAppStore()
+  const router = useRouter()
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
 
   const pricingPlans = [
-    { name: t('plan.free'), price: '$0', period: t('plan.month'), desc: t('plan.freeDesc'), features: [t('planFeature.datasets'), t('planFeature.basicAI'), t('planFeature.offline'), t('planFeature.basicImport'), t('planFeature.community')], cta: t('plan.cta'), highlighted: false },
-    { name: t('plan.pro'), price: '$19', period: t('plan.month'), desc: t('plan.proDesc'), features: [t('planFeature.unlimited'), t('planFeature.advancedAI'), t('planFeature.ocr'), t('planFeature.exportFormats'), t('planFeature.priority'), t('planFeature.realtime')], cta: t('plan.cta'), highlighted: true },
-    { name: t('plan.enterprise'), price: 'Custom', period: '', desc: t('plan.enterpriseDesc'), features: [t('planFeature.customAI'), t('planFeature.onpremise'), t('planFeature.api'), t('planFeature.dedicated'), t('planFeature.sla'), t('planFeature.team')], cta: t('plan.contactSales'), highlighted: false },
+    { name: t('plan.free'), price: '$0', period: t('plan.month'), desc: t('plan.freeDesc'), features: [t('planFeature.datasets'), t('planFeature.basicAI'), t('planFeature.offline'), t('planFeature.basicImport'), t('planFeature.community')], cta: t('plan.cta'), highlighted: false, planKey: 'free' },
+    { name: t('plan.pro'), price: '$19', period: t('plan.month'), desc: t('plan.proDesc'), features: [t('planFeature.unlimited'), t('planFeature.advancedAI'), t('planFeature.ocr'), t('planFeature.exportFormats'), t('planFeature.priority'), t('planFeature.realtime')], cta: t('plan.cta'), highlighted: true, planKey: 'pro' },
+    { name: t('plan.enterprise'), price: 'Custom', period: '', desc: t('plan.enterpriseDesc'), features: [t('planFeature.customAI'), t('planFeature.onpremise'), t('planFeature.api'), t('planFeature.dedicated'), t('planFeature.sla'), t('planFeature.team')], cta: t('plan.contactSales'), highlighted: false, planKey: 'enterprise' },
   ]
+
+  /** Handle Stripe checkout redirect for paid plans */
+  const handleCheckout = async (planKey: string) => {
+    // Try to get auth token from localStorage
+    const token = typeof window !== 'undefined' ? localStorage.getItem('oneway-auth-token') : null
+
+    setCheckoutLoading(planKey)
+    try {
+      const res = await fetch(`/api/checkout?token=${token || ''}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planKey }),
+      })
+      const json = await res.json()
+
+      if (json.success && json.data?.url) {
+        // Redirect to Stripe Checkout
+        window.location.href = json.data.url
+      } else {
+        // No auth or checkout failed — redirect to auth page
+        store.setView('workspace')
+      }
+    } catch {
+      store.setView('workspace')
+    } finally {
+      setCheckoutLoading(null)
+    }
+  }
+
+  /** Handle enterprise contact */
+  const handleContactSales = () => {
+    window.open('mailto:sales@theonewaygda.com?subject=Enterprise%20Plan%20Inquiry', '_blank')
+  }
+
+  /** Handle free plan */
+  const handleFreePlan = () => {
+    store.setView('workspace')
+  }
+
+  /** Get onClick handler for a plan */
+  const getButtonHandler = (planKey: string) => {
+    switch (planKey) {
+      case 'pro':
+        return () => handleCheckout('pro')
+      case 'enterprise':
+        return handleContactSales
+      case 'free':
+      default:
+        return handleFreePlan
+    }
+  }
 
   return (
     <section id="pricing" className="py-20 md:py-32 mesh-gradient relative">
@@ -49,7 +104,20 @@ export function PricingSection() {
                     <CardDescription className="mt-2">{plan.desc}</CardDescription>
                   </CardHeader>
                   <CardContent className="flex-1"><ul className="space-y-3 mt-2">{plan.features.map(f => <li key={f} className="flex items-center gap-2 text-sm"><Check className="size-4 text-emerald-400 flex-shrink-0" /><span className="text-muted-foreground">{f}</span></li>)}</ul></CardContent>
-                  <CardFooter><Button className={`w-full rounded-full ${plan.highlighted ? '' : ''}`} variant={plan.highlighted ? 'default' : 'outline'} onClick={() => store.setView('workspace')}>{plan.cta} <ChevronRight className="size-4" /></Button></CardFooter>
+                  <CardFooter>
+                    <Button
+                      className={`w-full rounded-full ${plan.highlighted ? '' : ''}`}
+                      variant={plan.highlighted ? 'default' : 'outline'}
+                      disabled={checkoutLoading === plan.planKey}
+                      onClick={getButtonHandler(plan.planKey)}
+                    >
+                      {checkoutLoading === plan.planKey ? (
+                        <Loader2 className="size-4 animate-spin mr-2" />
+                      ) : null}
+                      {plan.cta}
+                      <ChevronRight className="size-4 ml-1" />
+                    </Button>
+                  </CardFooter>
                 </Card>
               </motion.div>
             ))}
