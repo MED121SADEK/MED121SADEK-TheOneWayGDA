@@ -47,3 +47,27 @@ Stage Summary:
 - Arena now returns complete { battles, stats, leaderboard } response
 - Voter tracking uses persistent UUID per browser session
 - 3 new schema models added, 15+ missing fields added across models
+
+---
+Task ID: 3
+Agent: Main
+Task: Vercel Environment Variables + Deploy + DNS + Google Search Console
+
+Work Log:
+- Removed conflicting static public/robots.txt (kept dynamic robots.ts)
+- Updated robots.ts: merged all disallow paths from static version + added AI scraper blocking (ChatGPT-User, anthropic-ai, Bytespider)
+- Updated CNAME from theonewaygda.is-a.dev to theonewaygda.com
+- Set NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=google465d22e5febc4e42.html in .env.example
+- Created .env.production with all required Vercel env vars template
+- Created deploy.sh: comprehensive deployment script (env vars + deploy + DNS + Google verification)
+- Created .vercel/project.json linking to theonewaygda Vercel project
+- Verified build: 152 pages compiled successfully (Next.js 16.1.3 Turbopack)
+- Vercel CLI installed but requires API token for remote operations
+
+Stage Summary:
+- Google Search Console: HTML file (google465d22e5febc4e42.html) + meta tag env var + sitemap + robots.txt all configured
+- DNS records documented: CNAME to cname.vercel-dns.com or A record to 76.76.21.21
+- Deploy script ready at deploy.sh (run with: bash deploy.sh after setting VERCEL_TOKEN)
+- Production env vars template at .env.production
+- Build verified: 152 pages, clean compilation
+- Edge Config token preserved in .env.vercel
