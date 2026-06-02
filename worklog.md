@@ -71,3 +71,26 @@ Stage Summary:
 - Production env vars template at .env.production
 - Build verified: 152 pages, clean compilation
 - Edge Config token preserved in .env.vercel
+
+---
+Task ID: 4
+Agent: Main
+Task: Fix User Acceptance System — All 3 Methods
+
+Work Log:
+- Read all acceptance-related source files (13 files across 3 methods)
+- Fixed BUG: status mismatch — admin/action/route.ts set Visitor.status to 'active' but EmailGate checks for 'accepted' → changed to 'accepted'
+- Fixed BUG: status mismatch — admin/users/[id]/approve/route.ts also set 'active' → changed to 'accepted'
+- Fixed BUG: auto-accept bypass — GET /api/visitor now normalizes legacy 'active' status to 'accepted' and fixes any existing 'active' records in DB
+- Fixed BUG: sendVisitorNotification was a no-op stub → replaced with full HTML email notification to admin at msad41855@gmail.com
+- Updated .env.example with ADMIN_SECRET and ADMIN_EMAIL_APP_PASSWORD as required vars (not optional)
+- Created prisma/seed-admin.ts — seeds admin user (msad41855@gmail.com / Admin@123456) with session token
+- Verified build: 152 pages compiled, 0 errors
+
+Stage Summary:
+- Method 1 (Email One-Click): ✅ sendVisitorNotification now sends real emails; sendAdminAccessRequestEmail already worked for registered users
+- Method 2 (Admin Dashboard): ✅ Fixed approve route setting correct 'accepted' status; admin seed script creates login-able admin user
+- Method 3 (Visitor Management): ✅ Already working; ADMIN_SECRET now documented as required env var
+- Status normalization: 'active' → 'accepted' across all code paths (prevent future mismatches)
+- Files changed: 5 (admin/action/route.ts, admin/users/[id]/approve/route.ts, api/visitor/route.ts, lib/email.ts, .env.example)
+- Files created: 1 (prisma/seed-admin.ts)

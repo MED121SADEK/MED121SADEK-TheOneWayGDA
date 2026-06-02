@@ -224,7 +224,7 @@ export async function sendUserRejectionEmail(userEmail: string, userName: string
   }
 }
 
-// ── Legacy: Visitor notifications ──
+// ── Visitor notifications ──
 export { ADMIN_EMAIL }
 
 export interface VisitorNotificationData {
@@ -232,8 +232,67 @@ export interface VisitorNotificationData {
   language: string | null; ipAddress: string | null; userAgent: string | null; path: string | null
 }
 
-export async function sendVisitorNotification(_data: VisitorNotificationData): Promise<boolean> {
-  return true
+export async function sendVisitorNotification(data: VisitorNotificationData): Promise<boolean> {
+  try {
+    const transporter = getTransporter()
+    const displayName = data.name || 'Anonymous'
+    const now = new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris', dateStyle: 'full', timeStyle: 'short' })
+
+    // Generate action tokens for the visitor (use email as a pseudo-userId since visitors don't have User records)
+    const approveToken = Buffer.from(`visitor:${data.email}:approve:${Date.now()}`).toString('base64url')
+    const visitorsPageUrl = `${SITE_URL}/admin/visitors`
+
+    const subject = `[TheOneWayGDA] New Visitor: ${displayName} (${data.visitorType})`
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+<tr><td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:24px 32px;">
+<h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">New Visitor Registration</h1>
+<p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Someone just signed up via the EmailGate</p>
+</td></tr>
+<tr><td style="padding:24px 32px;">
+<table width="100%" cellpadding="10" cellspacing="0" style="background:#f8fafc;border-radius:10px;margin-bottom:20px;">
+<tr><td width="120" style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Name</td>
+<td style="color:#1e293b;font-size:13px;font-weight:600;">${displayName}</td></tr>
+<tr><td style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Email</td>
+<td style="color:#6366f1;font-size:13px;font-weight:600;border-top:1px solid #e2e8f0;">${data.email}</td></tr>
+<tr><td style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Type</td>
+<td style="color:#1e293b;font-size:13px;border-top:1px solid #e2e8f0;text-transform:capitalize;">${data.visitorType}</td></tr>
+<tr><td style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Date</td>
+<td style="color:#1e293b;font-size:13px;border-top:1px solid #e2e8f0;">${now}</td></tr>
+${data.country ? `<tr><td style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Country</td><td style="color:#1e293b;font-size:13px;border-top:1px solid #e2e8f0;">${data.country}</td></tr>` : ''}
+</table>
+
+<p style="margin:0 0 14px;color:#334155;font-size:13px;font-weight:600;">Manage this visitor:</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr>
+<td width="100%" align="center">
+<a href="${visitorsPageUrl}" style="display:inline-block;padding:12px 20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:600;text-align:center;">Open Visitor Management</a>
+</td></tr></table>
+
+<p style="margin:16px 0 0;color:#94a3b8;font-size:11px;text-align:center;line-height:1.6;">
+Go to <strong>${SITE_URL}/admin/visitors</strong> to accept or reject this visitor.<br/>
+For registered users, go to <strong>${SITE_URL}/admin/approvals</strong>.
+</p>
+</td></tr>
+<tr><td style="padding:10px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;">
+<p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; Visitor Notification</p>
+</td></tr></table></td></tr></table></body></html>`
+
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: ADMIN_EMAIL, subject, html })
+
+    if (!process.env.ADMIN_EMAIL_APP_PASSWORD) {
+      console.log(`[Email] DEV MODE — Visitor notification for ${data.email}. Set ADMIN_EMAIL_APP_PASSWORD to enable real emails.`)
+    } else {
+      console.log(`[Email] Visitor notification sent to ${ADMIN_EMAIL} for ${data.email}`)
+    }
+    return true
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'An error occurred'
+    console.error('[Email] Failed to send visitor notification:', message)
+    return false
+  }
 }
 
 // ═══════════════════════════════════════════════════════════

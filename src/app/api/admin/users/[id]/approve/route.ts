@@ -54,8 +54,8 @@ export async function POST(
 
     await db.visitor.upsert({
       where: { email: user.email },
-      update: { name: user.name, status: 'active' },
-      create: { email: user.email, name: user.name, status: 'active' },
+      update: { name: user.name, status: 'accepted' },
+      create: { email: user.email, name: user.name, status: 'accepted' },
     })
 
     const { password: _pw, ...safeUser } = updatedUser

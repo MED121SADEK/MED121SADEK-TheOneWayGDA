@@ -98,10 +98,10 @@ export async function GET(request: NextRequest) {
       // Auto-accept users who have an active User account (admin/FOUNDER/pro/user)
       const existingUser = await db.user.findUnique({ where: { email: normalizedEmail } })
       if (existingUser && existingUser.role !== 'pending' && existingUser.role !== 'rejected') {
-        // Also update visitor status if it exists
+        // Also update visitor status if it exists (fix any legacy 'active' values too)
         try {
-          await db.visitor.update({
-            where: { email: normalizedEmail },
+          await db.visitor.updateMany({
+            where: { email: normalizedEmail, status: { in: ['pending', 'active'] } },
             data: { status: 'accepted' },
           })
         } catch { /* visitor may not exist */ }
@@ -113,12 +113,20 @@ export async function GET(request: NextRequest) {
         })
       }
 
+      // Also treat legacy 'active' visitor status as accepted
       const visitor = await db.visitor.findUnique({ where: { email: normalizedEmail } })
       if (!visitor) {
         return NextResponse.json({ status: 'unknown' })
       }
+      // Normalize 'active' to 'accepted' for consistent checks
+      const normalizedStatus = visitor.status === 'active' ? 'accepted' : visitor.status
+      if (visitor.status === 'active') {
+        try {
+          await db.visitor.update({ where: { email: normalizedEmail }, data: { status: 'accepted' } })
+        } catch { /* ignore */ }
+      }
       return NextResponse.json({
-        status: visitor.status,
+        status: normalizedStatus,
         visitorType: visitor.visitorType,
         name: visitor.name,
         createdAt: visitor.createdAt,
