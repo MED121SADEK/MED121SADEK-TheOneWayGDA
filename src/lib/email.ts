@@ -238,8 +238,11 @@ export async function sendVisitorNotification(data: VisitorNotificationData): Pr
     const displayName = data.name || 'Anonymous'
     const now = new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris', dateStyle: 'full', timeStyle: 'short' })
 
-    // Generate action tokens for the visitor (use email as a pseudo-userId since visitors don't have User records)
-    const approveToken = Buffer.from(`visitor:${data.email}:approve:${Date.now()}`).toString('base64url')
+    // Generate secure HMAC-signed action tokens for the visitor (use email as pseudo-userId)
+    const approveToken = generateActionToken(data.email, 'approve')
+    const rejectToken = generateActionToken(data.email, 'reject')
+    const approveUrl = `${SITE_URL}/admin/visitor-action?token=${approveToken}`
+    const rejectUrl = `${SITE_URL}/admin/visitor-action?token=${rejectToken}`
     const visitorsPageUrl = `${SITE_URL}/admin/visitors`
 
     const subject = `[TheOneWayGDA] New Visitor: ${displayName} (${data.visitorType})`
@@ -265,15 +268,20 @@ export async function sendVisitorNotification(data: VisitorNotificationData): Pr
 ${data.country ? `<tr><td style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Country</td><td style="color:#1e293b;font-size:13px;border-top:1px solid #e2e8f0;">${data.country}</td></tr>` : ''}
 </table>
 
-<p style="margin:0 0 14px;color:#334155;font-size:13px;font-weight:600;">Manage this visitor:</p>
+<p style="margin:0 0 14px;color:#334155;font-size:13px;font-weight:600;">Review and take action:</p>
 <table width="100%" cellpadding="0" cellspacing="0"><tr>
-<td width="100%" align="center">
-<a href="${visitorsPageUrl}" style="display:inline-block;padding:12px 20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:600;text-align:center;">Open Visitor Management</a>
-</td></tr></table>
+<td width="48%" align="center" style="padding-right:6px;">
+<a href="${approveUrl}" style="display:inline-block;width:100%;padding:12px 20px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:600;text-align:center;">Approve</a>
+</td>
+<td width="4%"></td>
+<td width="48%" align="center" style="padding-left:6px;">
+<a href="${rejectUrl}" style="display:inline-block;width:100%;padding:12px 20px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:600;text-align:center;">Reject</a>
+</td>
+</tr></table>
 
 <p style="margin:16px 0 0;color:#94a3b8;font-size:11px;text-align:center;line-height:1.6;">
-Go to <strong>${SITE_URL}/admin/visitors</strong> to accept or reject this visitor.<br/>
-For registered users, go to <strong>${SITE_URL}/admin/approvals</strong>.
+These links are secure and expire in 24 hours.<br/>
+Or manage all visitors at <strong>${SITE_URL}/admin/visitors</strong>.
 </p>
 </td></tr>
 <tr><td style="padding:10px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;">

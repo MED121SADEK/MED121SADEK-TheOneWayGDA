@@ -5,6 +5,9 @@
  * This creates an admin account for the /admin/approvals dashboard (Method 2).
  * You can then log in at /auth/login with these credentials.
  */
+import { config } from 'dotenv'
+config({ override: true })
+
 import { PrismaClient } from '@prisma/client'
 import { hashPassword, generateToken } from '../src/lib/auth'
 
