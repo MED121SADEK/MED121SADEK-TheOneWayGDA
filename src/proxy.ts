@@ -98,13 +98,11 @@ export function proxy(request: NextRequest) {
   const method = request.method
   const ip = getClientIp(request)
 
-  // ── Protect admin routes ──────────────────────────────────────────────────
-  if (pathname.startsWith('/admin')) {
-    const adminToken = request.cookies.get('oneway-admin-token')?.value
-    if (!adminToken) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  }
+  // ── Admin routes: handled at page level ──────────────────────────────────
+  // /admin/visitors  — has its own login form (ADMIN_SECRET)
+  // /admin/approvals — protected by (dashboard) AuthGuard (session token)
+  // /admin/action    — public email one-click action (token in URL)
+  // No middleware block needed — each page handles its own auth.
 
   // ── API route processing ──────────────────────────────────────────────────
   if (pathname.startsWith('/api/')) {
