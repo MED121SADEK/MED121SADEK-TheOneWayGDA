@@ -20,7 +20,7 @@ import { createHmac } from 'crypto'
 
 const EMAIL_SECRET = process.env.EMAIL_ACTION_SECRET || 'oneway-email-secret-2025'
 
-export function generateActionToken(userId: string, action: 'approve' | 'reject' | 'reset'): string {
+export function generateActionToken(userId: string, action: 'approve' | 'reject' | 'reset' | 'sub_approve' | 'sub_reject'): string {
   const payload = `${userId}:${action}:${Date.now()}`
   const signature = createHmac('sha256', EMAIL_SECRET).update(payload).digest('hex')
   return Buffer.from(`${payload}:${signature}`).toString('base64url')
@@ -353,6 +353,169 @@ export async function sendPasswordResetEmail(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'An error occurred'
     console.error('[Email] Failed to send password reset email:', message)
+    return false
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Email 5: Admin Notification — New Subscription Purchase
+// ═══════════════════════════════════════════════════════════
+
+export async function sendAdminSubscriptionNotificationEmail(
+  userName: string | null,
+  userEmail: string,
+  plan: string,
+  subscriptionId: string,
+  userId: string
+): Promise<boolean> {
+  try {
+    const transporter = getTransporter()
+    const displayName = userName || userEmail
+    const now = new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris', dateStyle: 'full', timeStyle: 'short' })
+    const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1)
+    const subscriptionsPageUrl = `${SITE_URL}/admin/subscriptions`
+
+    const subject = `[TheOneWayGDA] New Subscription Purchase: ${planLabel} Plan — ${displayName}`
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+<tr><td style="background:linear-gradient(135deg,#f59e0b,#d97706);padding:28px 32px;">
+<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">New Subscription Purchase</h1>
+<p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">A user has purchased a ${planLabel} plan and needs your confirmation</p>
+</td></tr>
+<tr><td style="padding:28px 32px;">
+<p style="margin:0 0 20px;color:#334155;font-size:14px;line-height:1.6;">The following user has purchased a subscription and is waiting for your approval to activate it:</p>
+
+<table width="100%" cellpadding="12" cellspacing="0" style="background:#f8fafc;border-radius:12px;margin-bottom:24px;">
+<tr><td width="130" style="color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Name</td>
+<td style="color:#1e293b;font-size:14px;font-weight:600;">${displayName}</td></tr>
+<tr><td style="color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Email</td>
+<td style="color:#6366f1;font-size:14px;font-weight:600;border-top:1px solid #e2e8f0;">${userEmail}</td></tr>
+<tr><td style="color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Plan</td>
+<td style="color:#1e293b;font-size:14px;font-weight:700;border-top:1px solid #e2e8f0;">${planLabel}</td></tr>
+<tr><td style="color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Date</td>
+<td style="color:#1e293b;font-size:14px;border-top:1px solid #e2e8f0;">${now}</td></tr>
+<tr><td style="color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Status</td>
+<td style="color:#f59e0b;font-size:14px;font-weight:700;border-top:1px solid #e2e8f0;">Pending Approval</td></tr>
+</table>
+
+<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px;">
+<p style="margin:0;color:#92400e;font-size:13px;font-weight:600;">Action Required</p>
+<p style="margin:6px 0 0;color:#92400e;font-size:12px;line-height:1.6;">This subscription is currently <strong>pending</strong>. Please review and approve or reject it from your admin dashboard. The payment has already been processed via Stripe.</p>
+</div>
+
+<table width="100%" cellpadding="0" cellspacing="0"><tr>
+<td align="center">
+<a href="${subscriptionsPageUrl}" style="display:inline-block;width:100%;padding:14px 20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:700;text-align:center;">Go to Subscription Management</a>
+</td>
+</tr></table>
+
+<p style="margin:20px 0 0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; Subscription Notification</p>
+
+</td></tr>
+</table></td></tr></table></body></html>`
+
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: ADMIN_EMAIL, subject, html })
+
+    if (!process.env.ADMIN_EMAIL_APP_PASSWORD) {
+      console.log(`[Email] DEV MODE — Subscription notification for ${userEmail} (${plan}). Set ADMIN_EMAIL_APP_PASSWORD to enable real emails.`)
+    } else {
+      console.log(`[Email] Subscription notification sent to ${ADMIN_EMAIL} for ${userEmail} (${plan})`)
+    }
+    return true
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'An error occurred'
+    console.error('[Email] Failed to send subscription notification:', message)
+    return false
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Email 6: User Subscription Approved
+// ═══════════════════════════════════════════════════════════
+
+export async function sendUserSubscriptionApprovedEmail(
+  userEmail: string,
+  userName: string | null,
+  plan: string
+): Promise<boolean> {
+  try {
+    const transporter = getTransporter()
+    const displayName = userName || userEmail
+    const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1)
+    const subject = `[TheOneWayGDA] Subscription Activated — ${planLabel} Plan`
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+<tr><td style="background:linear-gradient(135deg,#10b981,#059669);padding:28px 32px;">
+<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Subscription Activated!</h1>
+<p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Your ${planLabel} plan is now active</p>
+</td></tr>
+<tr><td style="padding:28px 32px;">
+<p style="margin:0 0 8px;color:#1e293b;font-size:16px;font-weight:600;">Hi ${displayName},</p>
+<p style="margin:0 0 20px;color:#334155;font-size:14px;line-height:1.7;">Great news! Your <strong style="color:#10b981;">${planLabel}</strong> subscription has been approved and is now active. You can start enjoying all the premium features right away.</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<a href="${SITE_URL}/billing" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;text-decoration:none;border-radius:10px;font-size:15px;font-weight:600;">View My Subscription</a>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:16px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;">
+<p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; Subscription Notification</p>
+</td></tr></table></td></tr></table></body></html>`
+
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: userEmail, subject, html })
+    console.log(`[Email] Subscription approved email sent to ${userEmail}`)
+    return true
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'An error occurred'
+    console.error('[Email] Failed to send subscription approved email:', message)
+    return false
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Email 7: User Subscription Rejected
+// ═══════════════════════════════════════════════════════════
+
+export async function sendUserSubscriptionRejectedEmail(
+  userEmail: string,
+  userName: string | null,
+  plan: string
+): Promise<boolean> {
+  try {
+    const transporter = getTransporter()
+    const displayName = userName || userEmail
+    const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1)
+    const subject = `[TheOneWayGDA] Subscription Update — ${planLabel} Plan`
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+<tr><td style="background:linear-gradient(135deg,#6b7280,#4b5563);padding:28px 32px;">
+<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Subscription Update</h1>
+<p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">TheOneWayGDA Platform</p>
+</td></tr>
+<tr><td style="padding:28px 32px;">
+<p style="margin:0 0 8px;color:#1e293b;font-size:16px;font-weight:600;">Hi ${displayName},</p>
+<p style="margin:0 0 20px;color:#334155;font-size:14px;line-height:1.7;">After reviewing your ${planLabel} subscription request, we are unable to activate it at this time. A refund will be processed if applicable. You may contact support for more information.</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<a href="${SITE_URL}/billing" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;">View Billing</a>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:16px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;">
+<p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; Subscription Notification</p>
+</td></tr></table></td></tr></table></body></html>`
+
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: userEmail, subject, html })
+    console.log(`[Email] Subscription rejected email sent to ${userEmail}`)
+    return true
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'An error occurred'
+    console.error('[Email] Failed to send subscription rejected email:', message)
     return false
   }
 }

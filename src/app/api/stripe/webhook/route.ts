@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { db } from '@/lib/db'
 import { apiRouteLogger } from '@/lib/api-logger'
+import { sendAdminSubscriptionNotificationEmail } from '@/lib/email'
 
 const log = apiRouteLogger('/api/stripe/webhook')
 
@@ -47,13 +48,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const periodStart = new Date(sub.current_period_start * 1000)
   const periodEnd = new Date(sub.current_period_end * 1000)
 
-  // Upsert the subscription record
+  // Upsert the subscription record with PENDING_APPROVAL status
+  // Admin must manually approve from /admin/subscriptions dashboard
   await db.subscription.upsert({
     where: { userId },
     create: {
       userId,
       plan,
-      status: 'active',
+      status: 'pending_approval',
       stripeCustomerId: customerId,
       stripeSubscriptionId: subscriptionId,
       currentPeriodStart: periodStart,
@@ -62,7 +64,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     },
     update: {
       plan,
-      status: 'active',
+      status: 'pending_approval',
       stripeCustomerId: customerId,
       stripeSubscriptionId: subscriptionId,
       currentPeriodStart: periodStart,
@@ -71,24 +73,30 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     },
   })
 
-  // Update user role if upgrading to pro
-  if (plan === 'pro') {
-    await db.user.update({
-      where: { id: userId },
-      data: { role: 'pro' },
-    })
-  }
+  // Do NOT auto-upgrade user role — admin must approve first
 
   // Log the activity
   await db.userActivity.create({
     data: {
       userId,
       type: 'plan_changed',
-      details: JSON.stringify({ action: 'stripe_checkout_completed', plan, subscriptionId }),
+      details: JSON.stringify({ action: 'stripe_checkout_completed', plan, subscriptionId, status: 'pending_approval' }),
     },
   })
 
-  log.info('Subscription activated', { userId, plan, subscriptionId })
+  // Fetch user info for the admin notification email
+  const user = await db.user.findUnique({ where: { id: userId }, select: { name: true, email: true } })
+
+  // Send admin email notification (fire-and-forget)
+  sendAdminSubscriptionNotificationEmail(
+    user?.name || null,
+    user?.email || '',
+    plan,
+    subscriptionId,
+    userId
+  ).catch(() => {})
+
+  log.info('Subscription pending approval — admin notified', { userId, plan, subscriptionId })
 }
 
 // ── customer.subscription.updated ──

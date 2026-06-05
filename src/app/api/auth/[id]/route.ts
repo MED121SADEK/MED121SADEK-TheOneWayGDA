@@ -9,6 +9,25 @@ export async function GET(
   try {
     const { id } = await params
 
+    // Authenticate — users can only view their own profile (admins can view any)
+    const token = getTokenFromRequest(request)
+    if (!token) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+
+    const session = await db.userSession.findUnique({
+      where: { token },
+      include: { user: true },
+    })
+
+    if (!session || session.expiresAt < new Date()) {
+      return NextResponse.json({ error: 'Session expired' }, { status: 401 })
+    }
+
+    if (session.userId !== id && session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     const user = await db.user.findUnique({
       where: { id },
       select: {

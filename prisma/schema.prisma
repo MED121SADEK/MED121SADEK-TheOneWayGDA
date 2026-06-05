@@ -862,7 +862,7 @@ model Subscription {
   userId      String   @unique
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan        String   @default("free") // "free" | "pro" | "enterprise"
-  status      String   @default("active") // "active" | "past_due" | "canceled" | "trialing"
+  status      String   @default("active") // "active" | "past_due" | "canceled" | "trialing" | "pending_approval"
   stripeCustomerId   String? // Stripe customer ID (for future integration)
   stripeSubscriptionId String? // Stripe subscription ID
   currentPeriodStart DateTime @default(now())
