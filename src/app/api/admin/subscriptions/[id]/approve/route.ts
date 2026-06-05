@@ -51,13 +51,11 @@ export async function POST(
       data: { status: 'active' },
     })
 
-    // Update user role to 'pro' if the plan is 'pro'
-    if (subscription.plan === 'pro') {
-      await db.user.update({
-        where: { id: subscription.userId },
-        data: { role: 'pro' },
-      })
-    }
+    // Update user role based on plan
+    await db.user.update({
+      where: { id: subscription.userId },
+      data: { role: subscription.plan === 'enterprise' ? 'admin' : 'pro' },
+    })
 
     // Create activity log
     await db.userActivity.create({

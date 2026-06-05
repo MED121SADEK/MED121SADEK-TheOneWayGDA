@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
       db.userActivity.count({ where: { userId } }),
       db.userActivity.count({ where: { userId, type: 'login' } }),
       db.userActivity.count({ where: { userId, type: 'analysis_run' } }),
-      db.project.count({ where: { userId } }),
-      db.workflowPipeline.count({ where: { userId } }),
-      db.automationRule.count({ where: { userId } }),
+      db.project.count(), // Global count (model has no userId)
+      db.workflowPipeline.count({ where: { visitorId: session.user.email } }),
+      db.automationRule.count({ where: { visitorId: session.user.email } }),
       db.userActivity.count({ where: { userId, type: 'report_generated' } }),
       // Last 7 days activity
       db.userActivity.groupBy({

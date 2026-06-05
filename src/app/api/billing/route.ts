@@ -287,11 +287,11 @@ export async function PATCH(request: NextRequest) {
     const currentPlanIndex = PLAN_ORDER.indexOf(subscription.plan)
     const newPlanIndex = PLAN_ORDER.indexOf(plan)
 
-    // Allow free → pro → enterprise transitions (no downgrades for now)
-    if (newPlanIndex < currentPlanIndex) {
+    // Only allow free plan fallback (no paid upgrades without Stripe payment)
+    if (plan !== 'free') {
       end(400)
       return NextResponse.json(
-        { success: false, error: `Cannot downgrade from "${subscription.plan}" to "${plan}". Contact support to change plans.` },
+        { success: false, error: 'Paid plan upgrades require payment. Please use the checkout flow instead.' },
         { status: 400 }
       )
     }

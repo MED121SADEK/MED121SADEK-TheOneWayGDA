@@ -75,7 +75,11 @@ export async function PATCH(
       include: { user: true },
     })
 
-    if (!session || (session.userId !== id && session.user.role !== 'admin')) {
+    if (!session || session.expiresAt < new Date()) {
+      return NextResponse.json({ error: 'Session expired' }, { status: 401 })
+    }
+
+    if (session.userId !== id && session.user.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
