@@ -52,7 +52,7 @@ export default function AdminSubscriptionsPage() {
       if (!res.ok) return
 
       const data = await res.json()
-      setSubscriptions(data.subscriptions || data || [])
+      setSubscriptions(data.pending || data.subscriptions || data || [])
     } catch {
       // silent
     } finally {
