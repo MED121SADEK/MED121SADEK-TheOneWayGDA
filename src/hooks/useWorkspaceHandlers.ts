@@ -229,7 +229,16 @@ export function useWorkspaceHandlers() {
         })
       }
     }
-    if (results.length === 0) return
+    if (results.length === 0) {
+      store.addOutput({
+        id: Date.now().toString(36),
+        title: 'Descriptive Statistics',
+        type: 'text',
+        content: `No descriptive statistics could be computed. This usually means the selected variables contain no valid numeric values. Try selecting numeric-type variables from the Data Editor. Selected: ${store.selectedVariables.join(', ') || 'none'}.`,
+        timestamp: new Date().toISOString(),
+      })
+      return
+    }
     store.addOutput({
       id: Date.now().toString(36),
       title: t('analysis.descriptive'),
@@ -244,7 +253,10 @@ export function useWorkspaceHandlers() {
   }, [store, t, getNumericVals])
 
   const handleRunCorrelation = useCallback(() => {
-    if (store.selectedVariables.length < 2) return
+    if (store.selectedVariables.length < 2) {
+      store.addOutput({ id: Date.now().toString(36), title: 'Correlation', type: 'text', content: 'Correlation requires at least 2 numeric variables. Please select 2 or more numeric variables in the Data Editor and try again.', timestamp: new Date().toISOString() })
+      return
+    }
     const vars = store.selectedVariables.slice(0, 5)
     const matrix: string[][] = [vars]
     for (const v1 of vars) {
@@ -269,14 +281,20 @@ export function useWorkspaceHandlers() {
   }, [store, t, getNumericVals])
 
   const handleRunRegression = useCallback(() => {
-    if (store.selectedVariables.length < 2) return
+    if (store.selectedVariables.length < 2) {
+      store.addOutput({ id: Date.now().toString(36), title: 'Regression', type: 'text', content: 'Regression requires at least 2 numeric variables (first = dependent, second = independent). Please select 2 or more numeric variables and try again.', timestamp: new Date().toISOString() })
+      return
+    }
     const dv = store.selectedVariables[0]
     const iv = store.selectedVariables[1]
     const x = getNumericVals(iv)
     const y = getNumericVals(dv)
     const reg = calcRegression(x, y)
     const corr = calcCorrelation(x, y)
-    if (!reg || !corr) return
+    if (!reg || !corr) {
+      store.addOutput({ id: Date.now().toString(36), title: 'Regression', type: 'text', content: `Could not compute regression for ${dv} ~ ${iv}. Ensure both variables have at least 3 valid numeric values and the independent variable (${iv}) has some variation (not all the same value).`, timestamp: new Date().toISOString() })
+      return
+    }
     store.addOutput({
       id: Date.now().toString(36),
       title: t('analysis.regression') + ` (${dv} ~ ${iv})`,
@@ -305,7 +323,10 @@ export function useWorkspaceHandlers() {
   }, [store, t, getNumericVals])
 
   const handleRunFrequencies = useCallback(() => {
-    if (store.selectedVariables.length === 0) return
+    if (store.selectedVariables.length === 0) {
+      store.addOutput({ id: Date.now().toString(36), title: 'Frequencies', type: 'text', content: 'No variables selected. Please select at least one variable in the Data Editor to generate frequency tables.', timestamp: new Date().toISOString() })
+      return
+    }
     for (const varName of store.selectedVariables) {
       const vals = store.data[varName] || []
       const result = calcFrequencies(vals, varName)
@@ -346,11 +367,17 @@ export function useWorkspaceHandlers() {
   }, [store, getNumericVals])
 
   const handleRunCrosstabs = useCallback(() => {
-    if (!crosstabRowVar || !crosstabColVar) return
+    if (!crosstabRowVar || !crosstabColVar) {
+      store.addOutput({ id: Date.now().toString(36), title: 'Crosstabs', type: 'text', content: 'Please select both a Row variable and a Column variable to generate a contingency table.', timestamp: new Date().toISOString() })
+      return
+    }
     const rowVals = store.data[crosstabRowVar] || []
     const colVals = store.data[crosstabColVar] || []
     const result = calcCrosstabs(rowVals, colVals, crosstabRowVar, crosstabColVar)
-    if (!result) return
+    if (!result) {
+      store.addOutput({ id: Date.now().toString(36), title: 'Crosstabs', type: 'text', content: `Could not build crosstabs for ${crosstabRowVar} x ${crosstabColVar}. Ensure both variables have at least 5 valid observations with at least 2 categories each.`, timestamp: new Date().toISOString() })
+      return
+    }
     const headers = [result.rowVariable + ' \\ ' + result.colVariable, ...result.contingencyTable.headers, 'Total']
     const rows: string[][] = result.contingencyTable.rows.map(r => [
       r.label, ...r.cells.map(String), String(r.total),
@@ -384,7 +411,10 @@ export function useWorkspaceHandlers() {
   }, [crosstabRowVar, crosstabColVar, store])
 
   const handleRunTTest = useCallback(() => {
-    if (!ttestGroupVar || !ttestValueVar) return
+    if (!ttestGroupVar || !ttestValueVar) {
+      store.addOutput({ id: Date.now().toString(36), title: 'T-Test', type: 'text', content: 'Please select both a Grouping variable and a Test variable. The grouping variable should be categorical (e.g., Male/Female) and the test variable should be numeric.', timestamp: new Date().toISOString() })
+      return
+    }
     const groupVals = store.data[ttestGroupVar] || []
     const valueVals = store.data[ttestValueVar] || []
     const n = Math.min(groupVals.length, valueVals.length)
@@ -398,11 +428,17 @@ export function useWorkspaceHandlers() {
       groupMap.get(key)!.push(v)
     }
     const groups = [...groupMap.entries()]
-    if (groups.length < 2) return
+    if (groups.length < 2) {
+      store.addOutput({ id: Date.now().toString(36), title: 'T-Test', type: 'text', content: `T-Test requires exactly 2 groups in the grouping variable (${ttestGroupVar}). Found ${groups.length} group(s): ${groups.map(g => `${g[0]} (n=${g[1].length})`).join(', ') || 'none'}. Select a different grouping variable with exactly 2 categories.`, timestamp: new Date().toISOString() })
+      return
+    }
     const [g1Name, g1Vals] = groups[0]
     const [g2Name, g2Vals] = groups[1]
     const result = calcTTest(g1Vals, g2Vals, g1Name, g2Name)
-    if (!result) return
+    if (!result) {
+      store.addOutput({ id: Date.now().toString(36), title: 'T-Test', type: 'text', content: `Could not compute T-Test. Ensure the grouping variable (${ttestGroupVar}) has exactly 2 groups, each with at least 2 numeric values in the test variable (${ttestValueVar}). Groups found: ${groups.map(g => `${g[0]} (n=${g[1].length})`).join(', ')}.`, timestamp: new Date().toISOString() })
+      return
+    }
     store.addOutput({
       id: Date.now().toString(36),
       title: 'Independent Samples T-Test',
@@ -445,7 +481,10 @@ export function useWorkspaceHandlers() {
   }, [ttestGroupVar, ttestValueVar, store])
 
   const handleRunANOVA = useCallback(() => {
-    if (!anovaGroupVar || !anovaValueVar) return
+    if (!anovaGroupVar || !anovaValueVar) {
+      store.addOutput({ id: Date.now().toString(36), title: 'ANOVA', type: 'text', content: 'Please select both a Grouping variable and a Test variable. The grouping variable should be categorical (with 2+ groups) and the test variable should be numeric.', timestamp: new Date().toISOString() })
+      return
+    }
     const groupVals = store.data[anovaGroupVar] || []
     const valueVals = store.data[anovaValueVar] || []
     const n = Math.min(groupVals.length, valueVals.length)
@@ -459,7 +498,10 @@ export function useWorkspaceHandlers() {
       groupMap[key].push(v)
     }
     const result = calcANOVA(groupMap)
-    if (!result) return
+    if (!result) {
+      store.addOutput({ id: Date.now().toString(36), title: 'ANOVA', type: 'text', content: `Could not compute ANOVA. Ensure the grouping variable has 2+ groups, each with at least 2 valid numeric values. Groups found: ${Object.entries(groupMap).map(([k, v]) => `${k} (n=${v.length})`).join(', ')}.`, timestamp: new Date().toISOString() })
+      return
+    }
     store.addOutput({
       id: Date.now().toString(36),
       title: 'One-Way ANOVA',
@@ -516,14 +558,23 @@ export function useWorkspaceHandlers() {
   }, [anovaGroupVar, anovaValueVar, store])
 
   const handleRunChiSquare = useCallback(() => {
-    if (store.selectedVariables.length === 0) return
+    if (store.selectedVariables.length === 0) {
+      store.addOutput({ id: Date.now().toString(36), title: 'Chi-Square', type: 'text', content: 'No variable selected. Please select at least one variable to run the Chi-Square goodness-of-fit test.', timestamp: new Date().toISOString() })
+      return
+    }
     const varName = store.selectedVariables[0]
     const vals = store.data[varName] || []
     const freq = calcFrequencies(vals, varName)
-    if (!freq || freq.table.length < 2) return
+    if (!freq || freq.table.length < 2) {
+      store.addOutput({ id: Date.now().toString(36), title: 'Chi-Square', type: 'text', content: `Chi-Square test requires at least 2 categories in ${varName}. Only ${freq?.table.length || 0} categories found.`, timestamp: new Date().toISOString() })
+      return
+    }
     const observed = freq.table.map(r => r.frequency)
     const result = calcChiSquare(observed)
-    if (!result) return
+    if (!result) {
+      store.addOutput({ id: Date.now().toString(36), title: 'Chi-Square', type: 'text', content: 'Chi-Square computation failed. Ensure the data contains valid frequency counts.', timestamp: new Date().toISOString() })
+      return
+    }
     store.addOutput({
       id: Date.now().toString(36),
       title: `Chi-Square Goodness of Fit: ${varName}`,
@@ -558,12 +609,18 @@ export function useWorkspaceHandlers() {
   }, [store])
 
   const handleRunNonparametric = useCallback(() => {
-    if (!nonparamVar1 || !nonparamVar2) return
+    if (!nonparamVar1 || !nonparamVar2) {
+      store.addOutput({ id: Date.now().toString(36), title: nonparamType === 'mann-whitney' ? 'Mann-Whitney U' : 'Wilcoxon', type: 'text', content: 'Please select two variables to run this nonparametric test.', timestamp: new Date().toISOString() })
+      return
+    }
     if (nonparamType === 'mann-whitney') {
       const v1 = getNumericVals(nonparamVar1)
       const v2 = getNumericVals(nonparamVar2)
       const result = calcMannWhitney(v1, v2)
-      if (!result) return
+      if (!result) {
+        store.addOutput({ id: Date.now().toString(36), title: 'Mann-Whitney U', type: 'text', content: `Could not compute Mann-Whitney U test. Ensure both ${nonparamVar1} (n=${v1.length}) and ${nonparamVar2} (n=${v2.length}) have at least 2 valid numeric values each.`, timestamp: new Date().toISOString() })
+        return
+      }
       store.addOutput({
         id: Date.now().toString(36),
         title: 'Mann-Whitney U Test',
@@ -588,7 +645,10 @@ export function useWorkspaceHandlers() {
       const v1 = store.data[nonparamVar1] || []
       const v2 = store.data[nonparamVar2] || []
       const result = calcWilcoxon(v1, v2)
-      if (!result) return
+      if (!result) {
+        store.addOutput({ id: Date.now().toString(36), title: 'Wilcoxon', type: 'text', content: `Could not compute Wilcoxon signed-rank test. Ensure both variables are paired (same length) and have at least 5 valid paired differences. ${nonparamVar1}: ${v1.length} values, ${nonparamVar2}: ${v2.length} values.`, timestamp: new Date().toISOString() })
+        return
+      }
       store.addOutput({
         id: Date.now().toString(36),
         title: 'Wilcoxon Signed-Rank Test',
@@ -622,6 +682,7 @@ export function useWorkspaceHandlers() {
     const issues: { row?: number; column: string; severity: 'error' | 'warning' | 'info'; message: string }[] = []
     let missingCells = 0
     let outlierCount = 0
+    let typeErrors = 0
     const emptyCols: string[] = []
 
     for (const v of variables) {
@@ -636,6 +697,7 @@ export function useWorkspaceHandlers() {
           missingCells++
           issues.push({ row: i + 1, column: v.name, severity: 'warning', message: 'Missing value' })
         } else if (v.type === 'numeric' && typeof val === 'string' && isNaN(parseFloat(val))) {
+          typeErrors++
           issues.push({ row: i + 1, column: v.name, severity: 'error', message: `Non-numeric value "${val}" in numeric column` })
         } else if (v.type === 'numeric') {
           const num = typeof val === 'string' ? parseFloat(val) : val
@@ -662,7 +724,7 @@ export function useWorkspaceHandlers() {
           if (typeof num === 'number' && !isNaN(num) && (num < lower || num > upper)) {
             outlierCount++
             if (issues.length < 50) {
-              issues.push({ row: i + 1, column: v.name, severity: 'info', message: `Potential outlier: ${num} (range: ${lower.toFixed(1)}–${upper.toFixed(1)})` })
+              issues.push({ row: i + 1, column: v.name, severity: 'info', message: `Potential outlier: ${num} (range: ${lower.toFixed(1)}\u2013${upper.toFixed(1)})` })
             }
           }
         }
@@ -684,10 +746,72 @@ export function useWorkspaceHandlers() {
       seen.add(key)
     }
 
-    setValidationResults({
+    const totalIssues = issues.length
+    const result = {
       issues: issues.slice(0, 50),
       stats: { totalRows: rowCount, missingCells, outliers: outlierCount, duplicates, emptyCols },
+    }
+    setValidationResults(result)
+
+    // ── ALSO produce OutputPanel results so the user sees something ──
+    // 1) Summary table
+    const errors = issues.filter(i => i.severity === 'error')
+    const warnings = issues.filter(i => i.severity === 'warning')
+    const infos = issues.filter(i => i.severity === 'info')
+    const healthScore = Math.max(0, 100 - (errors.length * 15 + warnings.length * 5 + infos.length * 1))
+    const overallStatus = healthScore >= 80 ? 'Good' : healthScore >= 50 ? 'Needs Attention' : 'Poor'
+
+    store.addOutput({
+      id: Date.now().toString(36),
+      title: 'Data Validation Report',
+      type: 'table',
+      content: {
+        headers: ['Metric', 'Value'],
+        rows: [
+          ['Overall Health', `${healthScore}/100 (${overallStatus})`],
+          ['Total Rows', String(rowCount)],
+          ['Variables', String(variables.length)],
+          ['Total Issues', String(totalIssues)],
+          ['Errors', String(errors.length)],
+          ['Warnings', String(warnings.length)],
+          ['Info (Outliers)', String(infos.length)],
+          ['Missing Cells', String(missingCells)],
+          ['Type Mismatches', String(typeErrors)],
+          ['Duplicate Rows', String(duplicates)],
+          ['Empty Columns', emptyCols.length > 0 ? emptyCols.join(', ') : 'None'],
+        ],
+      },
+      timestamp: new Date().toISOString(),
     })
+
+    // 2) Issues detail table (top 30)
+    if (issues.length > 0) {
+      store.addOutput({
+        id: (Date.now() + 1).toString(36),
+        title: `Validation Issues (${Math.min(30, issues.length)} of ${totalIssues})`,
+        type: 'table',
+        content: {
+          headers: ['Severity', 'Row', 'Column', 'Message'],
+          rows: issues.slice(0, 30).map(i => [
+            i.severity.toUpperCase(),
+            i.row ? String(i.row) : '-',
+            i.column,
+            i.message,
+          ]),
+        },
+        timestamp: new Date().toISOString(),
+      })
+    } else {
+      store.addOutput({
+        id: (Date.now() + 1).toString(36),
+        title: 'Validation Result',
+        type: 'text',
+        content: 'All checks passed. Your data looks clean with no issues detected.',
+        timestamp: new Date().toISOString(),
+      })
+    }
+
+    store.addSyntax(`DATA VALIDATION /VARIABLES=ALL`)
   }, [store.data, store.variables])
 
   /* ─── Data Cleaning ─── */
@@ -695,7 +819,8 @@ export function useWorkspaceHandlers() {
     const data: Record<string, any[]> = {}
     for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
     const variables = [...store.variables]
-    let cleanedCells = 0
+    let trimmedCount = 0
+    let filledCount = 0
 
     for (const v of variables) {
       const col = [...(data[v.name] || [])]
@@ -705,7 +830,7 @@ export function useWorkspaceHandlers() {
           const trimmed = col[i].trim()
           if (trimmed !== col[i]) {
             col[i] = trimmed
-            cleanedCells++
+            trimmedCount++
           }
         }
       }
@@ -717,7 +842,7 @@ export function useWorkspaceHandlers() {
         for (let i = 0; i < col.length; i++) {
           if (col[i] === '' || col[i] === null || col[i] === undefined) {
             col[i] = parseFloat(mean.toFixed(2))
-            cleanedCells++
+            filledCount++
           }
         }
       } else {
@@ -730,7 +855,7 @@ export function useWorkspaceHandlers() {
         for (let i = 0; i < col.length; i++) {
           if (col[i] === '' || col[i] === null || col[i] === undefined) {
             col[i] = mode
-            cleanedCells++
+            filledCount++
           }
         }
       }
@@ -750,6 +875,7 @@ export function useWorkspaceHandlers() {
       }
     }
 
+    const removedRows = rowCount - keepIndices.length
     if (keepIndices.length < rowCount) {
       for (const v of variables) {
         data[v.name] = keepIndices.map(i => data[v.name][i])
@@ -757,22 +883,49 @@ export function useWorkspaceHandlers() {
     }
 
     store.setData(data)
+
+    // Detailed cleaning report
+    const newRowCount = Math.max(0, ...Object.values(data).map(a => a.length))
     store.addOutput({
       id: Date.now().toString(36),
       title: 'Data Cleaning Report',
       type: 'table',
       content: {
-        headers: ['Metric', 'Value'],
+        headers: ['Metric', 'Before', 'After', 'Change'],
         rows: [
-          ['Whitespace Trimmed', String(cleanedCells)],
-          ['Missing Values Filled', String(cleanedCells)],
-          ['Duplicate Rows Removed', String(rowCount - keepIndices.length)],
-          ['Remaining Rows', String(keepIndices.length)],
+          ['Total Rows', String(rowCount), String(newRowCount), removedRows > 0 ? `${removedRows} removed` : 'No change'],
+          ['Whitespace Trimmed', '-', String(trimmedCount), trimmedCount > 0 ? `${trimmedCount} cells` : 'None needed'],
+          ['Missing Values Filled', '-', String(filledCount), filledCount > 0 ? `${filledCount} cells` : 'None found'],
+          ['Duplicate Rows', '-', '-', removedRows > 0 ? `${removedRows} removed` : 'None found'],
         ],
       },
       timestamp: new Date().toISOString(),
     })
+
+    if (trimmedCount === 0 && filledCount === 0 && removedRows === 0) {
+      store.addOutput({
+        id: (Date.now() + 1).toString(36),
+        title: 'Cleaning Result',
+        type: 'text',
+        content: 'Your data was already clean. No changes were made. Whitespace was already trimmed, no missing values found, and no duplicate rows detected.',
+        timestamp: new Date().toISOString(),
+      })
+    } else {
+      const changes: string[] = []
+      if (trimmedCount > 0) changes.push(`Trimmed whitespace in ${trimmedCount} cells`)
+      if (filledCount > 0) changes.push(`Filled ${filledCount} missing values (mean for numeric, mode for text)`)
+      if (removedRows > 0) changes.push(`Removed ${removedRows} duplicate rows`)
+      store.addOutput({
+        id: (Date.now() + 1).toString(36),
+        title: 'Cleaning Summary',
+        type: 'text',
+        content: `Data cleaning applied successfully. ${changes.join('. ')}. The dataset now has ${newRowCount} rows across ${variables.length} variables. You can re-run Validate to confirm the data is now clean.`,
+        timestamp: new Date().toISOString(),
+      })
+    }
+
     setCleanDialogOpen(false)
+    store.addSyntax(`DATA CLEANING /TRIM /FILL_MISSING /REMOVE_DUPLICATES`)
   }, [store])
 
   /* ─── Data Transformations ─── */

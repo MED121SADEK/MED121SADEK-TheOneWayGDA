@@ -314,7 +314,7 @@ export default function WorkspacePage() {
       {/* Validate Dialog */}
       <Dialog open={h.validateDialogOpen} onOpenChange={(open) => {
         h.setValidateDialogOpen(open)
-        if (open) h.setValidationResults(null)
+        if (open) { h.setValidationResults(null); h.handleValidate() }
       }}>
         <DialogContent className="max-w-lg max-h-[70vh] overflow-y-auto">
           <DialogHeader>

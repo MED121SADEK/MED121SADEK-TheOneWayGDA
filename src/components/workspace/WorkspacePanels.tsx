@@ -515,7 +515,7 @@ export function AnalysisPanel(h: HandlerHook) {
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Available Now</p>
         <div className="grid grid-cols-2 gap-2">
           <button
-            onClick={() => runTool('Validate', () => h.setValidateDialogOpen(true))}
+            onClick={() => { h.handleValidate(); setLastRun('Validate'); setLastRunTime(Date.now()) }}
             className="flex flex-col items-start gap-1.5 p-3 rounded-xl border border-border/50 hover:border-emerald-400/40 hover:bg-emerald-500/5 cursor-pointer transition-all text-left"
           >
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
@@ -604,7 +604,7 @@ export function AnalysisPanel(h: HandlerHook) {
   ]
 
   const dataTools = [
-    { icon: ShieldCheck, name: h.t('validate.title'), desc: 'Check data quality', action: () => runTool('Validate', () => h.setValidateDialogOpen(true)) },
+    { icon: ShieldCheck, name: h.t('validate.title'), desc: 'Check data quality', action: () => { h.handleValidate(); setInlineMode(null); setLastRun('Validate'); setLastRunTime(Date.now()) } },
     { icon: Sparkles, name: h.t('clean.title'), desc: 'Auto-clean dataset', action: () => runTool('Clean', () => h.setCleanDialogOpen(true)) },
   ]
 
