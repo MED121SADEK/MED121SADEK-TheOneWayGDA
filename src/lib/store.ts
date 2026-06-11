@@ -108,6 +108,10 @@ interface AppState {
   // Document AI - Batch
   batchQueue: BatchItem[]
 
+  // AI Agent
+  agentStatus: 'idle' | 'planning' | 'analyzing' | 'interpreting' | 'done' | 'error'
+  agentResults: any[]
+
   setView: (view: 'landing' | 'workspace') => void
   setWorkspaceTab: (tab: 'data' | 'variables' | 'output' | 'syntax') => void
   createProject: (name: string, description?: string) => void
@@ -155,6 +159,11 @@ interface AppState {
   // Document AI - Batch actions
   addToBatchQueue: (item: BatchItem) => void
 
+  // AI Agent actions
+  setAgentStatus: (status: 'idle' | 'planning' | 'analyzing' | 'interpreting' | 'done' | 'error') => void
+  addAgentResults: (results: any[]) => void
+  clearAgentResults: () => void
+
   // Document AI - Import scan results into data
   importScanResults: (results: ScanResult) => void
 }
@@ -191,6 +200,10 @@ export const useAppStore = create<AppState>()(
       validationIssues: null,
       cleaningStats: null,
       batchQueue: [],
+
+      // AI Agent
+      agentStatus: 'idle',
+      agentResults: [],
 
       setView: (view) => set({ view }),
       setWorkspaceTab: (tab) => set({ workspaceTab: tab }),
@@ -391,38 +404,72 @@ export const useAppStore = create<AppState>()(
             set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
             return
           }
-        } catch {
-          // Fallback to manual parsing
+        } catch (err) {
+          console.warn('CSV PapaParse failed, using fallback:', err)
         }
 
-        // Manual CSV parsing fallback
+        // Manual CSV parsing fallback - quote-aware
         const lines = text.trim().split('\n')
-        if (lines.length < 2) return
-        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
+        if (lines.length < 2) {
+          console.error('CSV import: file has less than 2 lines')
+          return
+        }
+
+        function parseCsvLine(line: string): string[] {
+          const result: string[] = []
+          let current = ''
+          let inQuotes = false
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i]
+            if (inQuotes) {
+              if (ch === '"' && i + 1 < line.length && line[i + 1] === '"') {
+                current += '"'; i++ // escaped quote
+              } else if (ch === '"') {
+                inQuotes = false
+              } else {
+                current += ch
+              }
+            } else {
+              if (ch === '"') {
+                inQuotes = true
+              } else if (ch === ',') {
+                result.push(current.trim())
+                current = ''
+              } else {
+                current += ch
+              }
+            }
+          }
+          result.push(current.trim())
+          return result
+        }
+
+        const headers = parseCsvLine(lines[0])
         const data: Record<string, any[]> = {}
         const variables: Variable[] = []
 
         headers.forEach(name => {
           data[name] = []
           variables.push({
-            id: uid(),
-            name,
-            type: 'numeric',
-            label: name,
-            width: 8,
-            decimals: 2,
-            missing: '',
-            values: {},
+            id: uid(), name, type: 'numeric', label: name, width: 8, decimals: 2, missing: '', values: {},
           })
         })
 
         for (let i = 1; i < lines.length; i++) {
-          const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''))
+          const line = lines[i].trim()
+          if (!line) continue
+          const vals = parseCsvLine(line)
           headers.forEach((h, j) => {
             const raw = vals[j] || ''
             const num = parseFloat(raw)
             data[h].push(isNaN(num) || raw === '' ? raw : num)
           })
+        }
+
+        // Ensure all columns have same length
+        const maxLen = Math.max(...Object.values(data).map(a => a.length), 0)
+        for (const key of Object.keys(data)) {
+          while (data[key].length < maxLen) data[key].push('')
         }
 
         variables.forEach(v => {
@@ -445,18 +492,25 @@ export const useAppStore = create<AppState>()(
         const ext = file.name.split('.').pop()?.toLowerCase()
 
         if (ext === 'xlsx' || ext === 'xls') {
-          // Excel file - use SheetJS
           const reader = new FileReader()
+          reader.onerror = () => console.error('Failed to read Excel file')
           reader.onload = (ev) => {
             try {
               // eslint-disable-next-line @typescript-eslint/no-require-imports
               const XLSX = require('xlsx')
               const wb = XLSX.read(ev.target!.result, { type: 'array' })
+              if (!wb.SheetNames || wb.SheetNames.length === 0) {
+                console.error('Excel file has no sheets')
+                return
+              }
               const sheetName = wb.SheetNames[0]
               const ws = wb.Sheets[sheetName]
               const jsonData = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, any>[]
 
-              if (jsonData.length === 0) return
+              if (jsonData.length === 0) {
+                console.error('Excel sheet is empty')
+                return
+              }
 
               const headers = Object.keys(jsonData[0])
               const data: Record<string, any[]> = {}
@@ -498,9 +552,48 @@ export const useAppStore = create<AppState>()(
             }
           }
           reader.readAsArrayBuffer(file)
-        } else {
-          // CSV or text file
+        } else if (ext === 'json') {
           const reader = new FileReader()
+          reader.onerror = () => console.error('Failed to read JSON file')
+          reader.onload = (ev) => {
+            try {
+              const json = JSON.parse(ev.target?.result as string)
+              const arr = Array.isArray(json) ? json : (json.data && Array.isArray(json.data) ? json.data : null)
+              if (!arr || arr.length === 0) {
+                console.error('JSON has no valid array data')
+                return
+              }
+              const headers = Object.keys(arr[0])
+              const data: Record<string, any[]> = {}
+              const variables: Variable[] = []
+              headers.forEach(name => {
+                data[name] = []
+                variables.push({ id: uid(), name, type: 'numeric', label: name, width: 8, decimals: 2, missing: '', values: {} })
+              })
+              for (const row of arr) {
+                headers.forEach(h => {
+                  const raw = String(row[h] ?? '').trim()
+                  const num = parseFloat(raw)
+                  data[h].push(isNaN(num) || raw === '' ? raw : num)
+                })
+              }
+              variables.forEach(v => {
+                const col = data[v.name]
+                const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
+                if (nonEmpty.length === 0) return
+                v.type = nonEmpty.every(x => typeof x === 'number') ? 'numeric' : 'string'
+                if (v.type === 'string') v.decimals = 0
+              })
+              set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+            } catch (err) {
+              console.error('JSON import error:', err)
+            }
+          }
+          reader.readAsText(file)
+        } else {
+          // CSV, TSV or text file
+          const reader = new FileReader()
+          reader.onerror = () => console.error('Failed to read CSV file')
           reader.onload = (ev) => {
             const text = ev.target?.result as string
             if (text) get().importCSV(text)
@@ -547,6 +640,11 @@ export const useAppStore = create<AppState>()(
       addToBatchQueue: (item) => set(s => ({
         batchQueue: [...s.batchQueue, item],
       })),
+
+      // AI Agent actions
+      setAgentStatus: (status) => set({ agentStatus: status }),
+      addAgentResults: (results) => set(s => ({ agentResults: [...s.agentResults, ...results] })),
+      clearAgentResults: () => set({ agentResults: [], agentStatus: 'idle' }),
 
       // Document AI - Import scan results into variables + data
       importScanResults: (results) => {

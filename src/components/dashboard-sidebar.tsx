@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { useAppStore } from '@/lib/store'
 import {
   LayoutDashboard, BarChart3, Settings, CreditCard, Bell, Code2,
   Bot, Users, PanelLeftClose, PanelLeft, Menu, LogOut, Globe,
@@ -117,6 +118,7 @@ function SidebarContent({
   const { locale, setLocale } = useTranslation()
   const session = getSession()
   const router = useRouter()
+  const store = useAppStore()
   const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
@@ -251,16 +253,19 @@ function SidebarContent({
       {/* ── Footer: User + Locale + Logout + Public Link ── */}
       <div className="border-t border-border/50 px-3 py-3 flex-shrink-0 space-y-2">
         {/* Visit Public Site */}
-        <Link
-          href="/"
+        <button
+          onClick={() => {
+            store.setView('landing')
+            router.push('/')
+          }}
           className={cn(
-            'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 text-muted-foreground hover:text-primary hover:bg-primary/5',
+            'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 text-muted-foreground hover:text-primary hover:bg-primary/5 w-full text-left',
             collapsed && 'justify-center px-2'
           )}
         >
           <ExternalLink className="size-3.5 flex-shrink-0" />
           {!collapsed && <span>Visit Public Site</span>}
-        </Link>
+        </button>
         {/* Locale selector */}
         {!collapsed && (
           <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>

@@ -122,6 +122,12 @@ export function useWorkspaceHandlers() {
   const [anovaGroupVar, setAnovaGroupVar] = useState('')
   const [anovaValueVar, setAnovaValueVar] = useState('')
 
+  // Validation state
+  const [validationResults, setValidationResults] = useState<{
+    issues: { row?: number; column: string; severity: 'error' | 'warning' | 'info'; message: string }[]
+    stats: { totalRows: number; missingCells: number; outliers: number; duplicates: number; emptyCols: string[] }
+  } | null>(null)
+
   // Form states
   const [chatInput, setChatInput] = useState('')
 
@@ -200,14 +206,38 @@ export function useWorkspaceHandlers() {
     for (const varName of store.selectedVariables) {
       const vals = getNumericVals(varName)
       const stats = calcStats(vals)
-      if (stats) results.push({ variable: varName, ...stats })
+      if (stats) {
+        const se = stats.stddev / Math.sqrt(stats.n)
+        const ci95_lower = stats.mean - 1.96 * se
+        const ci95_upper = stats.mean + 1.96 * se
+        const cv = stats.mean !== 0 ? (stats.stddev / Math.abs(stats.mean)) * 100 : 0
+        results.push({
+          variable: varName,
+          n: stats.n,
+          mean: stats.mean?.toFixed(3),
+          median: stats.median,
+          stddev: stats.stddev?.toFixed(3),
+          se: se.toFixed(3),
+          ci95: `${ci95_lower.toFixed(3)}–${ci95_upper.toFixed(3)}`,
+          min: stats.min,
+          max: stats.max,
+          iqr: (stats.p75 - stats.p25).toFixed(3),
+          skewness: stats.skewness?.toFixed(3),
+          kurtosis: stats.kurtosis?.toFixed(3),
+          cv: cv.toFixed(1) + '%',
+          sum: stats.sum?.toFixed(2),
+        })
+      }
     }
     if (results.length === 0) return
     store.addOutput({
       id: Date.now().toString(36),
       title: t('analysis.descriptive'),
       type: 'table',
-      content: { headers: ['Variable', 'N', 'Mean', 'Median', 'Std Dev', 'Min', 'Max', 'Sum'], rows: results.map(r => [r.variable, r.n, r.mean?.toFixed(3), r.median, r.stddev?.toFixed(3), r.min, r.max, r.sum?.toFixed(2)]) },
+      content: {
+        headers: ['Variable', 'N', 'Mean', 'Median', 'SD', 'SE', '95% CI', 'Min', 'Max', 'IQR', 'Skew', 'Kurt', 'CV'],
+        rows: results.map(r => [r.variable, r.n, r.mean, r.median, r.stddev, r.se, r.ci95, r.min, r.max, r.iqr, r.skewness, r.kurtosis, r.cv]),
+      },
       timestamp: new Date().toISOString(),
     })
     store.addSyntax(`DESCRIPTIVES VARIABLES=${store.selectedVariables.join(' ')}`)
@@ -585,9 +615,400 @@ export function useWorkspaceHandlers() {
     setNonparamDialogOpen(false)
   }, [nonparamVar1, nonparamVar2, nonparamType, store, getNumericVals])
 
+  /* ─── Data Validation ─── */
+  const handleValidate = useCallback(() => {
+    const data = store.data
+    const variables = store.variables
+    const issues: { row?: number; column: string; severity: 'error' | 'warning' | 'info'; message: string }[] = []
+    let missingCells = 0
+    let outlierCount = 0
+    const emptyCols: string[] = []
+
+    for (const v of variables) {
+      const col = data[v.name] || []
+      let colMissing = 0
+      const values: number[] = []
+
+      for (let i = 0; i < col.length; i++) {
+        const val = col[i]
+        if (val === '' || val === null || val === undefined) {
+          colMissing++
+          missingCells++
+          issues.push({ row: i + 1, column: v.name, severity: 'warning', message: 'Missing value' })
+        } else if (v.type === 'numeric' && typeof val === 'string' && isNaN(parseFloat(val))) {
+          issues.push({ row: i + 1, column: v.name, severity: 'error', message: `Non-numeric value "${val}" in numeric column` })
+        } else if (v.type === 'numeric') {
+          const num = typeof val === 'string' ? parseFloat(val) : val
+          if (typeof num === 'number' && !isNaN(num)) values.push(num)
+        }
+      }
+
+      if (colMissing === col.length && col.length > 0) {
+        emptyCols.push(v.name)
+        issues.push({ column: v.name, severity: 'error', message: 'Entire column is empty' })
+      }
+
+      // Check outliers using IQR method
+      if (values.length >= 4) {
+        const sorted = [...values].sort((a, b) => a - b)
+        const q1 = sorted[Math.floor(sorted.length * 0.25)]
+        const q3 = sorted[Math.floor(sorted.length * 0.75)]
+        const iqr = q3 - q1
+        const lower = q1 - 1.5 * iqr
+        const upper = q3 + 1.5 * iqr
+        for (let i = 0; i < col.length; i++) {
+          const val = col[i]
+          const num = typeof val === 'string' ? parseFloat(val) : val
+          if (typeof num === 'number' && !isNaN(num) && (num < lower || num > upper)) {
+            outlierCount++
+            if (issues.length < 50) {
+              issues.push({ row: i + 1, column: v.name, severity: 'info', message: `Potential outlier: ${num} (range: ${lower.toFixed(1)}–${upper.toFixed(1)})` })
+            }
+          }
+        }
+      }
+    }
+
+    // Check duplicate rows
+    const rowCount = Math.max(0, ...Object.values(data).map(a => a.length))
+    let duplicates = 0
+    const seen = new Set<string>()
+    for (let i = 0; i < rowCount; i++) {
+      const key = variables.map(v => String(data[v.name]?.[i] ?? '')).join('|')
+      if (seen.has(key)) {
+        duplicates++
+        if (issues.length < 50) {
+          issues.push({ row: i + 1, column: '*', severity: 'warning', message: 'Duplicate row' })
+        }
+      }
+      seen.add(key)
+    }
+
+    setValidationResults({
+      issues: issues.slice(0, 50),
+      stats: { totalRows: rowCount, missingCells, outliers: outlierCount, duplicates, emptyCols },
+    })
+  }, [store.data, store.variables])
+
+  /* ─── Data Cleaning ─── */
+  const handleClean = useCallback(() => {
+    const data: Record<string, any[]> = {}
+    for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
+    const variables = [...store.variables]
+    let cleanedCells = 0
+
+    for (const v of variables) {
+      const col = [...(data[v.name] || [])]
+
+      for (let i = 0; i < col.length; i++) {
+        if (typeof col[i] === 'string') {
+          const trimmed = col[i].trim()
+          if (trimmed !== col[i]) {
+            col[i] = trimmed
+            cleanedCells++
+          }
+        }
+      }
+
+      // Fill missing values: mean for numeric, mode for string
+      if (v.type === 'numeric') {
+        const nums = col.filter((x): x is number => typeof x === 'number' && !isNaN(x))
+        const mean = nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : 0
+        for (let i = 0; i < col.length; i++) {
+          if (col[i] === '' || col[i] === null || col[i] === undefined) {
+            col[i] = parseFloat(mean.toFixed(2))
+            cleanedCells++
+          }
+        }
+      } else {
+        const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
+        const freq = new Map<string, number>()
+        nonEmpty.forEach(x => freq.set(String(x), (freq.get(String(x)) || 0) + 1))
+        let mode = ''
+        let maxFreq = 0
+        freq.forEach((count, val) => { if (count > maxFreq) { maxFreq = count; mode = val } })
+        for (let i = 0; i < col.length; i++) {
+          if (col[i] === '' || col[i] === null || col[i] === undefined) {
+            col[i] = mode
+            cleanedCells++
+          }
+        }
+      }
+
+      data[v.name] = col
+    }
+
+    // Remove duplicate rows
+    const rowCount = Math.max(0, ...Object.values(data).map(a => a.length))
+    const keepIndices: number[] = []
+    const seen = new Set<string>()
+    for (let i = 0; i < rowCount; i++) {
+      const key = variables.map(v => String(data[v.name]?.[i] ?? '')).join('|')
+      if (!seen.has(key)) {
+        seen.add(key)
+        keepIndices.push(i)
+      }
+    }
+
+    if (keepIndices.length < rowCount) {
+      for (const v of variables) {
+        data[v.name] = keepIndices.map(i => data[v.name][i])
+      }
+    }
+
+    store.setData(data)
+    store.addOutput({
+      id: Date.now().toString(36),
+      title: 'Data Cleaning Report',
+      type: 'table',
+      content: {
+        headers: ['Metric', 'Value'],
+        rows: [
+          ['Whitespace Trimmed', String(cleanedCells)],
+          ['Missing Values Filled', String(cleanedCells)],
+          ['Duplicate Rows Removed', String(rowCount - keepIndices.length)],
+          ['Remaining Rows', String(keepIndices.length)],
+        ],
+      },
+      timestamp: new Date().toISOString(),
+    })
+    setCleanDialogOpen(false)
+  }, [store])
+
+  /* ─── Data Transformations ─── */
+  const handleTransformZScore = useCallback(() => {
+    const data: Record<string, any[]> = {}
+    for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
+    const createdVars: string[] = []
+
+    for (const varName of store.selectedVariables) {
+      const vals = getNumericVals(varName)
+      if (vals.length < 2) continue
+      const m = vals.reduce((a, b) => a + b, 0) / vals.length
+      const s = Math.sqrt(vals.reduce((a, b) => a + (b - m) ** 2, 0) / (vals.length - 1))
+      if (s === 0) continue
+      const col = store.data[varName] || []
+      const newName = `z_${varName}`
+      data[newName] = col.map(v => {
+        const n = typeof v === 'string' ? parseFloat(v) : v
+        return typeof n === 'number' && !isNaN(n) ? parseFloat(((n - m) / s).toFixed(4)) : ''
+      })
+      store.addVariable({
+        id: Date.now().toString(36) + varName,
+        name: newName,
+        type: 'numeric',
+        label: `Z-score of ${varName}`,
+        width: 10, decimals: 4, missing: '', values: {},
+      })
+      createdVars.push(varName)
+    }
+
+    store.setData(data)
+    store.addOutput({
+      id: Date.now().toString(36),
+      title: 'Z-Score Transformation',
+      type: 'table',
+      content: {
+        headers: ['Original', 'Transformed', 'Formula'],
+        rows: createdVars.map(v => [v, `z_${v}`, '(x − mean) / SD']),
+      },
+      timestamp: new Date().toISOString(),
+    })
+    store.addSyntax(`COMPUTE z_*= (var - MEAN(var)) / SD(var)`)
+  }, [store, getNumericVals])
+
+  const handleTransformNormalize = useCallback(() => {
+    const data: Record<string, any[]> = {}
+    for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
+    const createdVars: string[] = []
+
+    for (const varName of store.selectedVariables) {
+      const vals = getNumericVals(varName)
+      if (vals.length < 2) continue
+      const min = Math.min(...vals)
+      const max = Math.max(...vals)
+      const range = max - min
+      if (range === 0) continue
+      const col = store.data[varName] || []
+      const newName = `norm_${varName}`
+      data[newName] = col.map(v => {
+        const n = typeof v === 'string' ? parseFloat(v) : v
+        return typeof n === 'number' && !isNaN(n) ? parseFloat(((n - min) / range).toFixed(4)) : ''
+      })
+      store.addVariable({
+        id: Date.now().toString(36) + varName,
+        name: newName,
+        type: 'numeric',
+        label: `Normalized ${varName}`,
+        width: 10, decimals: 4, missing: '', values: {},
+      })
+      createdVars.push(varName)
+    }
+
+    store.setData(data)
+    store.addOutput({
+      id: Date.now().toString(36),
+      title: 'Min-Max Normalization (0–1)',
+      type: 'table',
+      content: {
+        headers: ['Original', 'Transformed', 'Formula'],
+        rows: createdVars.map(v => [v, `norm_${v}`, '(x − min) / (max − min)']),
+      },
+      timestamp: new Date().toISOString(),
+    })
+    store.addSyntax(`COMPUTE norm_*= (var - MIN(var)) / (MAX(var) - MIN(var))`)
+  }, [store, getNumericVals])
+
+  const handleTransformLog = useCallback(() => {
+    const data: Record<string, any[]> = {}
+    for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
+    const createdVars: string[] = []
+
+    for (const varName of store.selectedVariables) {
+      const col = store.data[varName] || []
+      const newName = `log_${varName}`
+      data[newName] = col.map(v => {
+        const n = typeof v === 'string' ? parseFloat(v) : v
+        return typeof n === 'number' && !isNaN(n) && n > 0 ? parseFloat(Math.log(n).toFixed(4)) : ''
+      })
+      store.addVariable({
+        id: Date.now().toString(36) + varName,
+        name: newName,
+        type: 'numeric',
+        label: `Log(${varName})`,
+        width: 10, decimals: 4, missing: '', values: {},
+      })
+      createdVars.push(varName)
+    }
+
+    store.setData(data)
+    store.addOutput({
+      id: Date.now().toString(36),
+      title: 'Log Transformation',
+      type: 'table',
+      content: {
+        headers: ['Original', 'Transformed', 'Formula'],
+        rows: createdVars.map(v => [v, `log_${v}`, 'ln(x)']),
+      },
+      timestamp: new Date().toISOString(),
+    })
+    store.addSyntax(`COMPUTE log_*= LN(var)`)
+  }, [store])
+
+  /* ─── Auto Data Profile ─── */
+  const handleAutoProfile = useCallback(() => {
+    if (store.variables.length === 0) return
+    const rows: string[][] = []
+    for (const v of store.variables) {
+      const col = store.data[v.name] || []
+      const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
+      const missing = col.length - nonEmpty.length
+      const stats = v.type === 'numeric' ? calcStats(getNumericVals(v.name)) : null
+
+      rows.push([
+        v.name,
+        v.type,
+        String(col.length),
+        String(nonEmpty.length),
+        String(missing),
+        stats ? `${stats.min}–${stats.max}` : `${new Set(nonEmpty.map(String)).size} unique`,
+        stats ? `${stats.mean.toFixed(2)} ± ${stats.stddev.toFixed(2)}` : '—',
+      ])
+    }
+    store.addOutput({
+      id: Date.now().toString(36),
+      title: 'Data Profile Summary',
+      type: 'table',
+      content: {
+        headers: ['Variable', 'Type', 'N', 'Valid', 'Missing', 'Range/Unique', 'Mean±SD'],
+        rows,
+      },
+      timestamp: new Date().toISOString(),
+    })
+  }, [store, getNumericVals])
+
+  // Auto-profile when new data is imported
+  const prevVarCountRef = useRef(store.variables.length)
+  useEffect(() => {
+    const prevCount = prevVarCountRef.current
+    const currentCount = store.variables.length
+    if (currentCount > 0 && (prevCount === 0 || currentCount > prevCount)) {
+      prevVarCountRef.current = currentCount
+      setTimeout(() => handleAutoProfile(), 100)
+    } else {
+      prevVarCountRef.current = currentCount
+    }
+  }, [store.variables.length, handleAutoProfile])
+
   const handleExportPDF = useCallback(() => {
     generateQuickReport(store.outputs, store.currentProject?.name)
   }, [store.outputs, store.currentProject?.name])
+
+  /* ─── AI Agent Auto-Analysis ─── */
+  const handleRunAgentAnalysis = useCallback(async (goal?: string) => {
+    if (store.variables.length === 0) return
+
+    store.setAgentStatus('planning')
+
+    // Add initial status message
+    store.addOutput({
+      id: Date.now().toString(36),
+      title: '🤖 AI Agent: Starting Analysis...',
+      type: 'text',
+      content: 'The AI Agent is analyzing your dataset. This may take a moment.',
+      timestamp: new Date().toISOString(),
+    })
+
+    try {
+      const res = await fetch('/api/ai/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: store.data,
+          variables: store.variables,
+          goal: goal || undefined,
+        }),
+      })
+
+      if (!res.ok) throw new Error('Agent request failed')
+
+      const data = await res.json()
+
+      // Add each result as an output
+      for (const result of (data.results || [])) {
+        if (result.type === 'text') {
+          store.addOutput({
+            id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+            title: result.title,
+            type: 'text',
+            content: result.content,
+            timestamp: new Date().toISOString(),
+          })
+        } else {
+          store.addOutput({
+            id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+            title: result.title,
+            type: result.type,
+            content: result.content,
+            timestamp: new Date().toISOString(),
+          })
+        }
+      }
+
+      store.setAgentStatus('done')
+      store.addAgentResults(data.results || [])
+      store.addSyntax(`AI AGENT ANALYSIS${goal ? `: ${goal}` : ''}`)
+    } catch (error) {
+      store.setAgentStatus('error')
+      store.addOutput({
+        id: Date.now().toString(36),
+        title: '🤖 AI Agent Error',
+        type: 'text',
+        content: `Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
+        timestamp: new Date().toISOString(),
+      })
+    }
+  }, [store])
 
   const handleSendChat = useCallback(async () => {
     if (!chatInput.trim()) return
@@ -659,6 +1080,19 @@ export function useWorkspaceHandlers() {
     fileInputRef,
     batchInputRef,
 
+    // Validation & Cleaning
+    validationResults, setValidationResults,
+    handleValidate,
+    handleClean,
+
+    // Transformations
+    handleTransformZScore,
+    handleTransformNormalize,
+    handleTransformLog,
+
+    // Auto Profile
+    handleAutoProfile,
+
     // Handlers
     handleImportCSV,
     handleFileUpload,
@@ -677,5 +1111,6 @@ export function useWorkspaceHandlers() {
     handleRunNonparametric,
     handleExportPDF,
     handleSendChat,
+    handleRunAgentAnalysis,
   }
 }

@@ -674,3 +674,103 @@ export function fmt(v: number, decimals = 4): string {
   if (Number.isInteger(v)) return String(v)
   return v.toFixed(decimals)
 }
+
+// ═══════════════════════════════════════════════════════
+// 7. MULTIPLE LINEAR REGRESSION (OLS)
+// ═══════════════════════════════════════════════════════
+export interface MultipleRegressionResult {
+  coefficients: number[]
+  r2: number
+  adjustedR2: number
+  fStat: number
+  pValue: number
+  n: number
+  k: number
+}
+
+export function calcMultipleRegression(
+  yArr: number[],
+  xMat: number[][]
+): MultipleRegressionResult | null {
+  const n = yArr.length
+  const k = xMat.length // number of predictors
+  if (n <= k + 1) return null
+
+  // Simple OLS: solve (X'X)^-1 X'y
+  // X matrix: n × (k+1) with intercept column
+  const X: number[][] = []
+  for (let i = 0; i < n; i++) {
+    X.push([1, ...xMat.map(col => col[i] || 0)])
+  }
+
+  // X'X matrix
+  const XtX: number[][] = Array(k + 1).fill(null).map(() => Array(k + 1).fill(0))
+  for (let i = 0; i <= k; i++) {
+    for (let j = 0; j <= k; j++) {
+      for (let r = 0; r < n; r++) {
+        XtX[i][j] += X[r][i] * X[r][j]
+      }
+    }
+  }
+
+  // X'y vector
+  const Xty: number[] = Array(k + 1).fill(0)
+  for (let i = 0; i <= k; i++) {
+    for (let r = 0; r < n; r++) {
+      Xty[i] += X[r][i] * yArr[r]
+    }
+  }
+
+  // Solve using Gaussian elimination
+  const aug = XtX.map((row, i) => [...row, Xty[i]])
+  for (let col = 0; col <= k; col++) {
+    // Find pivot
+    let maxVal = Math.abs(aug[col][col])
+    let maxRow = col
+    for (let row = col + 1; row <= k; row++) {
+      if (Math.abs(aug[row][col]) > maxVal) {
+        maxVal = Math.abs(aug[row][col])
+        maxRow = row
+      }
+    }
+    ;[aug[col], aug[maxRow]] = [aug[maxRow], aug[col]]
+    if (Math.abs(aug[col][col]) < 1e-10) continue
+    for (let row = col + 1; row <= k; row++) {
+      const factor = aug[row][col] / aug[col][col]
+      for (let j = col; j <= k + 1; j++) {
+        aug[row][j] -= factor * aug[col][j]
+      }
+    }
+  }
+
+  const coefficients: number[] = Array(k + 1).fill(0)
+  for (let i = k; i >= 0; i--) {
+    coefficients[i] = aug[i][k + 1]
+    for (let j = i + 1; j <= k; j++) {
+      coefficients[i] -= aug[i][j] * coefficients[j]
+    }
+    coefficients[i] /= aug[i][i]
+  }
+
+  // Calculate R²
+  const yMean = yArr.reduce((a, b) => a + b, 0) / n
+  let ssTot = 0, ssRes = 0
+  for (let i = 0; i < n; i++) {
+    let predicted = coefficients[0]
+    for (let j = 0; j < k; j++) predicted += coefficients[j + 1] * (xMat[j][i] || 0)
+    ssRes += (yArr[i] - predicted) ** 2
+    ssTot += (yArr[i] - yMean) ** 2
+  }
+  const r2 = ssTot === 0 ? 0 : 1 - ssRes / ssTot
+  const adjustedR2 = 1 - (1 - r2) * (n - 1) / (n - k - 1)
+
+  // F-statistic
+  const msReg = ((ssTot - ssRes) / k)
+  const msRes = ssRes / (n - k - 1)
+  const fStat = msRes === 0 ? 0 : msReg / msRes
+
+  // Approximate p-value from F
+  const pValue = 1 - regularizedIncompleteBeta(k / 2, (n - k - 1) / 2, (k * fStat) / (k * fStat + n - k - 1))
+
+  return { coefficients, r2, adjustedR2, fStat, pValue, n, k }
+}

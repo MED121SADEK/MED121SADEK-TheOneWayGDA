@@ -312,18 +312,62 @@ export default function WorkspacePage() {
       </Dialog>
 
       {/* Validate Dialog */}
-      <Dialog open={h.validateDialogOpen} onOpenChange={h.setValidateDialogOpen}>
-        <DialogContent>
+      <Dialog open={h.validateDialogOpen} onOpenChange={(open) => {
+        h.setValidateDialogOpen(open)
+        if (open) h.setValidationResults(null)
+      }}>
+        <DialogContent className="max-w-lg max-h-[70vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><ShieldCheck className="w-5 text-emerald-500" />{t('validate.title')}</DialogTitle>
             <DialogDescription>Check data quality and consistency</DialogDescription>
           </DialogHeader>
-          <div className="text-center py-6">
-            <ShieldCheck className="w-10 h-10 mx-auto mb-3 text-emerald-500" />
-            <p className="text-sm font-medium">{t('validate.noIssues')}</p>
-            <p className="text-xs text-muted-foreground mt-1">All data appears valid and consistent.</p>
+          <div className="space-y-3">
+            {h.validationResults ? (
+              <>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Total Rows', value: h.validationResults.stats.totalRows, color: 'text-blue-400' },
+                    { label: 'Missing', value: h.validationResults.stats.missingCells, color: 'text-amber-400' },
+                    { label: 'Outliers', value: h.validationResults.stats.outliers, color: 'text-orange-400' },
+                    { label: 'Duplicates', value: h.validationResults.stats.duplicates, color: 'text-rose-400' },
+                    { label: 'Empty Cols', value: h.validationResults.stats.emptyCols.length, color: 'text-red-400' },
+                    { label: 'Issues', value: h.validationResults.issues.length, color: 'text-purple-400' },
+                  ].map(s => (
+                    <div key={s.label} className="bg-muted/30 rounded-lg p-2 text-center">
+                      <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
+                      <p className="text-[10px] text-muted-foreground">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+                {h.validationResults.issues.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {h.validationResults.issues.slice(0, 30).map((issue, i) => (
+                      <div key={i} className={`text-[10px] p-1.5 rounded ${
+                        issue.severity === 'error' ? 'bg-red-500/10 text-red-400' :
+                        issue.severity === 'warning' ? 'bg-amber-500/10 text-amber-400' :
+                        'bg-blue-500/10 text-blue-400'
+                      }`}>
+                        {issue.row ? `Row ${issue.row}` : issue.column}: {issue.message}
+                      </div>
+                    ))}
+                    {h.validationResults.issues.length > 30 && (
+                      <p className="text-[10px] text-muted-foreground text-center">...and {h.validationResults.issues.length - 30} more issues</p>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-xs text-muted-foreground">Click validate to scan your data</p>
+                <Button className="mt-2" onClick={h.handleValidate} disabled={h.store.variables.length === 0}>
+                  <ShieldCheck className="w-4 h-4 mr-1" /> Run Validation
+                </Button>
+              </div>
+            )}
           </div>
-          <DialogFooter><Button onClick={() => h.setValidateDialogOpen(false)}>{t('workspace.close')}</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => h.setValidateDialogOpen(false)}>{t('workspace.close')}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -334,12 +378,18 @@ export default function WorkspacePage() {
             <DialogTitle className="flex items-center gap-2"><Sparkles className="w-5 text-purple-500" />{t('clean.title')}</DialogTitle>
             <DialogDescription>Auto-clean and validate your dataset</DialogDescription>
           </DialogHeader>
-          <div className="text-center py-6">
-            <Sparkles className="w-10 h-10 mx-auto mb-3 text-purple-500" />
-            <p className="text-sm font-medium">{t('clean.validated')}</p>
-            <p className="text-xs text-muted-foreground mt-1">Data has been validated and cleaned.</p>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">This will:</p>
+            <ul className="text-xs space-y-1">
+              <li className="flex items-center gap-2"><Check className="w-3 h-3 text-purple-400" /> Trim whitespace from all string cells</li>
+              <li className="flex items-center gap-2"><Check className="w-3 h-3 text-purple-400" /> Fill missing values (mean for numeric, mode for text)</li>
+              <li className="flex items-center gap-2"><Check className="w-3 h-3 text-purple-400" /> Remove duplicate rows</li>
+            </ul>
           </div>
-          <DialogFooter><Button onClick={() => h.setCleanDialogOpen(false)}>{t('workspace.close')}</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => h.setCleanDialogOpen(false)}>{t('workspace.cancel')}</Button>
+            <Button onClick={h.handleClean} disabled={h.store.variables.length === 0}>Apply Cleaning</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
