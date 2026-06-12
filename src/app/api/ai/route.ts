@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 
+const CHAT_SERVER_TIMEOUT_MS = 25_000 // Must be less than client's 30s timeout
+const MAX_REQUEST_BYTES = 2 * 1024 * 1024 // 2MB limit
+
 export async function POST(request: NextRequest) {
+  // Server-side hard timeout
+  const controller = new AbortController()
+  const serverTimeout = setTimeout(() => controller.abort(), CHAT_SERVER_TIMEOUT_MS)
+
   try {
+    // Guard against oversized requests
+    const contentLength = request.headers.get('content-length')
+    if (contentLength && parseInt(contentLength, 10) > MAX_REQUEST_BYTES) {
+      clearTimeout(serverTimeout)
+      return NextResponse.json(
+        { error: 'Request too large. Please reduce your data or message size.', choices: [{ message: { content: 'Your request is too large. Please try with less data.' } }] },
+        { status: 413 }
+      )
+    }
+
     const { messages, data, variables } = await request.json()
     const zai = await ZAI.create()
 
@@ -56,13 +73,21 @@ If no data is loaded, help them understand what kinds of analyses are available 
       temperature: 0.7,
     })
 
+    clearTimeout(serverTimeout)
     return NextResponse.json(completion)
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Internal server error'
+    clearTimeout(serverTimeout)
+    const isAbort = error instanceof DOMException && error.name === 'AbortError'
+    const message = isAbort
+      ? `AI response timed out after ${CHAT_SERVER_TIMEOUT_MS / 1000}s`
+      : (error instanceof Error ? error.message : 'Internal server error')
     console.error('AI API error:', message)
     return NextResponse.json(
-      { error: message, choices: [{ message: { content: 'Sorry, I could not process your request. Please try again.' } }] },
-      { status: 500 }
+      {
+        error: message,
+        choices: [{ message: { content: isAbort ? 'Response timed out. Please try again.' : 'Sorry, I could not process your request. Please try again.' } }],
+      },
+      { status: isAbort ? 504 : 500 }
     )
   }
 }

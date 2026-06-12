@@ -80,3 +80,27 @@ Stage Summary:
 - Validate and Clean no longer block the UI thread on large datasets
 - Auto-profile no longer cascades on repeated triggers
 - Build passes cleanly
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Fix remaining workspace stuck issues - server-side timeouts, transform blocking, cancel, data limits
+
+Work Log:
+- Audited all 4 modified files in detail, identified 6 remaining freeze causes
+- Fixed /api/ai route: added 25s server-side timeout (AbortController), 2MB request size limit, proper timeout error messages with 504 status
+- Fixed /api/ai/agent route: moved unreachable clearTimeout BEFORE return (was dead code), added 10MB request size limit, added separate 30s timeout for AI interpretation step (Promise.race), graceful fallback if AI interpretation times out (returns stats only)
+- Made 3 transform handlers non-blocking: handleTransformZScore, handleTransformNormalize, handleTransformLog all now use setTimeout(0) + isTransforming guard + snapshot data before deferring
+- Stabilized auto-profile useEffect: removed handleAutoProfile from dependency array, used ref pattern (handleAutoProfileRef) to prevent cascading re-renders
+- Added handleCancelAgent function that aborts in-flight agent request and resets status to idle
+- Added Cancel button in AIPanel UI (red Ban icon) that appears when agent is active
+- Disabled transform buttons during isTransforming state
+- Exposed isTransforming and handleCancelAgent in hook return object
+
+Stage Summary:
+- Server-side AI calls can no longer hang indefinitely (25s chat, 50s agent, 30s AI interpretation step)
+- Agent AI interpretation failure is graceful - returns statistical results even if AI interpretation times out
+- Transform operations no longer block the main thread
+- Auto-profile useEffect no longer cascades on store changes (ref-based pattern)
+- Users can cancel a stuck agent analysis with a visible Cancel button
+- Build passes cleanly

@@ -8,6 +8,10 @@ import {
   calcChiSquare, formatPValue, fmt,
 } from '@/lib/stats'
 
+const AGENT_SERVER_TIMEOUT_MS = 50_000 // 50s (less than client 60s)
+const AI_STEP_TIMEOUT_MS = 30_000      // Separate timeout for the AI interpretation step
+const MAX_REQUEST_BYTES = 10 * 1024 * 1024 // 10MB limit
+
 // ─── Statistical Helpers (server-side) ───
 
 function calcStats(values: number[]) {
@@ -80,11 +84,18 @@ function getNumericVals(data: Record<string, any[]>, varName: string): number[] 
 
 // ─── MAIN AGENT ───
 export async function POST(request: NextRequest) {
-  // Server-side timeout: abort if taking too long
+  // Server-side hard timeout for the entire request
   const controller = new AbortController()
-  const serverTimeout = setTimeout(() => controller.abort(), 55_000) // 55s (less than client 60s)
+  const serverTimeout = setTimeout(() => controller.abort(), AGENT_SERVER_TIMEOUT_MS)
 
   try {
+    // Guard against oversized requests
+    const contentLength = request.headers.get('content-length')
+    if (contentLength && parseInt(contentLength, 10) > MAX_REQUEST_BYTES) {
+      clearTimeout(serverTimeout)
+      return NextResponse.json({ error: 'Dataset too large for analysis. Please use a smaller dataset (under 10MB).' }, { status: 413 })
+    }
+
     const token = getTokenFromRequest(request)
     const session = token ? await db.userSession.findUnique({ where: { token } }) : null
     if (!session) {
@@ -95,6 +106,7 @@ export async function POST(request: NextRequest) {
     const { data, variables, goal } = await request.json()
 
     if (!data || !variables || variables.length === 0) {
+      clearTimeout(serverTimeout)
       return NextResponse.json({ error: 'No data provided' }, { status: 400 })
     }
 
@@ -403,7 +415,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ─── STEP 8: AI Interpretation ───
+    // ─── STEP 8: AI Interpretation (with its own timeout) ───
     // Send computed results to LLM for interpretation
     const dataSummary = {
       variables: variables.map((v: any) => ({ name: v.name, type: v.type })),
@@ -434,22 +446,39 @@ export async function POST(request: NextRequest) {
 
 Be specific with numbers. Reference actual variable names and values.`
 
-    const interpretation = await zai.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert AI data scientist for TheOneWayGDA. You interpret statistical analysis results and provide clear, actionable insights. Always reference specific numbers and variable names. Be thorough but concise. Use markdown formatting with headers, bullet points, and bold for key numbers.`,
-        },
-        {
-          role: 'user',
-          content: `${interpretationPrompt}\n\nDataset summary:\n${JSON.stringify(dataSummary, null, 2)}`,
-        },
-      ],
-      max_tokens: 2048,
-      temperature: 0.5,
-    })
+    // Race the AI interpretation against both the step timeout and the overall server timeout
+    let aiInterpretation = 'Analysis complete. Review the statistical results above.'
+    try {
+      const interpretationPromise = zai.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert AI data scientist for TheOneWayGDA. You interpret statistical analysis results and provide clear, actionable insights. Always reference specific numbers and variable names. Be thorough but concise. Use markdown formatting with headers, bullet points, and bold for key numbers.`,
+          },
+          {
+            role: 'user',
+            content: `${interpretationPrompt}\n\nDataset summary:\n${JSON.stringify(dataSummary, null, 2)}`,
+          },
+        ],
+        max_tokens: 2048,
+        temperature: 0.5,
+      })
 
-    const aiInterpretation = interpretation.choices?.[0]?.message?.content || 'Analysis complete. Review the results above for details.'
+      // Race against both timeouts
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new DOMException('AI interpretation step timed out', 'AbortError')), AI_STEP_TIMEOUT_MS)
+      )
+      const overallTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new DOMException('Overall agent timeout', 'AbortError')), AGENT_SERVER_TIMEOUT_MS)
+      )
+
+      const interpretation = await Promise.race([interpretationPromise, timeoutPromise, overallTimeoutPromise])
+      aiInterpretation = interpretation.choices?.[0]?.message?.content || aiInterpretation
+    } catch (aiError: unknown) {
+      // If AI interpretation times out, still return the statistical results
+      console.warn('AI interpretation step failed/timed out, returning statistical results only:', aiError instanceof Error ? aiError.message : aiError)
+      aiInterpretation = '*AI interpretation timed out. The statistical analysis results above are still valid and complete.*'
+    }
 
     results.push({
       stepId: 'ai-interpretation',
@@ -458,13 +487,13 @@ Be specific with numbers. Reference actual variable names and values.`
       content: aiInterpretation,
     })
 
+    clearTimeout(serverTimeout)
     return NextResponse.json({
       results,
       summary: `Analyzed ${variables.length} variables across ${Object.values(data as Record<string, any[]>).map(a => (a || []).length).reduce((x, y) => Math.max(x, y), 0)} rows. Ran ${results.length} analysis steps including data profiling, descriptive stats, correlation, regression, group comparisons, and anomaly detection.`,
       insightsCount: results.length,
       timestamp: new Date().toISOString(),
     })
-    clearTimeout(serverTimeout)
   } catch (error: unknown) {
     clearTimeout(serverTimeout)
     const isAbort = error instanceof DOMException && error.name === 'AbortError'

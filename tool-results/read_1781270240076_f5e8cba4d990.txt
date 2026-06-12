@@ -1,0 +1,1332 @@
+     1→'use client'
+     2→
+     3→import { useState, useRef, useEffect, useCallback } from 'react'
+     4→import { useTranslation } from '@/lib/i18n'
+     5→import { useAppStore } from '@/lib/store'
+     6→import {
+     7→  calcFrequencies, calcCrosstabs, calcTTest, calcANOVA,
+     8→  calcChiSquare, calcMannWhitney, calcWilcoxon,
+     9→  formatPValue, fmt,
+    10→} from '@/lib/stats'
+    11→import {
+    12→  makeScatterData, makeFrequencyBarData, makePieData,
+    13→} from '@/components/workspace/Charts'
+    14→import { generateQuickReport } from '@/components/workspace/ReportGenerator'
+    15→
+    16→/* ─── Inline Statistical Engine ─── */
+    17→function calcStats(values: number[]) {
+    18→  const nums = values.filter(v => typeof v === 'number' && !isNaN(v))
+    19→  if (nums.length === 0) return null
+    20→  const n = nums.length
+    21→  const s = nums.reduce((a, b) => a + b, 0)
+    22→  const mean = s / n
+    23→  const sorted = [...nums].sort((a, b) => a - b)
+    24→  const median = n % 2 === 0 ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2 : sorted[Math.floor(n / 2)]
+    25→  const variance = nums.reduce((a, b) => a + (b - mean) ** 2, 0) / (n > 1 ? n - 1 : 1)
+    26→  const stddev = Math.sqrt(variance)
+    27→  const min = sorted[0]
+    28→  const max = sorted[n - 1]
+    29→  const freq: Record<number, number> = {}
+    30→  nums.forEach(v => { freq[v] = (freq[v] || 0) + 1 })
+    31→  const maxFreq = Math.max(...Object.values(freq))
+    32→  const mode = nums.find(v => freq[v] === maxFreq)
+    33→  const skewness = n > 2 ? (nums.reduce((a, b) => a + ((b - mean) / stddev) ** 3, 0) * n) / ((n - 1) * (n - 2)) : 0
+    34→  const kurtosis = n > 3 ? (nums.reduce((a, b) => a + ((b - mean) / stddev) ** 4, 0) * n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3)) - 3 * (n - 1) ** 2 / ((n - 2) * (n - 3)) : 0
+    35→  const p25 = sorted[Math.floor(n * 0.25)]
+    36→  const p50 = sorted[Math.floor(n * 0.5)]
+    37→  const p75 = sorted[Math.floor(n * 0.75)]
+    38→  return { n, sum: s, mean, median, mode, variance, stddev, min, max, range: max - min, skewness, kurtosis, p25, p50, p75 }
+    39→}
+    40→
+    41→function calcCorrelation(x: number[], y: number[]): { r: number; n: number } | null {
+    42→  const pairs: [number, number][] = []
+    43→  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    44→    if (typeof x[i] === 'number' && typeof y[i] === 'number' && !isNaN(x[i]) && !isNaN(y[i])) {
+    45→      pairs.push([x[i], y[i]])
+    46→    }
+    47→  }
+    48→  if (pairs.length < 3) return null
+    49→  const n = pairs.length
+    50→  const mx = pairs.reduce((a, p) => a + p[0], 0) / n
+    51→  const my = pairs.reduce((a, p) => a + p[1], 0) / n
+    52→  let num = 0, dx = 0, dy = 0
+    53→  for (const [px, py] of pairs) {
+    54→    num += (px - mx) * (py - my)
+    55→    dx += (px - mx) ** 2
+    56→    dy += (py - my) ** 2
+    57→  }
+    58→  const r = dx === 0 || dy === 0 ? 0 : num / Math.sqrt(dx * dy)
+    59→  return { r, n }
+    60→}
+    61→
+    62→function calcRegression(x: number[], y: number[]): { slope: number; intercept: number; r2: number; n: number } | null {
+    63→  const pairs: [number, number][] = []
+    64→  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    65→    if (typeof x[i] === 'number' && typeof y[i] === 'number' && !isNaN(x[i]) && !isNaN(y[i])) {
+    66→      pairs.push([x[i], y[i]])
+    67→    }
+    68→  }
+    69→  if (pairs.length < 3) return null
+    70→  const n = pairs.length
+    71→  const mx = pairs.reduce((a, p) => a + p[0], 0) / n
+    72→  const my = pairs.reduce((a, p) => a + p[1], 0) / n
+    73→  let num = 0, den = 0
+    74→  for (const [px, py] of pairs) {
+    75→    num += (px - mx) * (py - my)
+    76→    den += (px - mx) ** 2
+    77→  }
+    78→  if (den === 0) return null
+    79→  const slope = num / den
+    80→  const intercept = my - slope * mx
+    81→  const ssRes = pairs.reduce((a, [px, py]) => a + (py - (slope * px + intercept)) ** 2, 0)
+    82→  const ssTot = pairs.reduce((a, [, py]) => a + (py - my) ** 2, 0)
+    83→  const r2 = ssTot === 0 ? 0 : 1 - ssRes / ssTot
+    84→  return { slope, intercept, r2, n }
+    85→}
+    86→
+    87→function sum(arr: number[]): number {
+    88→  return arr.reduce((a, b) => a + b, 0)
+    89→}
+    90→
+    91→/* ─── Hook ─── */
+    92→export function useWorkspaceHandlers() {
+    93→  const { t } = useTranslation()
+    94→  const store = useAppStore()
+    95→
+    96→  // Dialog states
+    97→  const [shareDialogOpen, setShareDialogOpen] = useState(false)
+    98→  const [shareEmail, setShareEmail] = useState('')
+    99→  const [shareLink, setShareLink] = useState('')
+   100→  const [importDialogOpen, setImportDialogOpen] = useState(false)
+   101→  const [importText, setImportText] = useState('')
+   102→  const [newVarDialogOpen, setNewVarDialogOpen] = useState(false)
+   103→  const [newVarName, setNewVarName] = useState('')
+   104→  const [newVarType, setNewVarType] = useState<'numeric' | 'string' | 'date' | 'currency'>('numeric')
+   105→  const [scanDialogOpen, setScanDialogOpen] = useState(false)
+   106→  const [cleanDialogOpen, setCleanDialogOpen] = useState(false)
+   107→  const [validateDialogOpen, setValidateDialogOpen] = useState(false)
+   108→  const [scanFile, setScanFile] = useState<File | null>(null)
+   109→  const [scanPreview, setScanPreview] = useState<string | null>(null)
+   110→  const [editedFields, setEditedFields] = useState<Record<string, string>>({})
+   111→  const [nonparamDialogOpen, setNonparamDialogOpen] = useState(false)
+   112→  const [nonparamType, setNonparamType] = useState<'mann-whitney' | 'wilcoxon'>('mann-whitney')
+   113→  const [nonparamVar1, setNonparamVar1] = useState('')
+   114→  const [nonparamVar2, setNonparamVar2] = useState('')
+   115→  const [crosstabsDialogOpen, setCrosstabsDialogOpen] = useState(false)
+   116→  const [crosstabRowVar, setCrosstabRowVar] = useState('')
+   117→  const [crosstabColVar, setCrosstabColVar] = useState('')
+   118→  const [ttestDialogOpen, setTtestDialogOpen] = useState(false)
+   119→  const [ttestGroupVar, setTtestGroupVar] = useState('')
+   120→  const [ttestValueVar, setTtestValueVar] = useState('')
+   121→  const [anovaDialogOpen, setAnovaDialogOpen] = useState(false)
+   122→  const [anovaGroupVar, setAnovaGroupVar] = useState('')
+   123→  const [anovaValueVar, setAnovaValueVar] = useState('')
+   124→
+   125→  // Validation state
+   126→  const [validationResults, setValidationResults] = useState<{
+   127→    issues: { row?: number; column: string; severity: 'error' | 'warning' | 'info'; message: string }[]
+   128→    stats: { totalRows: number; missingCells: number; outliers: number; duplicates: number; emptyCols: string[] }
+   129→  } | null>(null)
+   130→
+   131→  // Form states
+   132→  const [chatInput, setChatInput] = useState('')
+   133→
+   134→  // Computation loading states
+   135→  const [isValidating, setIsValidating] = useState(false)
+   136→  const [isCleaning, setIsCleaning] = useState(false)
+   137→
+   138→  // Refs
+   139→  const chatEndRef = useRef<HTMLDivElement>(null)
+   140→  const fileInputRef = useRef<HTMLInputElement>(null)
+   141→  const batchInputRef = useRef<HTMLInputElement>(null)
+   142→
+   143→  // Set workspace view on mount
+   144→  useEffect(() => {
+   145→    store.setView('workspace')
+   146→  }, [])
+   147→
+   148→  // Auto-scroll chat
+   149→  useEffect(() => {
+   150→    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+   151→  }, [store.chatMessages, store.isAiTyping])
+   152→
+   153→  const getNumericVals = useCallback((varName: string): number[] => {
+   154→    return (store.data[varName] || []).map(v => typeof v === 'string' ? parseFloat(v) : v).filter((v): v is number => typeof v === 'number' && !isNaN(v))
+   155→  }, [store.data])
+   156→
+   157→  const handleImportCSV = useCallback(() => {
+   158→    if (!importText.trim()) return
+   159→    store.importCSV(importText.trim())
+   160→    setImportDialogOpen(false)
+   161→    setImportText('')
+   162→  }, [importText, store])
+   163→
+   164→  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+   165→    const file = e.target.files?.[0]
+   166→    if (!file) return
+   167→    store.importFile(file)
+   168→    setImportDialogOpen(false)
+   169→  }, [store])
+   170→
+   171→  const handleExportCSV = useCallback(() => {
+   172→    const csv = store.exportCSV()
+   173→    const blob = new Blob([csv], { type: 'text/csv' })
+   174→    const url = URL.createObjectURL(blob)
+   175→    const a = document.createElement('a')
+   176→    a.href = url
+   177→    a.download = `${store.currentProject?.name || 'data'}.csv`
+   178→    a.click()
+   179→    URL.revokeObjectURL(url)
+   180→  }, [store])
+   181→
+   182→  const handleExportJSON = useCallback(() => {
+   183→    const json = store.exportJSON()
+   184→    const blob = new Blob([json], { type: 'application/json' })
+   185→    const url = URL.createObjectURL(blob)
+   186→    const a = document.createElement('a')
+   187→    a.href = url
+   188→    a.download = 'project.json'
+   189→    a.click()
+   190→  }, [store])
+   191→
+   192→  const handleAddVariable = useCallback(() => {
+   193→    if (!newVarName.trim()) return
+   194→    store.addVariable({
+   195→      id: Date.now().toString(36),
+   196→      name: newVarName.trim(),
+   197→      type: newVarType,
+   198→      label: newVarName.trim(),
+   199→      width: 8,
+   200→      decimals: newVarType === 'numeric' ? 2 : 0,
+   201→      missing: '',
+   202→      values: {},
+   203→    })
+   204→    setNewVarName('')
+   205→    setNewVarDialogOpen(false)
+   206→  }, [newVarName, newVarType, store])
+   207→
+   208→  const handleRunDescriptive = useCallback(() => {
+   209→    const results: any[] = []
+   210→    for (const varName of store.selectedVariables) {
+   211→      const vals = getNumericVals(varName)
+   212→      const stats = calcStats(vals)
+   213→      if (stats) {
+   214→        const se = stats.stddev / Math.sqrt(stats.n)
+   215→        const ci95_lower = stats.mean - 1.96 * se
+   216→        const ci95_upper = stats.mean + 1.96 * se
+   217→        const cv = stats.mean !== 0 ? (stats.stddev / Math.abs(stats.mean)) * 100 : 0
+   218→        results.push({
+   219→          variable: varName,
+   220→          n: stats.n,
+   221→          mean: stats.mean?.toFixed(3),
+   222→          median: stats.median,
+   223→          stddev: stats.stddev?.toFixed(3),
+   224→          se: se.toFixed(3),
+   225→          ci95: `${ci95_lower.toFixed(3)}–${ci95_upper.toFixed(3)}`,
+   226→          min: stats.min,
+   227→          max: stats.max,
+   228→          iqr: (stats.p75 - stats.p25).toFixed(3),
+   229→          skewness: stats.skewness?.toFixed(3),
+   230→          kurtosis: stats.kurtosis?.toFixed(3),
+   231→          cv: cv.toFixed(1) + '%',
+   232→          sum: stats.sum?.toFixed(2),
+   233→        })
+   234→      }
+   235→    }
+   236→    if (results.length === 0) {
+   237→      store.addOutput({
+   238→        id: Date.now().toString(36),
+   239→        title: 'Descriptive Statistics',
+   240→        type: 'text',
+   241→        content: `No descriptive statistics could be computed. This usually means the selected variables contain no valid numeric values. Try selecting numeric-type variables from the Data Editor. Selected: ${store.selectedVariables.join(', ') || 'none'}.`,
+   242→        timestamp: new Date().toISOString(),
+   243→      })
+   244→      return
+   245→    }
+   246→    store.addOutput({
+   247→      id: Date.now().toString(36),
+   248→      title: t('analysis.descriptive'),
+   249→      type: 'table',
+   250→      content: {
+   251→        headers: ['Variable', 'N', 'Mean', 'Median', 'SD', 'SE', '95% CI', 'Min', 'Max', 'IQR', 'Skew', 'Kurt', 'CV'],
+   252→        rows: results.map(r => [r.variable, r.n, r.mean, r.median, r.stddev, r.se, r.ci95, r.min, r.max, r.iqr, r.skewness, r.kurtosis, r.cv]),
+   253→      },
+   254→      timestamp: new Date().toISOString(),
+   255→    })
+   256→    store.addSyntax(`DESCRIPTIVES VARIABLES=${store.selectedVariables.join(' ')}`)
+   257→  }, [store, t, getNumericVals])
+   258→
+   259→  const handleRunCorrelation = useCallback(() => {
+   260→    if (store.selectedVariables.length < 2) {
+   261→      store.addOutput({ id: Date.now().toString(36), title: 'Correlation', type: 'text', content: 'Correlation requires at least 2 numeric variables. Please select 2 or more numeric variables in the Data Editor and try again.', timestamp: new Date().toISOString() })
+   262→      return
+   263→    }
+   264→    const vars = store.selectedVariables.slice(0, 5)
+   265→    const matrix: string[][] = [vars]
+   266→    for (const v1 of vars) {
+   267→      const row: string[] = [v1]
+   268→      for (const v2 of vars) {
+   269→        if (v1 === v2) { row.push('1.000'); continue }
+   270→        const x = getNumericVals(v1)
+   271→        const y = getNumericVals(v2)
+   272→        const result = calcCorrelation(x, y)
+   273→        row.push(result?.r.toFixed(3) ?? 'N/A')
+   274→      }
+   275→      matrix.push(row)
+   276→    }
+   277→    store.addOutput({
+   278→      id: Date.now().toString(36),
+   279→      title: t('analysis.correlation'),
+   280→      type: 'table',
+   281→      content: { headers: [''], rows: matrix },
+   282→      timestamp: new Date().toISOString(),
+   283→    })
+   284→    store.addSyntax(`CORRELATIONS /VARIABLES=${vars.join(' ')}`)
+   285→  }, [store, t, getNumericVals])
+   286→
+   287→  const handleRunRegression = useCallback(() => {
+   288→    if (store.selectedVariables.length < 2) {
+   289→      store.addOutput({ id: Date.now().toString(36), title: 'Regression', type: 'text', content: 'Regression requires at least 2 numeric variables (first = dependent, second = independent). Please select 2 or more numeric variables and try again.', timestamp: new Date().toISOString() })
+   290→      return
+   291→    }
+   292→    const dv = store.selectedVariables[0]
+   293→    const iv = store.selectedVariables[1]
+   294→    const x = getNumericVals(iv)
+   295→    const y = getNumericVals(dv)
+   296→    const reg = calcRegression(x, y)
+   297→    const corr = calcCorrelation(x, y)
+   298→    if (!reg || !corr) {
+   299→      store.addOutput({ id: Date.now().toString(36), title: 'Regression', type: 'text', content: `Could not compute regression for ${dv} ~ ${iv}. Ensure both variables have at least 3 valid numeric values and the independent variable (${iv}) has some variation (not all the same value).`, timestamp: new Date().toISOString() })
+   300→      return
+   301→    }
+   302→    store.addOutput({
+   303→      id: Date.now().toString(36),
+   304→      title: t('analysis.regression') + ` (${dv} ~ ${iv})`,
+   305→      type: 'table',
+   306→      content: {
+   307→        headers: ['Statistic', 'Value'],
+   308→        rows: [
+   309→          ['Intercept', reg.intercept.toFixed(4)],
+   310→          ['Slope', reg.slope.toFixed(4)],
+   311→          ['R', corr.r.toFixed(4)],
+   312→          ['R²', reg.r2.toFixed(4)],
+   313→          ['N', String(reg.n)],
+   314→          ['Equation', `${dv} = ${reg.intercept.toFixed(2)} + ${reg.slope.toFixed(2)} × ${iv}`],
+   315→        ],
+   316→      },
+   317→      timestamp: new Date().toISOString(),
+   318→    })
+   319→    store.addOutput({
+   320→      id: (Date.now() + 1).toString(36),
+   321→      title: `Scatter Plot (${dv} vs ${iv})`,
+   322→      type: 'chart',
+   323→      content: { chartType: 'scatter', dv, iv, data: makeScatterData(x, y), slope: reg.slope, intercept: reg.intercept },
+   324→      timestamp: new Date().toISOString(),
+   325→    })
+   326→    store.addSyntax(`REGRESSION /DEPENDENT=${dv} /METHOD=ENTER ${iv}`)
+   327→  }, [store, t, getNumericVals])
+   328→
+   329→  const handleRunFrequencies = useCallback(() => {
+   330→    if (store.selectedVariables.length === 0) {
+   331→      store.addOutput({ id: Date.now().toString(36), title: 'Frequencies', type: 'text', content: 'No variables selected. Please select at least one variable in the Data Editor to generate frequency tables.', timestamp: new Date().toISOString() })
+   332→      return
+   333→    }
+   334→    for (const varName of store.selectedVariables) {
+   335→      const vals = store.data[varName] || []
+   336→      const result = calcFrequencies(vals, varName)
+   337→      const rows: string[][] = result.table.map(r => [
+   338→        r.value, String(r.frequency), r.percent.toFixed(1), r.cumulativePercent.toFixed(1),
+   339→      ])
+   340→      rows.push(['Total', String(result.validN), '100.0', ''])
+   341→      if (result.missingN > 0) rows.push(['Missing', String(result.missingN), '', ''])
+   342→      store.addOutput({
+   343→        id: Date.now().toString(36) + varName,
+   344→        title: `Frequencies: ${varName}`,
+   345→        type: 'table',
+   346→        content: { headers: ['Value', 'Frequency', 'Percent', 'Cum. %'], rows },
+   347→        timestamp: new Date().toISOString(),
+   348→      })
+   349→      const isNumeric = result.table.length > 5
+   350→      const varData = store.variables.find(v => v.name === varName)
+   351→      if (isNumeric && varData?.type === 'numeric') {
+   352→        store.addOutput({
+   353→          id: (Date.now() + 2).toString(36) + varName,
+   354→          title: `Distribution: ${varName}`,
+   355→          type: 'chart',
+   356→          content: { chartType: 'histogram', values: getNumericVals(varName), title: varName },
+   357→          timestamp: new Date().toISOString(),
+   358→        })
+   359→      } else {
+   360→        const pieData = makePieData(vals)
+   361→        store.addOutput({
+   362→          id: (Date.now() + 2).toString(36) + varName,
+   363→          title: `Pie Chart: ${varName}`,
+   364→          type: 'chart',
+   365→          content: { chartType: 'pie', data: pieData, title: varName },
+   366→          timestamp: new Date().toISOString(),
+   367→        })
+   368→      }
+   369→    }
+   370→    store.addSyntax(`FREQUENCIES VARIABLES=${store.selectedVariables.join(' ')}`)
+   371→  }, [store, getNumericVals])
+   372→
+   373→  const handleRunCrosstabs = useCallback(() => {
+   374→    if (!crosstabRowVar || !crosstabColVar) {
+   375→      store.addOutput({ id: Date.now().toString(36), title: 'Crosstabs', type: 'text', content: 'Please select both a Row variable and a Column variable to generate a contingency table.', timestamp: new Date().toISOString() })
+   376→      return
+   377→    }
+   378→    const rowVals = store.data[crosstabRowVar] || []
+   379→    const colVals = store.data[crosstabColVar] || []
+   380→    const result = calcCrosstabs(rowVals, colVals, crosstabRowVar, crosstabColVar)
+   381→    if (!result) {
+   382→      store.addOutput({ id: Date.now().toString(36), title: 'Crosstabs', type: 'text', content: `Could not build crosstabs for ${crosstabRowVar} x ${crosstabColVar}. Ensure both variables have at least 5 valid observations with at least 2 categories each.`, timestamp: new Date().toISOString() })
+   383→      return
+   384→    }
+   385→    const headers = [result.rowVariable + ' \\ ' + result.colVariable, ...result.contingencyTable.headers, 'Total']
+   386→    const rows: string[][] = result.contingencyTable.rows.map(r => [
+   387→      r.label, ...r.cells.map(String), String(r.total),
+   388→    ])
+   389→    rows.push(['Total', ...result.contingencyTable.colTotals.map(String), String(result.contingencyTable.grandTotal)])
+   390→    store.addOutput({
+   391→      id: Date.now().toString(36),
+   392→      title: `Crosstabs: ${crosstabRowVar} × ${crosstabColVar}`,
+   393→      type: 'table',
+   394→      content: { headers, rows },
+   395→      timestamp: new Date().toISOString(),
+   396→    })
+   397→    store.addOutput({
+   398→      id: (Date.now() + 1).toString(36),
+   399→      title: `Chi-Square Test for ${crosstabRowVar} × ${crosstabColVar}`,
+   400→      type: 'table',
+   401→      content: {
+   402→        headers: ['Statistic', 'Value'],
+   403→        rows: [
+   404→          ['Pearson Chi-Square', fmt(result.chiSquare)],
+   405→          ['Degrees of Freedom', String(result.degreesOfFreedom)],
+   406→          ['P-value', formatPValue(result.pValue)],
+   407→          ["Cramér's V", fmt(result.cramersV || 0)],
+   408→          ['N', String(result.contingencyTable.grandTotal)],
+   409→        ],
+   410→      },
+   411→      timestamp: new Date().toISOString(),
+   412→    })
+   413→    store.addSyntax(`CROSSTABS /TABLES=${crosstabRowVar} BY ${crosstabColVar} /STATISTIC=CHISQ`)
+   414→    setCrosstabsDialogOpen(false)
+   415→  }, [crosstabRowVar, crosstabColVar, store])
+   416→
+   417→  const handleRunTTest = useCallback(() => {
+   418→    if (!ttestGroupVar || !ttestValueVar) {
+   419→      store.addOutput({ id: Date.now().toString(36), title: 'T-Test', type: 'text', content: 'Please select both a Grouping variable and a Test variable. The grouping variable should be categorical (e.g., Male/Female) and the test variable should be numeric.', timestamp: new Date().toISOString() })
+   420→      return
+   421→    }
+   422→    const groupVals = store.data[ttestGroupVar] || []
+   423→    const valueVals = store.data[ttestValueVar] || []
+   424→    const n = Math.min(groupVals.length, valueVals.length)
+   425→    const groupMap = new Map<string, number[]>()
+   426→    for (let i = 0; i < n; i++) {
+   427→      const g = groupVals[i]
+   428→      const v = typeof valueVals[i] === 'string' ? parseFloat(valueVals[i]) : valueVals[i]
+   429→      if (g === '' || g === null || g === undefined || typeof v !== 'number' || isNaN(v)) continue
+   430→      const key = String(g)
+   431→      if (!groupMap.has(key)) groupMap.set(key, [])
+   432→      groupMap.get(key)!.push(v)
+   433→    }
+   434→    const groups = [...groupMap.entries()]
+   435→    if (groups.length < 2) {
+   436→      store.addOutput({ id: Date.now().toString(36), title: 'T-Test', type: 'text', content: `T-Test requires exactly 2 groups in the grouping variable (${ttestGroupVar}). Found ${groups.length} group(s): ${groups.map(g => `${g[0]} (n=${g[1].length})`).join(', ') || 'none'}. Select a different grouping variable with exactly 2 categories.`, timestamp: new Date().toISOString() })
+   437→      return
+   438→    }
+   439→    const [g1Name, g1Vals] = groups[0]
+   440→    const [g2Name, g2Vals] = groups[1]
+   441→    const result = calcTTest(g1Vals, g2Vals, g1Name, g2Name)
+   442→    if (!result) {
+   443→      store.addOutput({ id: Date.now().toString(36), title: 'T-Test', type: 'text', content: `Could not compute T-Test. Ensure the grouping variable (${ttestGroupVar}) has exactly 2 groups, each with at least 2 numeric values in the test variable (${ttestValueVar}). Groups found: ${groups.map(g => `${g[0]} (n=${g[1].length})`).join(', ')}.`, timestamp: new Date().toISOString() })
+   444→      return
+   445→    }
+   446→    store.addOutput({
+   447→      id: Date.now().toString(36),
+   448→      title: 'Independent Samples T-Test',
+   449→      type: 'table',
+   450→      content: {
+   451→        headers: ['Statistic', 'Value'],
+   452→        rows: [
+   453→          ['Group 1', `${result.group1Name} (n=${result.n1})`],
+   454→          ['Group 1 Mean', fmt(result.mean1)],
+   455→          ['Group 1 Std Dev', fmt(result.std1)],
+   456→          ['Group 2', `${result.group2Name} (n=${result.n2})`],
+   457→          ['Group 2 Mean', fmt(result.mean2)],
+   458→          ['Group 2 Std Dev', fmt(result.std2)],
+   459→          ['Mean Difference', fmt(result.meanDifference)],
+   460→          ['Std Error Difference', fmt(result.stdErrorDifference)],
+   461→          ['t-statistic', fmt(result.tStatistic)],
+   462→          ['Degrees of Freedom', fmt(result.degreesOfFreedom)],
+   463→          ['P-value (two-tailed)', formatPValue(result.pValue)],
+   464→          ["Cohen's d", fmt(result.cohensD)],
+   465→        ],
+   466→      },
+   467→      timestamp: new Date().toISOString(),
+   468→    })
+   469→    store.addOutput({
+   470→      id: (Date.now() + 1).toString(36),
+   471→      title: `Box Plot: ${ttestValueVar} by ${ttestGroupVar}`,
+   472→      type: 'chart',
+   473→      content: {
+   474→        chartType: 'boxplot',
+   475→        groups: [
+   476→          { name: result.group1Name, values: g1Vals },
+   477→          { name: result.group2Name, values: g2Vals },
+   478→        ],
+   479→        title: `${ttestValueVar} by ${ttestGroupVar}`,
+   480→      },
+   481→      timestamp: new Date().toISOString(),
+   482→    })
+   483→    store.addSyntax(`T-TEST GROUPS=${ttestGroupVar} /VARIABLES=${ttestValueVar}`)
+   484→    setTtestDialogOpen(false)
+   485→  }, [ttestGroupVar, ttestValueVar, store])
+   486→
+   487→  const handleRunANOVA = useCallback(() => {
+   488→    if (!anovaGroupVar || !anovaValueVar) {
+   489→      store.addOutput({ id: Date.now().toString(36), title: 'ANOVA', type: 'text', content: 'Please select both a Grouping variable and a Test variable. The grouping variable should be categorical (with 2+ groups) and the test variable should be numeric.', timestamp: new Date().toISOString() })
+   490→      return
+   491→    }
+   492→    const groupVals = store.data[anovaGroupVar] || []
+   493→    const valueVals = store.data[anovaValueVar] || []
+   494→    const n = Math.min(groupVals.length, valueVals.length)
+   495→    const groupMap: Record<string, number[]> = {}
+   496→    for (let i = 0; i < n; i++) {
+   497→      const g = groupVals[i]
+   498→      const v = typeof valueVals[i] === 'string' ? parseFloat(valueVals[i]) : valueVals[i]
+   499→      if (g === '' || g === null || g === undefined || typeof v !== 'number' || isNaN(v)) continue
+   500→      const key = String(g)
+   501→      if (!groupMap[key]) groupMap[key] = []
+   502→      groupMap[key].push(v)
+   503→    }
+   504→    const result = calcANOVA(groupMap)
+   505→    if (!result) {
+   506→      store.addOutput({ id: Date.now().toString(36), title: 'ANOVA', type: 'text', content: `Could not compute ANOVA. Ensure the grouping variable has 2+ groups, each with at least 2 valid numeric values. Groups found: ${Object.entries(groupMap).map(([k, v]) => `${k} (n=${v.length})`).join(', ')}.`, timestamp: new Date().toISOString() })
+   507→      return
+   508→    }
+   509→    store.addOutput({
+   510→      id: Date.now().toString(36),
+   511→      title: 'One-Way ANOVA',
+   512→      type: 'table',
+   513→      content: {
+   514→        headers: ['Source', 'SS', 'df', 'MS', 'F', 'p-value'],
+   515→        rows: [
+   516→          ['Between Groups', fmt(result.betweenGroups.ss), String(result.betweenGroups.df), fmt(result.betweenGroups.ms), fmt(result.betweenGroups.f), formatPValue(result.betweenGroups.pValue)],
+   517→          ['Within Groups', fmt(result.withinGroups.ss), String(result.withinGroups.df), fmt(result.withinGroups.ms), '', ''],
+   518→          ['Total', fmt(result.total.ss), String(result.total.df), '', '', ''],
+   519→        ],
+   520→      },
+   521→      timestamp: new Date().toISOString(),
+   522→    })
+   523→    store.addOutput({
+   524→      id: (Date.now() + 1).toString(36),
+   525→      title: 'Group Statistics',
+   526→      type: 'table',
+   527→      content: {
+   528→        headers: ['Group', 'N', 'Mean', 'Std Dev'],
+   529→        rows: result.groupStats.map(g => [g.name, String(g.n), fmt(g.mean), fmt(g.std)]),
+   530→      },
+   531→      timestamp: new Date().toISOString(),
+   532→    })
+   533→    store.addOutput({
+   534→      id: (Date.now() + 2).toString(36),
+   535→      title: 'Effect Sizes',
+   536→      type: 'table',
+   537→      content: {
+   538→        headers: ['Measure', 'Value'],
+   539→        rows: [
+   540→          ['η² (Eta-squared)', fmt(result.etaSquared)],
+   541→          ['ω² (Omega-squared)', fmt(result.omegaSquared)],
+   542→        ],
+   543→      },
+   544→      timestamp: new Date().toISOString(),
+   545→    })
+   546→    store.addOutput({
+   547→      id: (Date.now() + 3).toString(36),
+   548→      title: `Box Plot: ${anovaValueVar} by ${anovaGroupVar}`,
+   549→      type: 'chart',
+   550→      content: {
+   551→        chartType: 'boxplot',
+   552→        groups: result.groupStats.map(g => ({
+   553→          name: g.name,
+   554→          values: groupMap[g.name] || [],
+   555→        })),
+   556→        title: `${anovaValueVar} by ${anovaGroupVar}`,
+   557→      },
+   558→      timestamp: new Date().toISOString(),
+   559→    })
+   560→    store.addSyntax(`ONEWAY ${anovaValueVar} BY ${anovaGroupVar}`)
+   561→    setAnovaDialogOpen(false)
+   562→  }, [anovaGroupVar, anovaValueVar, store])
+   563→
+   564→  const handleRunChiSquare = useCallback(() => {
+   565→    if (store.selectedVariables.length === 0) {
+   566→      store.addOutput({ id: Date.now().toString(36), title: 'Chi-Square', type: 'text', content: 'No variable selected. Please select at least one variable to run the Chi-Square goodness-of-fit test.', timestamp: new Date().toISOString() })
+   567→      return
+   568→    }
+   569→    const varName = store.selectedVariables[0]
+   570→    const vals = store.data[varName] || []
+   571→    const freq = calcFrequencies(vals, varName)
+   572→    if (!freq || freq.table.length < 2) {
+   573→      store.addOutput({ id: Date.now().toString(36), title: 'Chi-Square', type: 'text', content: `Chi-Square test requires at least 2 categories in ${varName}. Only ${freq?.table.length || 0} categories found.`, timestamp: new Date().toISOString() })
+   574→      return
+   575→    }
+   576→    const observed = freq.table.map(r => r.frequency)
+   577→    const result = calcChiSquare(observed)
+   578→    if (!result) {
+   579→      store.addOutput({ id: Date.now().toString(36), title: 'Chi-Square', type: 'text', content: 'Chi-Square computation failed. Ensure the data contains valid frequency counts.', timestamp: new Date().toISOString() })
+   580→      return
+   581→    }
+   582→    store.addOutput({
+   583→      id: Date.now().toString(36),
+   584→      title: `Chi-Square Goodness of Fit: ${varName}`,
+   585→      type: 'table',
+   586→      content: {
+   587→        headers: ['Category', 'Observed', 'Expected', 'Residual'],
+   588→        rows: result.observed.map((o, i) => [
+   589→          freq.table[i]?.value || `Cat ${i + 1}`,
+   590→          String(o),
+   591→          fmt(result.expected[i]),
+   592→          fmt(result.residuals[i]),
+   593→        ]),
+   594→      },
+   595→      timestamp: new Date().toISOString(),
+   596→    })
+   597→    store.addOutput({
+   598→      id: (Date.now() + 1).toString(36),
+   599→      title: 'Chi-Square Test Summary',
+   600→      type: 'table',
+   601→      content: {
+   602→        headers: ['Statistic', 'Value'],
+   603→        rows: [
+   604→          ['Chi-Square', fmt(result.chiSquare)],
+   605→          ['Degrees of Freedom', String(result.degreesOfFreedom)],
+   606→          ['P-value', formatPValue(result.pValue)],
+   607→          ['Total N', String(sum(result.observed))],
+   608→        ],
+   609→      },
+   610→      timestamp: new Date().toISOString(),
+   611→    })
+   612→    store.addSyntax(`NPAR TESTS /CHISQUARE=${varName}`)
+   613→  }, [store])
+   614→
+   615→  const handleRunNonparametric = useCallback(() => {
+   616→    if (!nonparamVar1 || !nonparamVar2) {
+   617→      store.addOutput({ id: Date.now().toString(36), title: nonparamType === 'mann-whitney' ? 'Mann-Whitney U' : 'Wilcoxon', type: 'text', content: 'Please select two variables to run this nonparametric test.', timestamp: new Date().toISOString() })
+   618→      return
+   619→    }
+   620→    if (nonparamType === 'mann-whitney') {
+   621→      const v1 = getNumericVals(nonparamVar1)
+   622→      const v2 = getNumericVals(nonparamVar2)
+   623→      const result = calcMannWhitney(v1, v2)
+   624→      if (!result) {
+   625→        store.addOutput({ id: Date.now().toString(36), title: 'Mann-Whitney U', type: 'text', content: `Could not compute Mann-Whitney U test. Ensure both ${nonparamVar1} (n=${v1.length}) and ${nonparamVar2} (n=${v2.length}) have at least 2 valid numeric values each.`, timestamp: new Date().toISOString() })
+   626→        return
+   627→      }
+   628→      store.addOutput({
+   629→        id: Date.now().toString(36),
+   630→        title: 'Mann-Whitney U Test',
+   631→        type: 'table',
+   632→        content: {
+   633→          headers: ['Statistic', 'Value'],
+   634→          rows: [
+   635→            ['Group 1', `${nonparamVar1} (n=${result.n1})`],
+   636→            ['Group 2', `${nonparamVar2} (n=${result.n2})`],
+   637→            ['Mean Rank (Group 1)', fmt(result.meanRank1)],
+   638→            ['Mean Rank (Group 2)', fmt(result.meanRank2)],
+   639→            ['U Statistic', fmt(result.uStatistic)],
+   640→            ['Z-value', fmt(result.zValue)],
+   641→            ['P-value (two-tailed)', formatPValue(result.pValue)],
+   642→            ['Effect Size r', fmt(result.r)],
+   643→          ],
+   644→        },
+   645→        timestamp: new Date().toISOString(),
+   646→      })
+   647→      store.addSyntax(`NPAR TESTS /M-W=${nonparamVar1} ${nonparamVar2}`)
+   648→    } else {
+   649→      const v1 = store.data[nonparamVar1] || []
+   650→      const v2 = store.data[nonparamVar2] || []
+   651→      const result = calcWilcoxon(v1, v2)
+   652→      if (!result) {
+   653→        store.addOutput({ id: Date.now().toString(36), title: 'Wilcoxon', type: 'text', content: `Could not compute Wilcoxon signed-rank test. Ensure both variables are paired (same length) and have at least 5 valid paired differences. ${nonparamVar1}: ${v1.length} values, ${nonparamVar2}: ${v2.length} values.`, timestamp: new Date().toISOString() })
+   654→        return
+   655→      }
+   656→      store.addOutput({
+   657→        id: Date.now().toString(36),
+   658→        title: 'Wilcoxon Signed-Rank Test',
+   659→        type: 'table',
+   660→        content: {
+   661→          headers: ['Statistic', 'Value'],
+   662→          rows: [
+   663→            ['Variable 1', nonparamVar1],
+   664→            ['Variable 2', nonparamVar2],
+   665→            ['N (non-zero diffs)', String(result.n)],
+   666→            ['N (ties)', String(result.nZero)],
+   667→            ['Mean Rank (Positive)', fmt(result.meanRankPositive)],
+   668→            ['Mean Rank (Negative)', fmt(result.meanRankNegative)],
+   669→            ['W Statistic', fmt(result.wStatistic)],
+   670→            ['Z-value', fmt(result.zValue)],
+   671→            ['P-value (two-tailed)', formatPValue(result.pValue)],
+   672→            ['Effect Size r', fmt(result.r)],
+   673→          ],
+   674→        },
+   675→        timestamp: new Date().toISOString(),
+   676→      })
+   677→      store.addSyntax(`NPAR TESTS /WILCOXON=${nonparamVar1} ${nonparamVar2}`)
+   678→    }
+   679→    setNonparamDialogOpen(false)
+   680→  }, [nonparamVar1, nonparamVar2, nonparamType, store, getNumericVals])
+   681→
+   682→  /* ─── Data Validation (non-blocking) ─── */
+   683→  const handleValidate = useCallback(() => {
+   684→    if (isValidating) return
+   685→    setIsValidating(true)
+   686→
+   687→    // Defer heavy computation to next tick so UI can show loading state
+   688→    setTimeout(() => {
+   689→      try {
+   690→        const data = store.data
+   691→        const variables = store.variables
+   692→    const issues: { row?: number; column: string; severity: 'error' | 'warning' | 'info'; message: string }[] = []
+   693→    let missingCells = 0
+   694→    let outlierCount = 0
+   695→    let typeErrors = 0
+   696→    const emptyCols: string[] = []
+   697→
+   698→    for (const v of variables) {
+   699→      const col = data[v.name] || []
+   700→      let colMissing = 0
+   701→      const values: number[] = []
+   702→
+   703→      for (let i = 0; i < col.length; i++) {
+   704→        const val = col[i]
+   705→        if (val === '' || val === null || val === undefined) {
+   706→          colMissing++
+   707→          missingCells++
+   708→          issues.push({ row: i + 1, column: v.name, severity: 'warning', message: 'Missing value' })
+   709→        } else if (v.type === 'numeric' && typeof val === 'string' && isNaN(parseFloat(val))) {
+   710→          typeErrors++
+   711→          issues.push({ row: i + 1, column: v.name, severity: 'error', message: `Non-numeric value "${val}" in numeric column` })
+   712→        } else if (v.type === 'numeric') {
+   713→          const num = typeof val === 'string' ? parseFloat(val) : val
+   714→          if (typeof num === 'number' && !isNaN(num)) values.push(num)
+   715→        }
+   716→      }
+   717→
+   718→      if (colMissing === col.length && col.length > 0) {
+   719→        emptyCols.push(v.name)
+   720→        issues.push({ column: v.name, severity: 'error', message: 'Entire column is empty' })
+   721→      }
+   722→
+   723→      // Check outliers using IQR method
+   724→      if (values.length >= 4) {
+   725→        const sorted = [...values].sort((a, b) => a - b)
+   726→        const q1 = sorted[Math.floor(sorted.length * 0.25)]
+   727→        const q3 = sorted[Math.floor(sorted.length * 0.75)]
+   728→        const iqr = q3 - q1
+   729→        const lower = q1 - 1.5 * iqr
+   730→        const upper = q3 + 1.5 * iqr
+   731→        for (let i = 0; i < col.length; i++) {
+   732→          const val = col[i]
+   733→          const num = typeof val === 'string' ? parseFloat(val) : val
+   734→          if (typeof num === 'number' && !isNaN(num) && (num < lower || num > upper)) {
+   735→            outlierCount++
+   736→            if (issues.length < 50) {
+   737→              issues.push({ row: i + 1, column: v.name, severity: 'info', message: `Potential outlier: ${num} (range: ${lower.toFixed(1)}\u2013${upper.toFixed(1)})` })
+   738→            }
+   739→          }
+   740→        }
+   741→      }
+   742→    }
+   743→
+   744→    // Check duplicate rows
+   745→    const rowCount = Math.max(0, ...Object.values(data).map(a => a.length))
+   746→    let duplicates = 0
+   747→    const seen = new Set<string>()
+   748→    for (let i = 0; i < rowCount; i++) {
+   749→      const key = variables.map(v => String(data[v.name]?.[i] ?? '')).join('|')
+   750→      if (seen.has(key)) {
+   751→        duplicates++
+   752→        if (issues.length < 50) {
+   753→          issues.push({ row: i + 1, column: '*', severity: 'warning', message: 'Duplicate row' })
+   754→        }
+   755→      }
+   756→      seen.add(key)
+   757→    }
+   758→
+   759→    const totalIssues = issues.length
+   760→    const result = {
+   761→      issues: issues.slice(0, 50),
+   762→      stats: { totalRows: rowCount, missingCells, outliers: outlierCount, duplicates, emptyCols },
+   763→    }
+   764→    setValidationResults(result)
+   765→
+   766→    // ── ALSO produce OutputPanel results so the user sees something ──
+   767→    // 1) Summary table
+   768→    const errors = issues.filter(i => i.severity === 'error')
+   769→    const warnings = issues.filter(i => i.severity === 'warning')
+   770→    const infos = issues.filter(i => i.severity === 'info')
+   771→    const healthScore = Math.max(0, 100 - (errors.length * 15 + warnings.length * 5 + infos.length * 1))
+   772→    const overallStatus = healthScore >= 80 ? 'Good' : healthScore >= 50 ? 'Needs Attention' : 'Poor'
+   773→
+   774→    store.addOutput({
+   775→      id: Date.now().toString(36),
+   776→      title: 'Data Validation Report',
+   777→      type: 'table',
+   778→      content: {
+   779→        headers: ['Metric', 'Value'],
+   780→        rows: [
+   781→          ['Overall Health', `${healthScore}/100 (${overallStatus})`],
+   782→          ['Total Rows', String(rowCount)],
+   783→          ['Variables', String(variables.length)],
+   784→          ['Total Issues', String(totalIssues)],
+   785→          ['Errors', String(errors.length)],
+   786→          ['Warnings', String(warnings.length)],
+   787→          ['Info (Outliers)', String(infos.length)],
+   788→          ['Missing Cells', String(missingCells)],
+   789→          ['Type Mismatches', String(typeErrors)],
+   790→          ['Duplicate Rows', String(duplicates)],
+   791→          ['Empty Columns', emptyCols.length > 0 ? emptyCols.join(', ') : 'None'],
+   792→        ],
+   793→      },
+   794→      timestamp: new Date().toISOString(),
+   795→    })
+   796→
+   797→    // 2) Issues detail table (top 30)
+   798→    if (issues.length > 0) {
+   799→      store.addOutput({
+   800→        id: (Date.now() + 1).toString(36),
+   801→        title: `Validation Issues (${Math.min(30, issues.length)} of ${totalIssues})`,
+   802→        type: 'table',
+   803→        content: {
+   804→          headers: ['Severity', 'Row', 'Column', 'Message'],
+   805→          rows: issues.slice(0, 30).map(i => [
+   806→            i.severity.toUpperCase(),
+   807→            i.row ? String(i.row) : '-',
+   808→            i.column,
+   809→            i.message,
+   810→          ]),
+   811→        },
+   812→        timestamp: new Date().toISOString(),
+   813→      })
+   814→    } else {
+   815→      store.addOutput({
+   816→        id: (Date.now() + 1).toString(36),
+   817→        title: 'Validation Result',
+   818→        type: 'text',
+   819→        content: 'All checks passed. Your data looks clean with no issues detected.',
+   820→        timestamp: new Date().toISOString(),
+   821→      })
+   822→    }
+   823→
+   824→    store.addSyntax(`DATA VALIDATION /VARIABLES=ALL`)
+   825→      } finally {
+   826→        setIsValidating(false)
+   827→      }
+   828→    }, 0)
+   829→  }, [store.data, store.variables, isValidating])
+   830→
+   831→  /* ─── Data Cleaning (non-blocking) ─── */
+   832→  const handleClean = useCallback(() => {
+   833→    if (isCleaning) return
+   834→    setIsCleaning(true)
+   835→    setCleanDialogOpen(false)
+   836→
+   837→    setTimeout(() => {
+   838→      try {
+   839→    const data: Record<string, any[]> = {}
+   840→    for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
+   841→    const variables = [...store.variables]
+   842→    let trimmedCount = 0
+   843→    let filledCount = 0
+   844→
+   845→    for (const v of variables) {
+   846→      const col = [...(data[v.name] || [])]
+   847→
+   848→      for (let i = 0; i < col.length; i++) {
+   849→        if (typeof col[i] === 'string') {
+   850→          const trimmed = col[i].trim()
+   851→          if (trimmed !== col[i]) {
+   852→            col[i] = trimmed
+   853→            trimmedCount++
+   854→          }
+   855→        }
+   856→      }
+   857→
+   858→      // Fill missing values: mean for numeric, mode for string
+   859→      if (v.type === 'numeric') {
+   860→        const nums = col.filter((x): x is number => typeof x === 'number' && !isNaN(x))
+   861→        const mean = nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : 0
+   862→        for (let i = 0; i < col.length; i++) {
+   863→          if (col[i] === '' || col[i] === null || col[i] === undefined) {
+   864→            col[i] = parseFloat(mean.toFixed(2))
+   865→            filledCount++
+   866→          }
+   867→        }
+   868→      } else {
+   869→        const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
+   870→        const freq = new Map<string, number>()
+   871→        nonEmpty.forEach(x => freq.set(String(x), (freq.get(String(x)) || 0) + 1))
+   872→        let mode = ''
+   873→        let maxFreq = 0
+   874→        freq.forEach((count, val) => { if (count > maxFreq) { maxFreq = count; mode = val } })
+   875→        for (let i = 0; i < col.length; i++) {
+   876→          if (col[i] === '' || col[i] === null || col[i] === undefined) {
+   877→            col[i] = mode
+   878→            filledCount++
+   879→          }
+   880→        }
+   881→      }
+   882→
+   883→      data[v.name] = col
+   884→    }
+   885→
+   886→    // Remove duplicate rows
+   887→    const rowCount = Math.max(0, ...Object.values(data).map(a => a.length))
+   888→    const keepIndices: number[] = []
+   889→    const seen = new Set<string>()
+   890→    for (let i = 0; i < rowCount; i++) {
+   891→      const key = variables.map(v => String(data[v.name]?.[i] ?? '')).join('|')
+   892→      if (!seen.has(key)) {
+   893→        seen.add(key)
+   894→        keepIndices.push(i)
+   895→      }
+   896→    }
+   897→
+   898→    const removedRows = rowCount - keepIndices.length
+   899→    if (keepIndices.length < rowCount) {
+   900→      for (const v of variables) {
+   901→        data[v.name] = keepIndices.map(i => data[v.name][i])
+   902→      }
+   903→    }
+   904→
+   905→    store.setData(data)
+   906→
+   907→    // Detailed cleaning report
+   908→    const newRowCount = Math.max(0, ...Object.values(data).map(a => a.length))
+   909→    store.addOutput({
+   910→      id: Date.now().toString(36),
+   911→      title: 'Data Cleaning Report',
+   912→      type: 'table',
+   913→      content: {
+   914→        headers: ['Metric', 'Before', 'After', 'Change'],
+   915→        rows: [
+   916→          ['Total Rows', String(rowCount), String(newRowCount), removedRows > 0 ? `${removedRows} removed` : 'No change'],
+   917→          ['Whitespace Trimmed', '-', String(trimmedCount), trimmedCount > 0 ? `${trimmedCount} cells` : 'None needed'],
+   918→          ['Missing Values Filled', '-', String(filledCount), filledCount > 0 ? `${filledCount} cells` : 'None found'],
+   919→          ['Duplicate Rows', '-', '-', removedRows > 0 ? `${removedRows} removed` : 'None found'],
+   920→        ],
+   921→      },
+   922→      timestamp: new Date().toISOString(),
+   923→    })
+   924→
+   925→    if (trimmedCount === 0 && filledCount === 0 && removedRows === 0) {
+   926→      store.addOutput({
+   927→        id: (Date.now() + 1).toString(36),
+   928→        title: 'Cleaning Result',
+   929→        type: 'text',
+   930→        content: 'Your data was already clean. No changes were made. Whitespace was already trimmed, no missing values found, and no duplicate rows detected.',
+   931→        timestamp: new Date().toISOString(),
+   932→      })
+   933→    } else {
+   934→      const changes: string[] = []
+   935→      if (trimmedCount > 0) changes.push(`Trimmed whitespace in ${trimmedCount} cells`)
+   936→      if (filledCount > 0) changes.push(`Filled ${filledCount} missing values (mean for numeric, mode for text)`)
+   937→      if (removedRows > 0) changes.push(`Removed ${removedRows} duplicate rows`)
+   938→      store.addOutput({
+   939→        id: (Date.now() + 1).toString(36),
+   940→        title: 'Cleaning Summary',
+   941→        type: 'text',
+   942→        content: `Data cleaning applied successfully. ${changes.join('. ')}. The dataset now has ${newRowCount} rows across ${variables.length} variables. You can re-run Validate to confirm the data is now clean.`,
+   943→        timestamp: new Date().toISOString(),
+   944→      })
+   945→    }
+   946→
+   947→    setCleanDialogOpen(false)
+   948→    store.addSyntax(`DATA CLEANING /TRIM /FILL_MISSING /REMOVE_DUPLICATES`)
+   949→      } finally {
+   950→        setIsCleaning(false)
+   951→      }
+   952→    }, 0)
+   953→  }, [store, isCleaning])
+   954→
+   955→  /* ─── Data Transformations ─── */
+   956→  const handleTransformZScore = useCallback(() => {
+   957→    const data: Record<string, any[]> = {}
+   958→    for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
+   959→    const createdVars: string[] = []
+   960→
+   961→    for (const varName of store.selectedVariables) {
+   962→      const vals = getNumericVals(varName)
+   963→      if (vals.length < 2) continue
+   964→      const m = vals.reduce((a, b) => a + b, 0) / vals.length
+   965→      const s = Math.sqrt(vals.reduce((a, b) => a + (b - m) ** 2, 0) / (vals.length - 1))
+   966→      if (s === 0) continue
+   967→      const col = store.data[varName] || []
+   968→      const newName = `z_${varName}`
+   969→      data[newName] = col.map(v => {
+   970→        const n = typeof v === 'string' ? parseFloat(v) : v
+   971→        return typeof n === 'number' && !isNaN(n) ? parseFloat(((n - m) / s).toFixed(4)) : ''
+   972→      })
+   973→      store.addVariable({
+   974→        id: Date.now().toString(36) + varName,
+   975→        name: newName,
+   976→        type: 'numeric',
+   977→        label: `Z-score of ${varName}`,
+   978→        width: 10, decimals: 4, missing: '', values: {},
+   979→      })
+   980→      createdVars.push(varName)
+   981→    }
+   982→
+   983→    store.setData(data)
+   984→    store.addOutput({
+   985→      id: Date.now().toString(36),
+   986→      title: 'Z-Score Transformation',
+   987→      type: 'table',
+   988→      content: {
+   989→        headers: ['Original', 'Transformed', 'Formula'],
+   990→        rows: createdVars.map(v => [v, `z_${v}`, '(x − mean) / SD']),
+   991→      },
+   992→      timestamp: new Date().toISOString(),
+   993→    })
+   994→    store.addSyntax(`COMPUTE z_*= (var - MEAN(var)) / SD(var)`)
+   995→  }, [store, getNumericVals])
+   996→
+   997→  const handleTransformNormalize = useCallback(() => {
+   998→    const data: Record<string, any[]> = {}
+   999→    for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
+  1000→    const createdVars: string[] = []
+  1001→
+  1002→    for (const varName of store.selectedVariables) {
+  1003→      const vals = getNumericVals(varName)
+  1004→      if (vals.length < 2) continue
+  1005→      const min = Math.min(...vals)
+  1006→      const max = Math.max(...vals)
+  1007→      const range = max - min
+  1008→      if (range === 0) continue
+  1009→      const col = store.data[varName] || []
+  1010→      const newName = `norm_${varName}`
+  1011→      data[newName] = col.map(v => {
+  1012→        const n = typeof v === 'string' ? parseFloat(v) : v
+  1013→        return typeof n === 'number' && !isNaN(n) ? parseFloat(((n - min) / range).toFixed(4)) : ''
+  1014→      })
+  1015→      store.addVariable({
+  1016→        id: Date.now().toString(36) + varName,
+  1017→        name: newName,
+  1018→        type: 'numeric',
+  1019→        label: `Normalized ${varName}`,
+  1020→        width: 10, decimals: 4, missing: '', values: {},
+  1021→      })
+  1022→      createdVars.push(varName)
+  1023→    }
+  1024→
+  1025→    store.setData(data)
+  1026→    store.addOutput({
+  1027→      id: Date.now().toString(36),
+  1028→      title: 'Min-Max Normalization (0–1)',
+  1029→      type: 'table',
+  1030→      content: {
+  1031→        headers: ['Original', 'Transformed', 'Formula'],
+  1032→        rows: createdVars.map(v => [v, `norm_${v}`, '(x − min) / (max − min)']),
+  1033→      },
+  1034→      timestamp: new Date().toISOString(),
+  1035→    })
+  1036→    store.addSyntax(`COMPUTE norm_*= (var - MIN(var)) / (MAX(var) - MIN(var))`)
+  1037→  }, [store, getNumericVals])
+  1038→
+  1039→  const handleTransformLog = useCallback(() => {
+  1040→    const data: Record<string, any[]> = {}
+  1041→    for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
+  1042→    const createdVars: string[] = []
+  1043→
+  1044→    for (const varName of store.selectedVariables) {
+  1045→      const col = store.data[varName] || []
+  1046→      const newName = `log_${varName}`
+  1047→      data[newName] = col.map(v => {
+  1048→        const n = typeof v === 'string' ? parseFloat(v) : v
+  1049→        return typeof n === 'number' && !isNaN(n) && n > 0 ? parseFloat(Math.log(n).toFixed(4)) : ''
+  1050→      })
+  1051→      store.addVariable({
+  1052→        id: Date.now().toString(36) + varName,
+  1053→        name: newName,
+  1054→        type: 'numeric',
+  1055→        label: `Log(${varName})`,
+  1056→        width: 10, decimals: 4, missing: '', values: {},
+  1057→      })
+  1058→      createdVars.push(varName)
+  1059→    }
+  1060→
+  1061→    store.setData(data)
+  1062→    store.addOutput({
+  1063→      id: Date.now().toString(36),
+  1064→      title: 'Log Transformation',
+  1065→      type: 'table',
+  1066→      content: {
+  1067→        headers: ['Original', 'Transformed', 'Formula'],
+  1068→        rows: createdVars.map(v => [v, `log_${v}`, 'ln(x)']),
+  1069→      },
+  1070→      timestamp: new Date().toISOString(),
+  1071→    })
+  1072→    store.addSyntax(`COMPUTE log_*= LN(var)`)
+  1073→  }, [store])
+  1074→
+  1075→  /* ─── Auto Data Profile ─── */
+  1076→  const handleAutoProfile = useCallback(() => {
+  1077→    if (store.variables.length === 0) return
+  1078→    const rows: string[][] = []
+  1079→    for (const v of store.variables) {
+  1080→      const col = store.data[v.name] || []
+  1081→      const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
+  1082→      const missing = col.length - nonEmpty.length
+  1083→      const stats = v.type === 'numeric' ? calcStats(getNumericVals(v.name)) : null
+  1084→
+  1085→      rows.push([
+  1086→        v.name,
+  1087→        v.type,
+  1088→        String(col.length),
+  1089→        String(nonEmpty.length),
+  1090→        String(missing),
+  1091→        stats ? `${stats.min}–${stats.max}` : `${new Set(nonEmpty.map(String)).size} unique`,
+  1092→        stats ? `${stats.mean.toFixed(2)} ± ${stats.stddev.toFixed(2)}` : '—',
+  1093→      ])
+  1094→    }
+  1095→    store.addOutput({
+  1096→      id: Date.now().toString(36),
+  1097→      title: 'Data Profile Summary',
+  1098→      type: 'table',
+  1099→      content: {
+  1100→        headers: ['Variable', 'Type', 'N', 'Valid', 'Missing', 'Range/Unique', 'Mean±SD'],
+  1101→        rows,
+  1102→      },
+  1103→      timestamp: new Date().toISOString(),
+  1104→    })
+  1105→  }, [store, getNumericVals])
+  1106→
+  1107→  // Auto-profile when new data is imported (debounced, single-fire)
+  1108→  const prevVarCountRef = useRef(store.variables.length)
+  1109→  const profileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  1110→  useEffect(() => {
+  1111→    const prevCount = prevVarCountRef.current
+  1112→    const currentCount = store.variables.length
+  1113→    // Only auto-profile when variables INCREASE (new import), not on every data change
+  1114→    if (currentCount > 0 && currentCount > prevCount) {
+  1115→      prevVarCountRef.current = currentCount
+  1116→      // Clear any pending profile timer to prevent cascading
+  1117→      if (profileTimerRef.current) clearTimeout(profileTimerRef.current)
+  1118→      profileTimerRef.current = setTimeout(() => handleAutoProfile(), 300)
+  1119→    } else {
+  1120→      prevVarCountRef.current = currentCount
+  1121→    }
+  1122→    return () => {
+  1123→      if (profileTimerRef.current) clearTimeout(profileTimerRef.current)
+  1124→    }
+  1125→  }, [store.variables.length, handleAutoProfile])
+  1126→
+  1127→  const handleExportPDF = useCallback(() => {
+  1128→    generateQuickReport(store.outputs, store.currentProject?.name)
+  1129→  }, [store.outputs, store.currentProject?.name])
+  1130→
+  1131→  /* ─── AI Agent Auto-Analysis (with timeout) ─── */
+  1132→  const agentAbortRef = useRef<AbortController | null>(null)
+  1133→
+  1134→  const handleRunAgentAnalysis = useCallback(async (goal?: string) => {
+  1135→    if (store.variables.length === 0) return
+  1136→
+  1137→    // Cancel any previous in-flight request
+  1138→    if (agentAbortRef.current) agentAbortRef.current.abort()
+  1139→    const controller = new AbortController()
+  1140→    agentAbortRef.current = controller
+  1141→
+  1142→    const AGENT_TIMEOUT_MS = 60_000 // 60 seconds hard limit
+  1143→    const timeoutId = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS)
+  1144→
+  1145→    store.setAgentStatus('planning')
+  1146→
+  1147→    store.addOutput({
+  1148→      id: Date.now().toString(36),
+  1149→      title: 'AI Agent: Starting Analysis...',
+  1150→      type: 'text',
+  1151→      content: 'The AI Agent is analyzing your dataset. This may take a moment.',
+  1152→      timestamp: new Date().toISOString(),
+  1153→    })
+  1154→
+  1155→    try {
+  1156→      const res = await fetch('/api/ai/agent', {
+  1157→        method: 'POST',
+  1158→        headers: { 'Content-Type': 'application/json' },
+  1159→        signal: controller.signal,
+  1160→        body: JSON.stringify({
+  1161→          data: store.data,
+  1162→          variables: store.variables,
+  1163→          goal: goal || undefined,
+  1164→        }),
+  1165→      })
+  1166→
+  1167→      if (!res.ok) throw new Error(`Agent request failed (${res.status})`)
+  1168→
+  1169→      const data = await res.json()
+  1170→      clearTimeout(timeoutId)
+  1171→
+  1172→      for (const result of (data.results || [])) {
+  1173→        store.addOutput({
+  1174→          id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+  1175→          title: result.title,
+  1176→          type: result.type || 'text',
+  1177→          content: result.content,
+  1178→          timestamp: new Date().toISOString(),
+  1179→        })
+  1180→      }
+  1181→
+  1182→      store.setAgentStatus('done')
+  1183→      store.addAgentResults(data.results || [])
+  1184→      store.addSyntax(`AI AGENT ANALYSIS${goal ? `: ${goal}` : ''}`)
+  1185→    } catch (error) {
+  1186→      clearTimeout(timeoutId)
+  1187→      store.setAgentStatus('error')
+  1188→      const isTimeout = error instanceof DOMException && error.name === 'AbortError'
+  1189→      const msg = isTimeout
+  1190→        ? `Analysis timed out after ${AGENT_TIMEOUT_MS / 1000}s. The dataset may be too large or the AI service is slow. Try with fewer variables or try again.`
+  1191→        : `Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`
+  1192→      store.addOutput({
+  1193→        id: Date.now().toString(36),
+  1194→        title: 'AI Agent Error',
+  1195→        type: 'text',
+  1196→        content: msg,
+  1197→        timestamp: new Date().toISOString(),
+  1198→      })
+  1199→    } finally {
+  1200→      agentAbortRef.current = null
+  1201→    }
+  1202→  }, [store])
+  1203→
+  1204→  /* ─── AI Chat (with timeout) ─── */
+  1205→  const chatAbortRef = useRef<AbortController | null>(null)
+  1206→
+  1207→  const handleSendChat = useCallback(async () => {
+  1208→    if (!chatInput.trim()) return
+  1209→
+  1210→    // Cancel any previous in-flight chat request
+  1211→    if (chatAbortRef.current) chatAbortRef.current.abort()
+  1212→    const controller = new AbortController()
+  1213→    chatAbortRef.current = controller
+  1214→
+  1215→    const CHAT_TIMEOUT_MS = 30_000 // 30 seconds hard limit
+  1216→    const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
+  1217→
+  1218→    const userMsg = { id: Date.now().toString(36), role: 'user' as const, content: chatInput.trim(), timestamp: new Date().toISOString() }
+  1219→    store.addChatMessage(userMsg)
+  1220→    setChatInput('')
+  1221→    store.setAiTyping(true)
+  1222→    try {
+  1223→      const res = await fetch('/api/ai', {
+  1224→        method: 'POST',
+  1225→        headers: { 'Content-Type': 'application/json' },
+  1226→        signal: controller.signal,
+  1227→        body: JSON.stringify({
+  1228→          messages: [...store.chatMessages, userMsg].map(m => ({ role: m.role, content: m.content })),
+  1229→          data: store.data,
+  1230→          variables: store.variables,
+  1231→        }),
+  1232→      })
+  1233→      const data = await res.json()
+  1234→      clearTimeout(timeoutId)
+  1235→      const aiContent = data.choices?.[0]?.message?.content || data.error || 'Sorry, I could not process your request.'
+  1236→      store.addChatMessage({ id: (Date.now() + 1).toString(36), role: 'ai', content: aiContent, timestamp: new Date().toISOString() })
+  1237→    } catch (error) {
+  1238→      clearTimeout(timeoutId)
+  1239→      const isTimeout = error instanceof DOMException && error.name === 'AbortError'
+  1240→      store.addChatMessage({
+  1241→        id: (Date.now() + 1).toString(36),
+  1242→        role: 'ai',
+  1243→        content: isTimeout ? 'Response timed out. The AI service may be busy. Please try again.' : 'Network error. Please try again.',
+  1244→        timestamp: new Date().toISOString(),
+  1245→      })
+  1246→    } finally {
+  1247→      store.setAiTyping(false)
+  1248→      chatAbortRef.current = null
+  1249→    }
+  1250→  }, [chatInput, store])
+  1251→
+  1252→  const rowCount = store.variables.length > 0 ? Math.max(0, ...Object.values(store.data).map(a => a.length)) : 0
+  1253→
+  1254→  return {
+  1255→    // Store
+  1256→    store,
+  1257→    t,
+  1258→    rowCount,
+  1259→
+  1260→    // Dialog states
+  1261→    shareDialogOpen, setShareDialogOpen,
+  1262→    shareEmail, setShareEmail,
+  1263→    shareLink, setShareLink,
+  1264→    importDialogOpen, setImportDialogOpen,
+  1265→    importText, setImportText,
+  1266→    newVarDialogOpen, setNewVarDialogOpen,
+  1267→    newVarName, setNewVarName,
+  1268→    newVarType, setNewVarType,
+  1269→    scanDialogOpen, setScanDialogOpen,
+  1270→    cleanDialogOpen, setCleanDialogOpen,
+  1271→    validateDialogOpen, setValidateDialogOpen,
+  1272→    scanFile, setScanFile,
+  1273→    scanPreview, setScanPreview,
+  1274→    editedFields, setEditedFields,
+  1275→    nonparamDialogOpen, setNonparamDialogOpen,
+  1276→    nonparamType, setNonparamType,
+  1277→    nonparamVar1, setNonparamVar1,
+  1278→    nonparamVar2, setNonparamVar2,
+  1279→    crosstabsDialogOpen, setCrosstabsDialogOpen,
+  1280→    crosstabRowVar, setCrosstabRowVar,
+  1281→    crosstabColVar, setCrosstabColVar,
+  1282→    ttestDialogOpen, setTtestDialogOpen,
+  1283→    ttestGroupVar, setTtestGroupVar,
+  1284→    ttestValueVar, setTtestValueVar,
+  1285→    anovaDialogOpen, setAnovaDialogOpen,
+  1286→    anovaGroupVar, setAnovaGroupVar,
+  1287→    anovaValueVar, setAnovaValueVar,
+  1288→
+  1289→    // Form states
+  1290→    chatInput, setChatInput,
+  1291→
+  1292→    // Refs
+  1293→    chatEndRef,
+  1294→    fileInputRef,
+  1295→    batchInputRef,
+  1296→
+  1297→    // Validation & Cleaning
+  1298→    validationResults, setValidationResults,
+  1299→    isValidating, isCleaning,
+  1300→    handleValidate,
+  1301→    handleClean,
+  1302→
+  1303→    // Transformations
+  1304→    handleTransformZScore,
+  1305→    handleTransformNormalize,
+  1306→    handleTransformLog,
+  1307→
+  1308→    // Auto Profile
+  1309→    handleAutoProfile,
+  1310→
+  1311→    // Handlers
+  1312→    handleImportCSV,
+  1313→    handleFileUpload,
+  1314→    handleExportCSV,
+  1315→    handleExportJSON,
+  1316→    handleAddVariable,
+  1317→    getNumericVals,
+  1318→    handleRunDescriptive,
+  1319→    handleRunCorrelation,
+  1320→    handleRunRegression,
+  1321→    handleRunFrequencies,
+  1322→    handleRunCrosstabs,
+  1323→    handleRunTTest,
+  1324→    handleRunANOVA,
+  1325→    handleRunChiSquare,
+  1326→    handleRunNonparametric,
+  1327→    handleExportPDF,
+  1328→    handleSendChat,
+  1329→    handleRunAgentAnalysis,
+  1330→  }
+  1331→}
+  1332→

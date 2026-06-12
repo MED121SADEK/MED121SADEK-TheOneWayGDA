@@ -1,0 +1,1181 @@
+     1→'use client'
+     2→
+     3→import { useRef } from 'react'
+     4→import { cn } from '@/lib/utils'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Badge } from '@/components/ui/badge'
+     7→import { Input } from '@/components/ui/input'
+     8→import { Textarea } from '@/components/ui/textarea'
+     9→import { Card, CardContent } from '@/components/ui/card'
+    10→import { Separator } from '@/components/ui/separator'
+    11→import {
+    12→  Brain, Database, Table2, BarChart3, FileText, Variable,
+    13→  ScanLine, Terminal, Send, Bot, User, Upload, Plus, Trash2,
+    14→  Edit3, Copy, ChevronRight, TrendingUp, PieChart, ClipboardList,
+    15→  ShieldCheck, Sparkles, Check, X, FolderOpen, Download,
+    16→  FileSpreadsheet, Play, Zap, Target, Layers, Loader2, AlertTriangle,
+    17→  ArrowRight, CheckCircle2,
+    18→} from 'lucide-react'
+    19→import { useState, useCallback } from 'react'
+    20→import {
+    21→  ChartBar, ChartLine, ChartScatter, ChartPie, ChartHistogram, ChartBoxPlot,
+    22→  exportChartAsImage,
+    23→} from '@/components/workspace/Charts'
+    24→import type { OutputItem } from '@/lib/store'
+    25→
+    26→export type HandlerHook = ReturnType<typeof import('@/hooks/useWorkspaceHandlers').useWorkspaceHandlers>
+    27→
+    28→/* ─── Panel 1: AI Assistant ─── */
+    29→export function AIPanel(h: HandlerHook) {
+    30→  const [agentGoal, setAgentGoal] = useState('')
+    31→  const isAgentActive = h.store.agentStatus !== 'idle' && h.store.agentStatus !== 'done' && h.store.agentStatus !== 'error'
+    32→
+    33→  return (
+    34→    <div className="flex flex-col h-full">
+    35→      {/* Agent Section */}
+    36→      <div className="flex-shrink-0 border-b border-border/50 p-3 bg-gradient-to-br from-purple-500/5 to-violet-500/5">
+    37→        <div className="flex items-center gap-2 mb-2">
+    38→          <Brain className="w-4 h-4 text-purple-400" />
+    39→          <span className="text-[11px] font-semibold">AI Agent</span>
+    40→          {isAgentActive && (
+    41→            <span className="ml-auto flex items-center gap-1 text-[10px] text-purple-400">
+    42→              <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+    43→              {h.store.agentStatus === 'planning' ? 'Planning...' : h.store.agentStatus === 'analyzing' ? 'Analyzing...' : 'Interpreting...'}
+    44→            </span>
+    45→          )}
+    46→          {h.store.agentStatus === 'done' && (
+    47→            <span className="ml-auto text-[10px] text-emerald-400">✓ Complete</span>
+    48→          )}
+    49→          {h.store.agentStatus === 'error' && (
+    50→            <span className="ml-auto text-[10px] text-red-400">✗ Failed</span>
+    51→          )}
+    52→        </div>
+    53→
+    54→        <div className="flex gap-1.5 mb-2">
+    55→          <input
+    56→            className="flex-1 text-[10px] bg-background border border-border/50 rounded-md px-2 py-1.5 outline-none focus:ring-1 focus:ring-purple-500/30 text-foreground placeholder:text-muted-foreground"
+    57→            placeholder="Goal: e.g., Find patterns..."
+    58→            value={agentGoal}
+    59→            onChange={e => setAgentGoal(e.target.value)}
+    60→            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && !isAgentActive && h.store.variables.length > 0 && h.handleRunAgentAnalysis(agentGoal || undefined)}
+    61→          />
+    62→        </div>
+    63→
+    64→        <div className="flex gap-1.5">
+    65→          <button
+    66→            onClick={() => h.handleRunAgentAnalysis(agentGoal || undefined)}
+    67→            disabled={h.store.variables.length === 0 || isAgentActive}
+    68→            className="flex-1 flex items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-medium rounded-md py-1.5 transition-colors"
+    69→          >
+    70→            <Sparkles className="w-3 h-3" />
+    71→            Auto-Analyze
+    72→          </button>
+    73→        </div>
+    74→
+    75→        <div className="flex gap-1 mt-2">
+    76→          {[
+    77→            { label: 'Full Analysis', goal: 'Run a comprehensive analysis of all variables', icon: Zap },
+    78→            { label: 'Patterns', goal: 'Find patterns and relationships in the data', icon: Target },
+    79→            { label: 'Groups', goal: 'Compare groups and find significant differences', icon: Layers },
+    80→          ].map(q => (
+    81→            <button
+    82→              key={q.label}
+    83→              onClick={() => { setAgentGoal(q.goal); h.handleRunAgentAnalysis(q.goal) }}
+    84→              disabled={h.store.variables.length === 0 || isAgentActive}
+    85→              className="text-[9px] px-2 py-1 rounded bg-muted/50 hover:bg-muted border border-border/30 disabled:opacity-30 transition-colors flex items-center gap-0.5"
+    86→            >
+    87→              <q.icon className="w-2.5 h-2.5" />
+    88→              {q.label}
+    89→            </button>
+    90→          ))}
+    91→        </div>
+    92→      </div>
+    93→
+    94→      {/* Chat Section */}
+    95→      <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin" style={{ contain: 'layout style paint' }}>
+    96→        {h.store.chatMessages.length === 0 && (
+    97→          <div className="flex flex-col items-center justify-center py-4 text-center">
+    98→            <Bot className="w-6 h-6 text-purple-400/40 mb-1.5" />
+    99→            <p className="text-[10px] text-muted-foreground">{h.t('ai.welcome')}</p>
+   100→          </div>
+   101→        )}
+   102→        {h.store.chatMessages.map((msg) => (
+   103→          <div key={msg.id} className={cn('flex gap-1.5', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+   104→            {msg.role === 'ai' && (
+   105→              <div className="w-5 h-5 rounded-md bg-purple-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+   106→                <Bot className="w-2.5 h-2.5 text-purple-400" />
+   107→              </div>
+   108→            )}
+   109→            <div className={cn(
+   110→              'max-w-[85%] rounded-lg px-2.5 py-1.5 text-[10px] leading-relaxed',
+   111→              msg.role === 'user' ? 'bg-primary/10 text-foreground' : 'bg-muted/50 text-foreground',
+   112→            )}>
+   113→              {msg.content}
+   114→            </div>
+   115→          </div>
+   116→        ))}
+   117→        {h.store.isAiTyping && (
+   118→          <div className="flex gap-1.5 items-start">
+   119→            <div className="w-5 h-5 rounded-md bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+   120→              <Bot className="w-2.5 h-2.5 text-purple-400" />
+   121→            </div>
+   122→            <div className="flex items-center gap-1 px-2.5 py-1.5 bg-muted/50 rounded-lg">
+   123→              <div className="w-1 h-1 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+   124→              <div className="w-1 h-1 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+   125→              <div className="w-1 h-1 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+   126→            </div>
+   127→          </div>
+   128→        )}
+   129→        <div ref={h.chatEndRef} />
+   130→      </div>
+   131→
+   132→      {/* Chat Input */}
+   133→      <div className="flex-shrink-0 border-t border-border/50 p-2.5">
+   134→        <div className="flex gap-1.5">
+   135→          <Input
+   136→            value={h.chatInput}
+   137→            onChange={(e) => h.setChatInput(e.target.value)}
+   138→            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && h.handleSendChat()}
+   139→            placeholder={h.t('ai.placeholder')}
+   140→            className="text-[10px] h-7"
+   141→          />
+   142→          <Button size="sm" className="h-7 px-2.5 bg-purple-600 hover:bg-purple-700" onClick={h.handleSendChat} disabled={!h.chatInput.trim() || h.store.isAiTyping}>
+   143→            <Send className="w-3 h-3" />
+   144→          </Button>
+   145→        </div>
+   146→      </div>
+   147→    </div>
+   148→  )
+   149→}
+   150→
+   151→/* ─── Panel 2: Data Import ─── */
+   152→export function ImportPanel(h: HandlerHook) {
+   153→  const fileInputRef = useRef<HTMLInputElement>(null)
+   154→  const [dragOver, setDragOver] = useState(false)
+   155→  const [importError, setImportError] = useState('')
+   156→  const [importSuccess, setImportSuccess] = useState('')
+   157→
+   158→  const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+   159→  const ACCEPTED_EXTENSIONS = ['.csv', '.xlsx', '.xls', '.json', '.tsv']
+   160→
+   161→  const validateAndProcessFile = (file: File) => {
+   162→    setImportError('')
+   163→    setImportSuccess('')
+   164→
+   165→    // Validate file size
+   166→    if (file.size > MAX_FILE_SIZE) {
+   167→      setImportError(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 50MB.`)
+   168→      return
+   169→    }
+   170→    if (file.size === 0) {
+   171→      setImportError('File is empty.')
+   172→      return
+   173→    }
+   174→
+   175→    // Validate extension
+   176→    const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+   177→    if (!ACCEPTED_EXTENSIONS.includes(ext)) {
+   178→      setImportError(`Unsupported file type "${ext}". Accepted: ${ACCEPTED_EXTENSIONS.join(', ')}`)
+   179→      return
+   180→    }
+   181→
+   182→    try {
+   183→      h.store.importFile(file)
+   184→      setImportSuccess(`Imported "${file.name}" (${(file.size / 1024).toFixed(1)}KB)`)
+   185→    } catch (err) {
+   186→      setImportError(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+   187→    }
+   188→  }
+   189→
+   190→  const handleDrop = (e: React.DragEvent) => {
+   191→    e.preventDefault()
+   192→    e.stopPropagation()
+   193→    setDragOver(false)
+   194→    const files = Array.from(e.dataTransfer.files)
+   195→    if (files.length === 0) return
+   196→    validateAndProcessFile(files[0])
+   197→  }
+   198→
+   199→  const handleDragOver = (e: React.DragEvent) => {
+   200→    e.preventDefault()
+   201→    e.stopPropagation()
+   202→    setDragOver(true)
+   203→  }
+   204→
+   205→  const handleDragLeave = (e: React.DragEvent) => {
+   206→    e.preventDefault()
+   207→    e.stopPropagation()
+   208→    setDragOver(false)
+   209→  }
+   210→
+   211→  return (
+   212→    <div className="p-4 space-y-4 overflow-y-auto h-full scrollbar-thin" style={{ contain: 'layout style paint' }}>
+   213→      <div
+   214→        className={cn(
+   215→          'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all',
+   216→          dragOver ? 'border-teal-400 bg-teal-500/10 scale-[1.01]' : 'border-border hover:border-teal-400/50 hover:bg-teal-500/5'
+   217→        )}
+   218→        onClick={() => fileInputRef.current?.click()}
+   219→        onDrop={handleDrop}
+   220→        onDragOver={handleDragOver}
+   221→        onDragLeave={handleDragLeave}
+   222→      >
+   223→        <input
+   224→          ref={fileInputRef}
+   225→          type="file"
+   226→          accept=".csv,.xlsx,.xls,.json,.tsv"
+   227→          className="hidden"
+   228→          onChange={(e) => {
+   229→            const file = e.target.files?.[0]
+   230→            if (file) validateAndProcessFile(file)
+   231→            // Reset input so same file can be re-selected
+   232→            if (fileInputRef.current) fileInputRef.current.value = ''
+   233→          }}
+   234→        />
+   235→        {dragOver ? (
+   236→          <>
+   237→            <Download className="w-8 h-8 mx-auto mb-3 text-teal-400" />
+   238→            <p className="text-sm font-medium text-teal-400">Drop your file here</p>
+   239→          </>
+   240→        ) : (
+   241→          <>
+   242→            <Upload className="w-8 h-8 mx-auto mb-3 text-teal-400" />
+   243→            <p className="text-sm font-medium text-foreground">{h.t('import.dragDrop')}</p>
+   244→            <p className="text-xs text-muted-foreground mt-1">{h.t('import.supportedFormats')}</p>
+   245→            <p className="text-[10px] text-muted-foreground/60 mt-1">Max 50MB</p>
+   246→          </>
+   247→        )}
+   248→      </div>
+   249→
+   250→      {importError && (
+   251→        <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 text-[10px] text-red-400">
+   252→          <X className="w-3 h-3 mt-0.5 flex-shrink-0" />
+   253→          <div>
+   254→            <p className="font-medium">Import Error</p>
+   255→            <p>{importError}</p>
+   256→          </div>
+   257→          <button onClick={() => setImportError('')} className="ml-auto flex-shrink-0 hover:text-red-300">
+   258→            <X className="w-3 h-3" />
+   259→          </button>
+   260→        </div>
+   261→      )}
+   262→      {importSuccess && (
+   263→        <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2.5 text-[10px] text-emerald-400">
+   264→          <Check className="w-3 h-3" />
+   265→          <span>{importSuccess}</span>
+   266→        </div>
+   267→      )}
+   268→
+   269→      <Separator />
+   270→
+   271→      <div className="space-y-2">
+   272→        <p className="text-xs font-semibold text-foreground">Paste CSV Data</p>
+   273→        <Textarea
+   274→          value={h.importText}
+   275→          onChange={(e) => h.setImportText(e.target.value)}
+   276→          placeholder="Name,Age,Score&#10;Alice,25,89&#10;Bob,30,92"
+   277→          className="text-xs min-h-24 font-mono"
+   278→        />
+   279→        <Button size="sm" className="w-full bg-teal-600 hover:bg-teal-700 text-white text-xs" onClick={h.handleImportCSV} disabled={!h.importText.trim()}>
+   280→          <Database className="w-3.5 h-3.5 mr-1.5" />
+   281→          Import CSV
+   282→        </Button>
+   283→      </div>
+   284→
+   285→      <Separator />
+   286→
+   287→      <div className="space-y-2">
+   288→        <p className="text-xs font-semibold text-foreground">Quick Templates</p>
+   289→        <div className="grid grid-cols-2 gap-2">
+   290→          {[
+   291→            { name: 'Sample Survey', data: 'Respondent,Age,Gender,Satisfaction,Income\n1,25,Male,4,45000\n2,30,Female,5,52000\n3,22,Male,3,38000\n4,35,Female,4,61000\n5,28,Male,5,48000\n6,40,Female,3,72000\n7,33,Male,4,55000\n8,27,Female,5,42000' },
+   292→            { name: 'Student Grades', data: 'Student,Math,Science,English,History\nAlice,85,92,88,76\nBob,78,85,90,82\nCarol,92,88,76,95\nDave,65,72,88,70\nEve,88,95,82,90' },
+   293→            { name: 'Sales Data', data: 'Month,Revenue,Profit,Customers\nJan,45000,12000,320\nFeb,52000,15000,380\nMar,48000,11000,350\nApr,61000,18000,420\nMay,55000,14000,390' },
+   294→          ].map((tpl) => (
+   295→            <Button
+   296→              key={tpl.name}
+   297→              variant="outline"
+   298→              size="sm"
+   299→              className="text-[10px] h-8 justify-start"
+   300→              onClick={() => { h.store.importCSV(tpl.data) }}
+   301→            >
+   302→              <FileSpreadsheet className="w-3 h-3 mr-1.5" />
+   303→              {tpl.name}
+   304→            </Button>
+   305→          ))}
+   306→        </div>
+   307→      </div>
+   308→    </div>
+   309→  )
+   310→}
+   311→
+   312→/* ─── Panel 3: Data Editor ─── */
+   313→export function DataEditorPanel(h: HandlerHook) {
+   314→  const vars = h.store.variables
+   315→  const data = h.store.data
+   316→  const rows = h.rowCount
+   317→
+   318→  return (
+   319→    <div className="flex flex-col h-full">
+   320→      <div className="flex items-center gap-2 px-4 py-2 border-b border-border/30 bg-muted/20 flex-shrink-0">
+   321→        <Badge variant="outline" className="text-[10px]">{vars.length} variables</Badge>
+   322→        <Badge variant="outline" className="text-[10px]">{rows} rows</Badge>
+   323→        <div className="flex-1" />
+   324→        <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => h.store.addRow()}>
+   325→          <Plus className="w-3 h-3 mr-1" />Row
+   326→        </Button>
+   327→        <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => rows > 0 && h.store.deleteRow(rows - 1)} disabled={rows === 0}>
+   328→          <Trash2 className="w-3 h-3 mr-1" />Row
+   329→        </Button>
+   330→      </div>
+   331→      <div className="flex-1 overflow-auto scrollbar-thin" style={{ contain: 'layout style paint' }}>
+   332→        {vars.length === 0 ? (
+   333→          <div className="flex flex-col items-center justify-center py-12 text-center">
+   334→            <Table2 className="w-8 h-8 text-muted-foreground/40 mb-2" />
+   335→            <p className="text-xs text-muted-foreground">No data imported yet</p>
+   336→            <p className="text-[10px] text-muted-foreground mt-1">Go to Data Import to get started</p>
+   337→          </div>
+   338→        ) : (
+   339→          <div className="min-w-full">
+   340→            {/* Header row */}
+   341→            <div className="flex sticky top-0 z-10 bg-muted/80 backdrop-blur-sm border-b border-border/50">
+   342→              <div className="w-10 flex-shrink-0 border-r border-border/50 text-center text-[9px] text-muted-foreground py-1.5 font-medium">#</div>
+   343→              {vars.map((v) => (
+   344→                <div
+   345→                  key={v.id}
+   346→                  className={cn(
+   347→                    'flex-1 min-w-24 border-r border-border/50 last:border-r-0 px-2 py-1.5 flex items-center gap-1 cursor-pointer transition-colors',
+   348→                    h.store.selectedVariables.includes(v.name) ? 'bg-blue-500/10' : 'hover:bg-muted/50',
+   349→                  )}
+   350→                  onClick={() => h.store.toggleVariableSelection(v.name)}
+   351→                >
+   352→                  <input
+   353→                    type="checkbox"
+   354→                    checked={h.store.selectedVariables.includes(v.name)}
+   355→                    onChange={() => h.store.toggleVariableSelection(v.name)}
+   356→                    className="w-3 h-3 accent-blue-500"
+   357→                  />
+   358→                  <span className="text-[10px] font-semibold truncate">{v.name}</span>
+   359→                  <Badge variant="outline" className="text-[8px] px-1 py-0 ml-auto">{v.type}</Badge>
+   360→                </div>
+   361→              ))}
+   362→            </div>
+   363→            {/* Data rows */}
+   364→            {Array.from({ length: Math.min(rows, 100) }, (_, i) => (
+   365→              <div key={i} className="flex border-b border-border/20 hover:bg-muted/20 transition-colors">
+   366→                <div className="w-10 flex-shrink-0 border-r border-border/50 text-center text-[9px] text-muted-foreground py-1.5">{i + 1}</div>
+   367→                {vars.map((v) => {
+   368→                  const cellVal = data[v.name]?.[i] ?? ''
+   369→                  return (
+   370→                    <div key={v.id} className="flex-1 min-w-24 border-r border-border/30 last:border-r-0 px-1 py-0.5">
+   371→                      <input
+   372→                        className="w-full text-[11px] bg-transparent border-0 outline-none focus:bg-muted/50 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500/30 text-foreground"
+   373→                        value={String(cellVal)}
+   374→                        onChange={(e) => {
+   375→                          const newData = { ...h.store.data }
+   376→                          const col = [...(newData[v.name] || [])]
+   377→                          col[i] = v.type === 'numeric' ? (parseFloat(e.target.value) || 0) : e.target.value
+   378→                          newData[v.name] = col
+   379→                          h.store.setData(newData)
+   380→                        }}
+   381→                      />
+   382→                    </div>
+   383→                  )
+   384→                })}
+   385→              </div>
+   386→            ))}
+   387→            {rows > 100 && (
+   388→              <div className="px-4 py-2 text-[10px] text-muted-foreground text-center">
+   389→                Showing 100 of {rows} rows
+   390→              </div>
+   391→            )}
+   392→          </div>
+   393→        )}
+   394→      </div>
+   395→    </div>
+   396→  )
+   397→}
+   398→
+   399→/* ─── Panel 4: Analysis Center (Self-Contained) ─── */
+   400→export function AnalysisPanel(h: HandlerHook) {
+   401→  const [lastRun, setLastRun] = useState<string | null>(null)
+   402→  const [lastRunTime, setLastRunTime] = useState<number>(0)
+   403→  const [inlineMode, setInlineMode] = useState<string | null>(null) // for dialog-based tools
+   404→  const [dialogVars, setDialogVars] = useState<{ var1: string; var2: string }>({ var1: '', var2: '' })
+   405→
+   406→  const hasData = h.store.variables.length > 0
+   407→  const hasSelection = h.store.selectedVariables.length > 0
+   408→  const selCount = h.store.selectedVariables.length
+   409→
+   410→  const runTool = useCallback((name: string, action: () => void) => {
+   411→    setLastRun(name)
+   412→    setLastRunTime(Date.now())
+   413→    action()
+   414→  }, [])
+   415→
+   416→  const selectAllNumeric = () => {
+   417→    const numeric = h.store.variables.filter(v => v.type === 'numeric').map(v => v.name)
+   418→    h.store.setSelectedVariables(numeric)
+   419→  }
+   420→
+   421→  const selectAll = () => {
+   422→    h.store.setSelectedVariables(h.store.variables.map(v => v.name))
+   423→  }
+   424→
+   425→  const runInlineAnalysis = useCallback((type: string) => {
+   426→    if (!dialogVars.var1 || !dialogVars.var2) return
+   427→    if (type === 'crosstabs') {
+   428→      h.setCrosstabRowVar(dialogVars.var1)
+   429→      h.setCrosstabColVar(dialogVars.var2)
+   430→      h.handleRunCrosstabs()
+   431→    } else if (type === 'ttest') {
+   432→      h.setTtestGroupVar(dialogVars.var1)
+   433→      h.setTtestValueVar(dialogVars.var2)
+   434→      h.handleRunTTest()
+   435→    } else if (type === 'anova') {
+   436→      h.setAnovaGroupVar(dialogVars.var1)
+   437→      h.setAnovaValueVar(dialogVars.var2)
+   438→      h.handleRunANOVA()
+   439→    } else if (type === 'mann-whitney') {
+   440→      h.setNonparamType('mann-whitney')
+   441→      h.setNonparamVar1(dialogVars.var1)
+   442→      h.setNonparamVar2(dialogVars.var2)
+   443→      h.handleRunNonparametric()
+   444→    } else if (type === 'wilcoxon') {
+   445→      h.setNonparamType('wilcoxon')
+   446→      h.setNonparamVar1(dialogVars.var1)
+   447→      h.setNonparamVar2(dialogVars.var2)
+   448→      h.handleRunNonparametric()
+   449→    }
+   450→    setLastRun(type)
+   451→    setLastRunTime(Date.now())
+   452→    setInlineMode(null)
+   453→  }, [dialogVars, h])
+   454→
+   455→  // No data at all
+   456→  if (!hasData) {
+   457→    return (
+   458→      <div className="p-4 flex flex-col items-center justify-center h-full text-center">
+   459→        <AlertTriangle className="w-10 h-10 text-amber-400/40 mb-3" />
+   460→        <p className="text-sm font-medium text-foreground">No Data Loaded</p>
+   461→        <p className="text-xs text-muted-foreground mt-1">Import a CSV or Excel file first, then come back here.</p>
+   462→        <Button size="sm" className="mt-3 text-xs" variant="outline" onClick={() => h.store.setView('workspace')}>
+   463→          <ArrowRight className="w-3 h-3 mr-1" />Go to Import Panel
+   464→        </Button>
+   465→      </div>
+   466→    )
+   467→  }
+   468→
+   469→  // Has data but no selection — show guidance
+   470→  if (!hasSelection && !inlineMode) {
+   471→    return (
+   472→      <div className="p-4 space-y-3 overflow-y-auto h-full scrollbar-thin" style={{ contain: 'layout style paint' }}>
+   473→        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
+   474→          <p className="text-xs font-semibold text-amber-400 mb-1">Step 1: Select Variables</p>
+   475→          <p className="text-[10px] text-muted-foreground mb-2">Click checkboxes in the Data Editor to pick variables for analysis.</p>
+   476→          <div className="flex gap-1.5 justify-center">
+   477→            <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={selectAllNumeric}>
+   478→              <Check className="w-3 h-3 mr-1" />Select All Numeric
+   479→            </Button>
+   480→            <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={selectAll}>
+   481→              <Check className="w-3 h-3 mr-1" />Select All
+   482→            </Button>
+   483→          </div>
+   484→        </div>
+   485→
+   486→        <Separator />
+   487→
+   488→        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Available Tools ({h.store.variables.length} variables loaded)</p>
+   489→
+   490→        <div className="grid grid-cols-2 gap-1.5">
+   491→          {[
+   492→            { name: 'Descriptive', need: 1 },
+   493→            { name: 'Correlation', need: 2 },
+   494→            { name: 'Regression', need: 2 },
+   495→            { name: 'Frequencies', need: 1 },
+   496→            { name: 'Crosstabs', need: 2 },
+   497→            { name: 'T-Test', need: 2 },
+   498→            { name: 'ANOVA', need: 2 },
+   499→            { name: 'Chi-Square', need: 1 },
+   500→            { name: 'Mann-Whitney', need: 2 },
+   501→            { name: 'Wilcoxon', need: 2 },
+   502→            { name: 'Validate', need: 0 },
+   503→            { name: 'Clean', need: 0 },
+   504→          ].map(t => (
+   505→            <div key={t.name} className="flex items-center gap-1.5 p-2 rounded-lg border border-border/30 opacity-50">
+   506→              <BarChart3 className="w-3 h-3 text-muted-foreground" />
+   507→              <span className="text-[10px] text-muted-foreground">{t.name}</span>
+   508→              {t.need > 0 && <span className="text-[8px] text-amber-400 ml-auto">need {t.need}</span>}
+   509→            </div>
+   510→          ))}
+   511→        </div>
+   512→
+   513→        {/* Tools that don't need selection */}
+   514→        <Separator />
+   515→        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Available Now</p>
+   516→        <div className="grid grid-cols-2 gap-2">
+   517→          <button
+   518→            onClick={() => { h.handleValidate(); setLastRun('Validate'); setLastRunTime(Date.now()) }}
+   519→            disabled={h.isValidating}
+   520→            className="flex flex-col items-start gap-1.5 p-3 rounded-xl border border-border/50 hover:border-emerald-400/40 hover:bg-emerald-500/5 cursor-pointer transition-all text-left"
+   521→          >
+   522→            {h.isValidating ? <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" /> : <ShieldCheck className="w-4 h-4 text-emerald-400" />}
+   523→            <div>
+   524→              <p className="text-[11px] font-semibold">{h.isValidating ? 'Validating...' : 'Validate'}</p>
+   525→              <p className="text-[9px] text-muted-foreground">Check data quality</p>
+   526→            </div>
+   527→          </button>
+   528→          <button
+   529→            onClick={() => runTool('Clean', () => h.setCleanDialogOpen(true))}
+   530→            className="flex flex-col items-start gap-1.5 p-3 rounded-xl border border-border/50 hover:border-purple-400/40 hover:bg-purple-500/5 cursor-pointer transition-all text-left"
+   531→          >
+   532→            <Sparkles className="w-4 h-4 text-purple-400" />
+   533→            <div>
+   534→              <p className="text-[11px] font-semibold">Clean</p>
+   535→              <p className="text-[9px] text-muted-foreground">Auto-clean dataset</p>
+   536→            </div>
+   537→          </button>
+   538→        </div>
+   539→      </div>
+   540→    )
+   541→  }
+   542→
+   543→  // Inline dialog mode for 2-variable tools
+   544→  if (inlineMode) {
+   545→    const vars = h.store.variables
+   546→    return (
+   547→      <div className="p-4 space-y-3 overflow-y-auto h-full scrollbar-thin">
+   548→        <button onClick={() => setInlineMode(null)} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground">
+   549→          <ChevronRight className="w-3 h-3 rotate-180" /> Back to tools
+   550→        </button>
+   551→        <p className="text-xs font-semibold">{inlineMode === 'crosstabs' ? 'Crosstabs' : inlineMode === 'ttest' ? 'T-Test' : inlineMode === 'anova' ? 'ANOVA' : inlineMode === 'mann-whitney' ? 'Mann-Whitney U' : 'Wilcoxon'}</p>
+   552→        <p className="text-[10px] text-muted-foreground">Select two variables:</p>
+   553→
+   554→        <div className="space-y-2">
+   555→          <div className="space-y-1">
+   556→            <label className="text-[10px] font-medium">{inlineMode === 'ttest' || inlineMode === 'anova' ? 'Grouping Variable' : 'Row / Variable 1'}</label>
+   557→            <select
+   558→              className="w-full text-xs bg-background border border-border rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-orange-500/30"
+   559→              value={dialogVars.var1}
+   560→              onChange={e => setDialogVars(p => ({ ...p, var1: e.target.value }))}
+   561→            >
+   562→              <option value="">-- Select --</option>
+   563→              {vars.map(v => <option key={v.name} value={v.name}>{v.name} ({v.type})</option>)}
+   564→            </select>
+   565→          </div>
+   566→          <div className="space-y-1">
+   567→            <label className="text-[10px] font-medium">{inlineMode === 'ttest' || inlineMode === 'anova' ? 'Test Variable' : 'Column / Variable 2'}</label>
+   568→            <select
+   569→              className="w-full text-xs bg-background border border-border rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-orange-500/30"
+   570→              value={dialogVars.var2}
+   571→              onChange={e => setDialogVars(p => ({ ...p, var2: e.target.value }))}
+   572→            >
+   573→              <option value="">-- Select --</option>
+   574→              {vars.map(v => <option key={v.name} value={v.name}>{v.name} ({v.type})</option>)}
+   575→            </select>
+   576→          </div>
+   577→        </div>
+   578→
+   579→        <Button
+   580→          className="w-full text-xs"
+   581→          disabled={!dialogVars.var1 || !dialogVars.var2}
+   582→          onClick={() => runInlineAnalysis(inlineMode)}
+   583→        >
+   584→          <Play className="w-3 h-3 mr-1" />Run Analysis
+   585→        </Button>
+   586→      </div>
+   587→    )
+   588→  }
+   589→
+   590→  // Full analysis panel with selected variables
+   591→  const coreAnalyses = [
+   592→    { icon: BarChart3, name: h.t('analysis.descriptive'), desc: 'Mean, Median, SD, CI, Skew', action: () => runTool('Descriptive', h.handleRunDescriptive) },
+   593→    { icon: TrendingUp, name: h.t('analysis.correlation'), desc: 'Pearson r matrix', action: () => runTool('Correlation', h.handleRunCorrelation), minSel: 2 },
+   594→    { icon: PieChart, name: h.t('analysis.regression'), desc: 'Linear regression', action: () => runTool('Regression', h.handleRunRegression), minSel: 2 },
+   595→    { icon: ClipboardList, name: h.t('analysis.frequencies'), desc: 'Freq tables + charts', action: () => runTool('Frequencies', h.handleRunFrequencies) },
+   596→    { icon: BarChart3, name: h.t('analysis.chisquare'), desc: 'Goodness-of-fit test', action: () => runTool('Chi-Square', h.handleRunChiSquare) },
+   597→  ]
+   598→
+   599→  const twoVarTools = [
+   600→    { id: 'crosstabs', icon: Table2, name: h.t('analysis.crosstabs'), desc: 'Contingency tables' },
+   601→    { id: 'ttest', icon: BarChart3, name: h.t('analysis.ttest'), desc: 'Independent t-test' },
+   602→    { id: 'anova', icon: BarChart3, name: h.t('analysis.anova'), desc: 'One-way ANOVA' },
+   603→    { id: 'mann-whitney', icon: BarChart3, name: 'Mann-Whitney U', desc: 'Nonparametric test' },
+   604→    { id: 'wilcoxon', icon: BarChart3, name: 'Wilcoxon', desc: 'Signed-rank test' },
+   605→  ]
+   606→
+   607→  const dataTools = [
+   608→    { icon: ShieldCheck, name: h.t('validate.title'), desc: 'Check data quality', action: () => { h.handleValidate(); setInlineMode(null); setLastRun('Validate'); setLastRunTime(Date.now()) } },
+   609→    { icon: Sparkles, name: h.t('clean.title'), desc: 'Auto-clean dataset', action: () => runTool('Clean', () => h.setCleanDialogOpen(true)) },
+   610→  ]
+   611→
+   612→  const outputCount = h.store.outputs.length
+   613→
+   614→  return (
+   615→    <div className="p-4 space-y-3 overflow-y-auto h-full scrollbar-thin" style={{ contain: 'layout style paint' }}>
+   616→      {/* Selection bar */}
+   617→      <div className="flex items-center gap-1.5 flex-wrap">
+   618→        <span className="text-[10px] text-muted-foreground mr-1">Selected: <b className="text-orange-400">{selCount}</b></span>
+   619→        {h.store.selectedVariables.slice(0, 4).map(v => (
+   620→          <Badge key={v} variant="outline" className="text-[9px] bg-orange-500/10 text-orange-400 border-orange-500/20">
+   621→            {v}
+   622→          </Badge>
+   623→        ))}
+   624→        {selCount > 4 && <span className="text-[9px] text-muted-foreground">+{selCount - 4} more</span>}
+   625→        <button onClick={selectAllNumeric} className="text-[9px] text-blue-400 hover:underline ml-auto">Select all numeric</button>
+   626→      </div>
+   627→
+   628→      {/* Last run confirmation */}
+   629→      {lastRun && Date.now() - lastRunTime < 3000 && (
+   630→        <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 animate-fade-in">
+   631→          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+   632→          <span className="text-[10px] text-emerald-400 font-medium">{lastRun} completed</span>
+   633→          <span className="text-[9px] text-muted-foreground ml-auto">{outputCount} results total</span>
+   634→        </div>
+   635→      )}
+   636→
+   637→      {/* Core Analyses */}
+   638→      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Core Analyses</p>
+   639→      <div className="grid grid-cols-2 gap-2">
+   640→        {coreAnalyses.map(a => {
+   641→          const disabled = (a.minSel ? selCount < a.minSel : selCount === 0)
+   642→          return (
+   643→            <button
+   644→              key={a.name}
+   645→              disabled={disabled}
+   646→              onClick={a.action}
+   647→              className={cn(
+   648→                'flex flex-col items-start gap-1.5 p-3 rounded-xl border text-left transition-all',
+   649→                disabled
+   650→                  ? 'border-border/30 opacity-40 cursor-not-allowed'
+   651→                  : 'border-border/50 hover:border-orange-400/40 hover:bg-orange-500/5 cursor-pointer active:scale-[0.98]',
+   652→              )}
+   653→            >
+   654→              <a.icon className={cn('w-4 h-4', disabled ? 'text-muted-foreground' : 'text-orange-400')} />
+   655→              <div>
+   656→                <p className="text-[11px] font-semibold">{a.name}</p>
+   657→                <p className="text-[9px] text-muted-foreground">{a.desc}</p>
+   658→              </div>
+   659→              {!disabled && <Play className="w-2.5 h-2.5 text-orange-400/50 ml-auto" />}
+   660→            </button>
+   661→          )
+   662→        })}
+   663→      </div>
+   664→
+   665→      {/* Two-Variable Tests */}
+   666→      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Two-Variable Tests</p>
+   667→      <div className="grid grid-cols-2 gap-2">
+   668→        {twoVarTools.map(t => (
+   669→          <button
+   670→            key={t.id}
+   671→            onClick={() => { setDialogVars({ var1: h.store.selectedVariables[0] || '', var2: h.store.selectedVariables[1] || '' }); setInlineMode(t.id) }}
+   672→            className="flex flex-col items-start gap-1.5 p-3 rounded-xl border border-border/50 hover:border-orange-400/40 hover:bg-orange-500/5 cursor-pointer transition-all text-left active:scale-[0.98]"
+   673→          >
+   674→            <t.icon className="w-4 h-4 text-orange-400/70" />
+   675→            <div>
+   676→              <p className="text-[11px] font-semibold">{t.name}</p>
+   677→              <p className="text-[9px] text-muted-foreground">{t.desc}</p>
+   678→            </div>
+   679→            <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/40 ml-auto" />
+   680→          </button>
+   681→        ))}
+   682→      </div>
+   683→
+   684→      {/* Data Quality */}
+   685→      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data Quality</p>
+   686→      <div className="grid grid-cols-2 gap-2">
+   687→        {dataTools.map(a => (
+   688→          <button
+   689→            key={a.name}
+   690→            onClick={a.action}
+   691→            className="flex flex-col items-start gap-1.5 p-3 rounded-xl border border-border/50 hover:border-teal-400/40 hover:bg-teal-500/5 cursor-pointer transition-all text-left active:scale-[0.98]"
+   692→          >
+   693→            <a.icon className="w-4 h-4 text-teal-400" />
+   694→            <div>
+   695→              <p className="text-[11px] font-semibold">{a.name}</p>
+   696→              <p className="text-[9px] text-muted-foreground">{a.desc}</p>
+   697→            </div>
+   698→          </button>
+   699→        ))}
+   700→      </div>
+   701→
+   702→      {/* Transform */}
+   703→      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Transform</p>
+   704→      <div className="grid grid-cols-2 gap-2">
+   705→        {[
+   706→          { icon: TrendingUp, name: 'Z-Score', desc: 'Standardize (x-u)/s', action: () => runTool('Z-Score', h.handleTransformZScore) },
+   707→          { icon: TrendingUp, name: 'Normalize', desc: 'Min-Max 0-1', action: () => runTool('Normalize', h.handleTransformNormalize) },
+   708→          { icon: TrendingUp, name: 'Log Transform', desc: 'Natural log ln(x)', action: () => runTool('Log', h.handleTransformLog) },
+   709→        ].map(a => (
+   710→          <button
+   711→            key={a.name}
+   712→            disabled={selCount === 0}
+   713→            onClick={a.action}
+   714→            className={cn(
+   715→              'flex flex-col items-start gap-1.5 p-3 rounded-xl border text-left transition-all',
+   716→              selCount === 0
+   717→                ? 'border-border/30 opacity-40 cursor-not-allowed'
+   718→                : 'border-border/50 hover:border-teal-400/40 hover:bg-teal-500/5 cursor-pointer active:scale-[0.98]',
+   719→            )}
+   720→          >
+   721→            <a.icon className={cn('w-4 h-4', selCount === 0 ? 'text-muted-foreground' : 'text-teal-400')} />
+   722→            <div>
+   723→              <p className="text-[11px] font-semibold">{a.name}</p>
+   724→              <p className="text-[9px] text-muted-foreground">{a.desc}</p>
+   725→            </div>
+   726→          </button>
+   727→        ))}
+   728→      </div>
+   729→
+   730→      {/* Output summary at bottom */}
+   731→      {outputCount > 0 && (
+   732→        <div className="bg-muted/20 rounded-lg p-2.5 flex items-center gap-2 border border-border/30">
+   733→          <FileText className="w-3.5 h-3.5 text-green-400" />
+   734→          <span className="text-[10px] text-foreground font-medium">{outputCount} results in Output panel</span>
+   735→          <span className="text-[9px] text-muted-foreground ml-auto">Switch to Output to view</span>
+   736→        </div>
+   737→      )}
+   738→    </div>
+   739→  )
+   740→}
+   741→
+   742→/* ─── Panel 5: Output Viewer ─── */
+   743→function OutputTable({ item }: { item: OutputItem }) {
+   744→  if (item.type !== 'table' || !item.content) return null
+   745→  const { headers = [], rows = [] } = item.content as { headers?: string[]; rows?: string[][] }
+   746→  return (
+   747→    <div className="overflow-x-auto border rounded-lg">
+   748→      <table className="w-full text-[10px] border-collapse">
+   749→        <thead className="sticky top-0">
+   750→          <tr className="bg-muted/60">
+   751→            {headers.map((h, i) => (
+   752→              <th key={i} className="border px-2 py-1.5 text-left font-semibold text-foreground whitespace-nowrap">{h}</th>
+   753→            ))}
+   754→          </tr>
+   755→        </thead>
+   756→        <tbody>
+   757→          {rows.map((row, ri) => (
+   758→            <tr key={ri} className="hover:bg-muted/20">
+   759→              {row.map((cell, ci) => (
+   760→                <td key={ci} className="border px-2 py-1 text-muted-foreground whitespace-nowrap">{cell}</td>
+   761→              ))}
+   762→            </tr>
+   763→          ))}
+   764→        </tbody>
+   765→      </table>
+   766→    </div>
+   767→  )
+   768→}
+   769→
+   770→function OutputChart({ item }: { item: OutputItem }) {
+   771→  if (item.type !== 'chart' || !item.content) return null
+   772→  const c = item.content as any
+   773→  const chartId = `chart-${item.id}`
+   774→
+   775→  const renderChart = () => {
+   776→    switch (c.chartType) {
+   777→      case 'scatter':
+   778→        return <ChartScatter data={c.data} title={c.title} />
+   779→      case 'histogram':
+   780→        return <ChartHistogram values={c.values} title={c.title} />
+   781→      case 'pie':
+   782→        return <ChartPie data={c.data} title={c.title} />
+   783→      case 'bar':
+   784→        return <ChartBar data={c.data} title={c.title} bars={[]} />
+   785→      case 'boxplot':
+   786→        return <ChartBoxPlot groups={c.groups} title={c.title} />
+   787→      case 'line':
+   788→        return <ChartLine data={c.data || []} lines={c.lines || []} title={c.title} />
+   789→      default:
+   790→        return <p className="text-xs text-muted-foreground">Unknown chart type</p>
+   791→    }
+   792→  }
+   793→
+   794→  return (
+   795→    <Card className="border-border/50">
+   796→      <CardContent className="p-3">
+   797→        <div className="flex items-center justify-between mb-2">
+   798→          <span className="text-[10px] font-semibold truncate">{item.title}</span>
+   799→          <Button
+   800→            variant="ghost"
+   801→            size="sm"
+   802→            className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+   803→            onClick={() => exportChartAsImage(chartId as unknown as React.RefObject<HTMLDivElement>)}
+   804→          >
+   805→            <Download className="w-3 h-3" />
+   806→          </Button>
+   807→        </div>
+   808→        <div id={chartId} className="w-full">
+   809→          {renderChart()}
+   810→        </div>
+   811→      </CardContent>
+   812→    </Card>
+   813→  )
+   814→}
+   815→
+   816→export function OutputPanel(h: HandlerHook) {
+   817→  return (
+   818→    <div className="p-4 overflow-y-auto h-full scrollbar-thin" style={{ contain: 'layout style paint' }}>
+   819→      <div className="flex items-center justify-between mb-3">
+   820→        <Badge variant="outline" className="text-[10px]">{h.store.outputs.length} results</Badge>
+   821→        {h.store.outputs.length > 0 && (
+   822→          <Button size="sm" variant="ghost" className="h-6 text-[10px] text-destructive" onClick={() => h.store.clearOutputs()}>
+   823→            <Trash2 className="w-3 h-3 mr-1" />Clear All
+   824→          </Button>
+   825→        )}
+   826→      </div>
+   827→      {h.store.outputs.length === 0 ? (
+   828→        <div className="flex flex-col items-center justify-center py-12 text-center">
+   829→          <FileText className="w-8 h-8 text-muted-foreground/40 mb-2" />
+   830→          <p className="text-xs text-muted-foreground">{h.t('output.noOutput')}</p>
+   831→        </div>
+   832→      ) : (
+   833→        <div className="space-y-3">
+   834→          {h.store.outputs.map((item) => (
+   835→            <div key={item.id} className="animate-fade-in">
+   836→              {item.type === 'text' && (
+   837→                <div className="rounded-lg bg-purple-500/5 border border-purple-500/10 p-3">
+   838→                  <p className="text-[10px] font-semibold mb-1.5 text-purple-400">{item.title}</p>
+   839→                  <div className="text-[10px] text-foreground leading-relaxed whitespace-pre-wrap">{item.content}</div>
+   840→                </div>
+   841→              )}
+   842→              {item.type === 'table' && (
+   843→                <div className="mb-1">
+   844→                  <p className="text-[10px] font-semibold mb-1">{item.title}</p>
+   845→                  <OutputTable item={item} />
+   846→                </div>
+   847→              )}
+   848→              {item.type === 'chart' && <OutputChart item={item} />}
+   849→            </div>
+   850→          ))}
+   851→        </div>
+   852→      )}
+   853→    </div>
+   854→  )
+   855→}
+   856→
+   857→/* ─── Panel 6: Variables ─── */
+   858→export function VariablesPanel(h: HandlerHook) {
+   859→  const typeColors: Record<string, string> = {
+   860→    numeric: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+   861→    string: 'bg-green-500/10 text-green-400 border-green-500/20',
+   862→    date: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+   863→    currency: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+   864→  }
+   865→
+   866→  return (
+   867→    <div className="p-4 overflow-y-auto h-full scrollbar-thin" style={{ contain: 'layout style paint' }}>
+   868→      <div className="flex items-center justify-between mb-3">
+   869→        <Badge variant="outline" className="text-[10px]">
+   870→          {h.store.variables.length} variables
+   871→        </Badge>
+   872→        <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => h.setNewVarDialogOpen(true)}>
+   873→          <Plus className="w-3 h-3 mr-1" />Add
+   874→        </Button>
+   875→      </div>
+   876→      {h.store.variables.length === 0 ? (
+   877→        <div className="flex flex-col items-center justify-center py-12 text-center">
+   878→          <Variable className="w-8 h-8 text-muted-foreground/40 mb-2" />
+   879→          <p className="text-xs text-muted-foreground">No variables defined</p>
+   880→          <p className="text-[10px] text-muted-foreground mt-1">Import data or add variables manually</p>
+   881→        </div>
+   882→      ) : (
+   883→        <div className="space-y-1.5">
+   884→          {h.store.variables.map((v) => (
+   885→            <div
+   886→              key={v.id}
+   887→              className={cn(
+   888→                'flex items-center gap-2 p-2.5 rounded-lg border transition-colors cursor-pointer',
+   889→                h.store.selectedVariables.includes(v.name)
+   890→                  ? 'border-pink-500/30 bg-pink-500/5'
+   891→                  : 'border-border/40 hover:border-pink-400/30 hover:bg-muted/30',
+   892→              )}
+   893→              onClick={() => h.store.toggleVariableSelection(v.name)}
+   894→            >
+   895→              <input
+   896→                type="checkbox"
+   897→                checked={h.store.selectedVariables.includes(v.name)}
+   898→                onChange={() => h.store.toggleVariableSelection(v.name)}
+   899→                className="w-3 h-3 accent-pink-500"
+   900→              />
+   901→              <div className="flex-1 min-w-0">
+   902→                <p className="text-[11px] font-semibold truncate">{v.name}</p>
+   903→                <p className="text-[9px] text-muted-foreground">{v.label}</p>
+   904→              </div>
+   905→              <Badge variant="outline" className={cn('text-[8px] px-1.5 py-0', typeColors[v.type] || 'bg-muted text-muted-foreground')}>
+   906→                {v.type}
+   907→              </Badge>
+   908→              <Button
+   909→                variant="ghost"
+   910→                size="sm"
+   911→                className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+   912→                onClick={(e) => { e.stopPropagation(); h.store.deleteVariable(v.id) }}
+   913→              >
+   914→                <Trash2 className="w-3 h-3" />
+   915→              </Button>
+   916→            </div>
+   917→          ))}
+   918→        </div>
+   919→      )}
+   920→    </div>
+   921→  )
+   922→}
+   923→
+   924→/* ─── Panel 7: Scan & OCR ─── */
+   925→export function ScanPanel(h: HandlerHook) {
+   926→  const [dragOver, setDragOver] = useState(false)
+   927→  const [scanError, setScanError] = useState('')
+   928→
+   929→  const MAX_SCAN_SIZE = 20 * 1024 * 1024 // 20MB
+   930→  const SCAN_ACCEPTED = ['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff']
+   931→
+   932→  const validateScanFile = (file: File): string | null => {
+   933→    if (file.size > MAX_SCAN_SIZE) return `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 20MB.`
+   934→    if (file.size === 0) return 'File is empty.'
+   935→    const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+   936→    if (!SCAN_ACCEPTED.includes(ext)) return `Unsupported type. Accepted: ${SCAN_ACCEPTED.join(', ')}`
+   937→    return null
+   938→  }
+   939→
+   940→  const processScanFile = (file: File) => {
+   941→    setScanError('')
+   942→    const err = validateScanFile(file)
+   943→    if (err) { setScanError(err); return }
+   944→    h.setScanFile(file)
+   945→    const reader = new FileReader()
+   946→    reader.onload = (ev) => h.setScanPreview(ev.target?.result as string)
+   947→    reader.onerror = () => setScanError('Failed to read file.')
+   948→    reader.readAsDataURL(file)
+   949→  }
+   950→
+   951→  const handleScanDrop = (e: React.DragEvent) => {
+   952→    e.preventDefault(); e.stopPropagation(); setDragOver(false)
+   953→    const files = Array.from(e.dataTransfer.files)
+   954→    if (files.length > 0) processScanFile(files[0])
+   955→  }
+   956→
+   957→  const handleScanDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(true) }
+   958→  const handleScanDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(false) }
+   959→
+   960→  const handleScanSubmit = async () => {
+   961→    if (!h.scanFile) return
+   962→    setScanError('')
+   963→    h.store.setScanState('processing')
+   964→
+   965→    const formData = new FormData()
+   966→    formData.append('file', h.scanFile)
+   967→
+   968→    if (h.scanFile.name.toLowerCase().endsWith('.pdf')) {
+   969→      formData.append('templateHint', 'PDF document')
+   970→    }
+   971→
+   972→    try {
+   973→      const res = await fetch('/api/scan', { method: 'POST', body: formData })
+   974→      const data = await res.json()
+   975→
+   976→      if (!res.ok) {
+   977→        setScanError(data.error || `Scan failed (HTTP ${res.status})`)
+   978→        h.store.setScanState('error')
+   979→        return
+   980→      }
+   981→
+   982→      if (data.fields && data.fields.length > 0) {
+   983→        h.store.setScanResults(data as any)
+   984→      } else if (data.rawText && data.rawText.length > 10) {
+   985→        h.store.setScanResults({
+   986→          ...data,
+   987→          fields: [{ label: 'Raw Text', value: data.rawText.slice(0, 500), confidence: 0.5, type: 'string' }],
+   988→          summary: data.summary || 'Document text extracted. Review the raw text below.',
+   989→        } as any)
+   990→      } else {
+   991→        setScanError('Could not extract structured data from this document. The content may be unclear, handwritten, or image-based. Try uploading a clearer scan or a different file format.')
+   992→        h.store.setScanState('error')
+   993→      }
+   994→    } catch (err) {
+   995→      setScanError(`Network error: ${err instanceof Error ? err.message : 'Connection failed'}`)
+   996→      h.store.setScanState('error')
+   997→    }
+   998→  }
+   999→
+  1000→  return (
+  1001→    <div className="p-4 space-y-4 overflow-y-auto h-full scrollbar-thin" style={{ contain: 'layout style paint' }}>
+  1002→      <div
+  1003→        className={cn(
+  1004→          'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all',
+  1005→          h.scanFile ? 'border-cyan-400 bg-cyan-50/10' : dragOver ? 'border-cyan-400 bg-cyan-500/10 scale-[1.01]' : 'border-border hover:border-cyan-400/50 hover:bg-cyan-500/5'
+  1006→        )}
+  1007→        onClick={() => h.fileInputRef.current?.click()}
+  1008→        onDrop={handleScanDrop}
+  1009→        onDragOver={handleScanDragOver}
+  1010→        onDragLeave={handleScanDragLeave}
+  1011→      >
+  1012→        <input
+  1013→          ref={h.fileInputRef}
+  1014→          type="file"
+  1015→          accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff"
+  1016→          className="hidden"
+  1017→          onChange={(e) => {
+  1018→            const f = e.target.files?.[0]
+  1019→            if (f) processScanFile(f)
+  1020→            if (h.fileInputRef.current) h.fileInputRef.current.value = ''
+  1021→          }}
+  1022→        />
+  1023→        {h.store.scanState === 'processing' ? (
+  1024→          <div className="flex flex-col items-center gap-2">
+  1025→            <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+  1026→            <p className="text-sm text-muted-foreground">Analyzing document with AI...</p>
+  1027→            <p className="text-[10px] text-muted-foreground/60">This may take 10-30 seconds for complex documents</p>
+  1028→          </div>
+  1029→        ) : h.scanPreview ? (
+  1030→          <div className="flex flex-col items-center gap-2">
+  1031→            {/* eslint-disable-next-line @next/next/no-img-element */}
+  1032→            <img src={h.scanPreview} alt="Preview" className="max-h-40 rounded-lg shadow-sm" />
+  1033→            <p className="text-[10px] text-muted-foreground">{h.scanFile?.name} ({((h.scanFile?.size || 0) / 1024).toFixed(1)}KB)</p>
+  1034→          </div>
+  1035→        ) : (
+  1036→          <>
+  1037→            <ScanLine className="w-8 h-8 mx-auto mb-2 text-cyan-400" />
+  1038→            <p className="text-sm font-medium">{h.t('scan.dragDrop')}</p>
+  1039→            <p className="text-[10px] text-muted-foreground mt-1">{h.t('scan.supportedFormats')}</p>
+  1040→            <p className="text-[10px] text-muted-foreground/60 mt-1">Max 20MB - Drag and drop or click</p>
+  1041→          </>
+  1042→        )}
+  1043→      </div>
+  1044→
+  1045→      {scanError && (
+  1046→        <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 text-[10px] text-red-400">
+  1047→          <X className="w-3 h-3 mt-0.5 flex-shrink-0" />
+  1048→          <div className="flex-1">
+  1049→            <p className="font-medium">Scan Error</p>
+  1050→            <p>{scanError}</p>
+  1051→          </div>
+  1052→          <button onClick={() => setScanError('')} className="ml-auto flex-shrink-0 hover:text-red-300">
+  1053→            <X className="w-3 h-3" />
+  1054→          </button>
+  1055→        </div>
+  1056→      )}
+  1057→
+  1058→      <div className="flex gap-2">
+  1059→        <Button size="sm" className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs" disabled={!h.scanFile || h.store.scanState === 'processing'} onClick={handleScanSubmit}>
+  1060→          {h.store.scanState === 'processing' ? 'Analyzing...' : h.t('scan.title')}
+  1061→        </Button>
+  1062→        {h.store.scanState === 'done' && h.store.scanResults && (
+  1063→          <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => { h.store.importScanResults(h.store.scanResults!); h.setScanDialogOpen(false) }}>
+  1064→            <Check className="w-3.5 h-3.5 mr-1" />{h.t('scan.approve')}
+  1065→          </Button>
+  1066→        )}
+  1067→      </div>
+  1068→
+  1069→      {/* Raw text fallback when fields are limited */}
+  1070→      {h.store.scanState === 'done' && h.store.scanResults && h.store.scanResults.rawText && h.store.scanResults.fields.length <= 2 && (
+  1071→        <div className="space-y-1.5">
+  1072→          <p className="text-[10px] font-semibold text-amber-400">Extracted Text (raw)</p>
+  1073→          <div className="max-h-32 overflow-y-auto bg-muted/20 rounded-lg p-2 text-[10px] text-muted-foreground whitespace-pre-wrap">
+  1074→            {h.store.scanResults.rawText.slice(0, 2000)}
+  1075→          </div>
+  1076→          <p className="text-[9px] text-muted-foreground/60">AI had difficulty parsing structured fields from this document. You can copy the raw text or re-upload a clearer version.</p>
+  1077→        </div>
+  1078→      )}
+  1079→
+  1080→      {/* Batch Scan */}
+  1081→      <div className="flex items-center gap-2">
+  1082→        <Button size="sm" variant="outline" className="text-[10px] h-7" onClick={() => h.batchInputRef.current?.click()}>
+  1083→          <FolderOpen className="w-3 h-3 mr-1" />{h.t('scan.batch')}
+  1084→        </Button>
+  1085→        <input ref={h.batchInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple className="hidden" onChange={async (e) => {
+  1086→          const files = Array.from(e.target.files || [])
+  1087→          for (const f of files) {
+  1088→            const err = validateScanFile(f)
+  1089→            if (err) continue
+  1090→            h.store.addToBatchQueue({ id: Date.now().toString(36) + Math.random().toString(36).slice(2), name: f.name, status: 'pending' })
+  1091→          }
+  1092→          if (h.batchInputRef.current) h.batchInputRef.current.value = ''
+  1093→        }} />
+  1094→        {h.store.batchQueue.length > 0 && <span className="text-[10px] text-muted-foreground">{h.store.batchQueue.length} files queued</span>}
+  1095→      </div>
+  1096→
+  1097→      {/* Results */}
+  1098→      {h.store.scanState === 'done' && h.store.scanResults && h.store.scanResults.fields.length > 0 && (
+  1099→        <div className="space-y-2">
+  1100→          <p className="text-[10px] font-semibold">{h.t('scan.extracted')} ({h.store.scanResults.fields.length})</p>
+  1101→          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+  1102→            {h.store.scanResults.fields.map((f: any, i: number) => (
+  1103→              <div key={i} className="flex items-center gap-2 bg-muted/20 rounded-lg p-2 text-[10px]">
+  1104→                <Badge variant="outline" className="text-[8px] w-12 justify-center shrink-0">{f.type || 'text'}</Badge>
+  1105→                <span className="font-medium w-20 truncate">{f.label}</span>
+  1106→                <input className="flex-1 text-[10px] bg-background border rounded px-1.5 py-0.5 min-w-0" value={h.editedFields[f.label] ?? f.value} onChange={e => h.setEditedFields(p => ({ ...p, [f.label]: e.target.value }))} />
+  1107→                <Badge variant={f.confidence > 0.8 ? 'default' : 'secondary'} className={cn('text-[8px]', f.confidence > 0.8 ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white')}>
+  1108→                  {Math.round((f.confidence || 0.5) * 100)}%
+  1109→                </Badge>
+  1110→              </div>
+  1111→            ))}
+  1112→          </div>
+  1113→        </div>
+  1114→      )}
+  1115→
+  1116→      {h.store.scanHistory.length > 0 && (
+  1117→        <div>
+  1118→          <p className="text-[10px] font-semibold mb-1.5">{h.t('scan.history')}</p>
+  1119→          <div className="space-y-1 max-h-24 overflow-y-auto">
+  1120→            {h.store.scanHistory.slice(-5).reverse().map((s: any, i: number) => (
+  1121→              <div key={i} className="text-[10px] text-muted-foreground bg-muted/20 rounded p-1.5">{s.summary || `${s.fields.length} fields, ${s.tables.length} tables`}</div>
+  1122→            ))}
+  1123→          </div>
+  1124→        </div>
+  1125→      )}
+  1126→    </div>
+  1127→  )
+  1128→}
+  1129→
+  1130→/* ─── Panel 8: Syntax & Reports ─── */
+  1131→export function SyntaxPanel(h: HandlerHook) {
+  1132→  return (
+  1133→    <div className="p-4 space-y-4 overflow-y-auto h-full scrollbar-thin" style={{ contain: 'layout style paint' }}>
+  1134→      <div className="flex items-center gap-2">
+  1135→        <Button size="sm" className="h-7 text-[10px] bg-amber-600 hover:bg-amber-700 text-white" onClick={h.handleExportPDF}>
+  1136→          <FileText className="w-3 h-3 mr-1" />Export PDF
+  1137→        </Button>
+  1138→        <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={h.handleExportCSV}>
+  1139→          <FileSpreadsheet className="w-3 h-3 mr-1" />CSV
+  1140→        </Button>
+  1141→        <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={h.handleExportJSON}>
+  1142→          <Download className="w-3 h-3 mr-1" />JSON
+  1143→        </Button>
+  1144→      </div>
+  1145→
+  1146→      <Separator />
+  1147→
+  1148→      <div className="space-y-2">
+  1149→        <div className="flex items-center justify-between">
+  1150→          <p className="text-xs font-semibold">Syntax History</p>
+  1151→          <Badge variant="outline" className="text-[9px]">{h.store.syntaxHistory.length}</Badge>
+  1152→        </div>
+  1153→        {h.store.syntaxHistory.length === 0 ? (
+  1154→          <div className="flex flex-col items-center justify-center py-8 text-center">
+  1155→            <Terminal className="w-8 h-8 text-muted-foreground/40 mb-2" />
+  1156→            <p className="text-xs text-muted-foreground">No syntax generated yet</p>
+  1157→            <p className="text-[10px] text-muted-foreground mt-1">Run analyses to generate SPSS syntax</p>
+  1158→          </div>
+  1159→        ) : (
+  1160→          <div className="space-y-1.5 max-h-96 overflow-y-auto">
+  1161→            {h.store.syntaxHistory.map((syntax, i) => (
+  1162→              <div key={i} className="flex items-start gap-2 bg-muted/20 rounded-lg p-2.5 group">
+  1163→                <ChevronRight className="w-3 h-3 text-amber-400 mt-0.5 flex-shrink-0" />
+  1164→                <code className="flex-1 text-[10px] font-mono text-foreground/80 break-all">{syntax}</code>
+  1165→                <Button
+  1166→                  variant="ghost"
+  1167→                  size="sm"
+  1168→                  className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground flex-shrink-0"
+  1169→                  onClick={() => navigator.clipboard.writeText(syntax)}
+  1170→                >
+  1171→                  <Copy className="w-3 h-3" />
+  1172→                </Button>
+  1173→              </div>
+  1174→            ))}
+  1175→          </div>
+  1176→        )}
+  1177→      </div>
+  1178→    </div>
+  1179→  )
+  1180→}
+  1181→

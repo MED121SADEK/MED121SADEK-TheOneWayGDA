@@ -134,6 +134,7 @@ export function useWorkspaceHandlers() {
   // Computation loading states
   const [isValidating, setIsValidating] = useState(false)
   const [isCleaning, setIsCleaning] = useState(false)
+  const [isTransforming, setIsTransforming] = useState(false)
 
   // Refs
   const chatEndRef = useRef<HTMLDivElement>(null)
@@ -952,125 +953,159 @@ export function useWorkspaceHandlers() {
     }, 0)
   }, [store, isCleaning])
 
-  /* ─── Data Transformations ─── */
+  /* ─── Data Transformations (non-blocking) ─── */
   const handleTransformZScore = useCallback(() => {
-    const data: Record<string, any[]> = {}
-    for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
-    const createdVars: string[] = []
+    if (isTransforming) return
+    setIsTransforming(true)
+    // Snapshot current state to avoid stale closures
+    const dataSnap: Record<string, any[]> = {}
+    for (const k of Object.keys(store.data)) dataSnap[k] = [...store.data[k]]
+    const selectedVars = [...store.selectedVariables]
 
-    for (const varName of store.selectedVariables) {
-      const vals = getNumericVals(varName)
-      if (vals.length < 2) continue
-      const m = vals.reduce((a, b) => a + b, 0) / vals.length
-      const s = Math.sqrt(vals.reduce((a, b) => a + (b - m) ** 2, 0) / (vals.length - 1))
-      if (s === 0) continue
-      const col = store.data[varName] || []
-      const newName = `z_${varName}`
-      data[newName] = col.map(v => {
-        const n = typeof v === 'string' ? parseFloat(v) : v
-        return typeof n === 'number' && !isNaN(n) ? parseFloat(((n - m) / s).toFixed(4)) : ''
-      })
-      store.addVariable({
-        id: Date.now().toString(36) + varName,
-        name: newName,
-        type: 'numeric',
-        label: `Z-score of ${varName}`,
-        width: 10, decimals: 4, missing: '', values: {},
-      })
-      createdVars.push(varName)
-    }
+    setTimeout(() => {
+      try {
+        const data: Record<string, any[]> = { ...dataSnap }
+        const createdVars: string[] = []
 
-    store.setData(data)
-    store.addOutput({
-      id: Date.now().toString(36),
-      title: 'Z-Score Transformation',
-      type: 'table',
-      content: {
-        headers: ['Original', 'Transformed', 'Formula'],
-        rows: createdVars.map(v => [v, `z_${v}`, '(x − mean) / SD']),
-      },
-      timestamp: new Date().toISOString(),
-    })
-    store.addSyntax(`COMPUTE z_*= (var - MEAN(var)) / SD(var)`)
-  }, [store, getNumericVals])
+        for (const varName of selectedVars) {
+          const vals = (data[varName] || []).map((v: any) => typeof v === 'string' ? parseFloat(v) : v).filter((v: any): v is number => typeof v === 'number' && !isNaN(v))
+          if (vals.length < 2) continue
+          const m = vals.reduce((a, b) => a + b, 0) / vals.length
+          const s = Math.sqrt(vals.reduce((a, b) => a + (b - m) ** 2, 0) / (vals.length - 1))
+          if (s === 0) continue
+          const col = data[varName] || []
+          const newName = `z_${varName}`
+          data[newName] = col.map(v => {
+            const n = typeof v === 'string' ? parseFloat(v) : v
+            return typeof n === 'number' && !isNaN(n) ? parseFloat(((n - m) / s).toFixed(4)) : ''
+          })
+          store.addVariable({
+            id: Date.now().toString(36) + varName,
+            name: newName,
+            type: 'numeric',
+            label: `Z-score of ${varName}`,
+            width: 10, decimals: 4, missing: '', values: {},
+          })
+          createdVars.push(varName)
+        }
+
+        store.setData(data)
+        store.addOutput({
+          id: Date.now().toString(36),
+          title: 'Z-Score Transformation',
+          type: 'table',
+          content: {
+            headers: ['Original', 'Transformed', 'Formula'],
+            rows: createdVars.map(v => [v, `z_${v}`, '(x − mean) / SD']),
+          },
+          timestamp: new Date().toISOString(),
+        })
+        store.addSyntax(`COMPUTE z_*= (var - MEAN(var)) / SD(var)`)
+      } finally {
+        setIsTransforming(false)
+      }
+    }, 0)
+  }, [store, isTransforming])
 
   const handleTransformNormalize = useCallback(() => {
-    const data: Record<string, any[]> = {}
-    for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
-    const createdVars: string[] = []
+    if (isTransforming) return
+    setIsTransforming(true)
+    const dataSnap: Record<string, any[]> = {}
+    for (const k of Object.keys(store.data)) dataSnap[k] = [...store.data[k]]
+    const selectedVars = [...store.selectedVariables]
 
-    for (const varName of store.selectedVariables) {
-      const vals = getNumericVals(varName)
-      if (vals.length < 2) continue
-      const min = Math.min(...vals)
-      const max = Math.max(...vals)
-      const range = max - min
-      if (range === 0) continue
-      const col = store.data[varName] || []
-      const newName = `norm_${varName}`
-      data[newName] = col.map(v => {
-        const n = typeof v === 'string' ? parseFloat(v) : v
-        return typeof n === 'number' && !isNaN(n) ? parseFloat(((n - min) / range).toFixed(4)) : ''
-      })
-      store.addVariable({
-        id: Date.now().toString(36) + varName,
-        name: newName,
-        type: 'numeric',
-        label: `Normalized ${varName}`,
-        width: 10, decimals: 4, missing: '', values: {},
-      })
-      createdVars.push(varName)
-    }
+    setTimeout(() => {
+      try {
+        const data: Record<string, any[]> = { ...dataSnap }
+        const createdVars: string[] = []
 
-    store.setData(data)
-    store.addOutput({
-      id: Date.now().toString(36),
-      title: 'Min-Max Normalization (0–1)',
-      type: 'table',
-      content: {
-        headers: ['Original', 'Transformed', 'Formula'],
-        rows: createdVars.map(v => [v, `norm_${v}`, '(x − min) / (max − min)']),
-      },
-      timestamp: new Date().toISOString(),
-    })
-    store.addSyntax(`COMPUTE norm_*= (var - MIN(var)) / (MAX(var) - MIN(var))`)
-  }, [store, getNumericVals])
+        for (const varName of selectedVars) {
+          const vals = (data[varName] || []).map((v: any) => typeof v === 'string' ? parseFloat(v) : v).filter((v: any): v is number => typeof v === 'number' && !isNaN(v))
+          if (vals.length < 2) continue
+          const min = Math.min(...vals)
+          const max = Math.max(...vals)
+          const range = max - min
+          if (range === 0) continue
+          const col = data[varName] || []
+          const newName = `norm_${varName}`
+          data[newName] = col.map(v => {
+            const n = typeof v === 'string' ? parseFloat(v) : v
+            return typeof n === 'number' && !isNaN(n) ? parseFloat(((n - min) / range).toFixed(4)) : ''
+          })
+          store.addVariable({
+            id: Date.now().toString(36) + varName,
+            name: newName,
+            type: 'numeric',
+            label: `Normalized ${varName}`,
+            width: 10, decimals: 4, missing: '', values: {},
+          })
+          createdVars.push(varName)
+        }
+
+        store.setData(data)
+        store.addOutput({
+          id: Date.now().toString(36),
+          title: 'Min-Max Normalization (0–1)',
+          type: 'table',
+          content: {
+            headers: ['Original', 'Transformed', 'Formula'],
+            rows: createdVars.map(v => [v, `norm_${v}`, '(x − min) / (max − min)']),
+          },
+          timestamp: new Date().toISOString(),
+        })
+        store.addSyntax(`COMPUTE norm_*= (var - MIN(var)) / (MAX(var) - MIN(var))`)
+      } finally {
+        setIsTransforming(false)
+      }
+    }, 0)
+  }, [store, isTransforming])
 
   const handleTransformLog = useCallback(() => {
-    const data: Record<string, any[]> = {}
-    for (const k of Object.keys(store.data)) data[k] = [...store.data[k]]
-    const createdVars: string[] = []
+    if (isTransforming) return
+    setIsTransforming(true)
+    const dataSnap: Record<string, any[]> = {}
+    for (const k of Object.keys(store.data)) dataSnap[k] = [...store.data[k]]
+    const selectedVars = [...store.selectedVariables]
 
-    for (const varName of store.selectedVariables) {
-      const col = store.data[varName] || []
-      const newName = `log_${varName}`
-      data[newName] = col.map(v => {
-        const n = typeof v === 'string' ? parseFloat(v) : v
-        return typeof n === 'number' && !isNaN(n) && n > 0 ? parseFloat(Math.log(n).toFixed(4)) : ''
-      })
-      store.addVariable({
-        id: Date.now().toString(36) + varName,
-        name: newName,
-        type: 'numeric',
-        label: `Log(${varName})`,
-        width: 10, decimals: 4, missing: '', values: {},
-      })
-      createdVars.push(varName)
-    }
+    setTimeout(() => {
+      try {
+        const data: Record<string, any[]> = { ...dataSnap }
+        const createdVars: string[] = []
 
-    store.setData(data)
-    store.addOutput({
-      id: Date.now().toString(36),
-      title: 'Log Transformation',
-      type: 'table',
-      content: {
-        headers: ['Original', 'Transformed', 'Formula'],
-        rows: createdVars.map(v => [v, `log_${v}`, 'ln(x)']),
-      },
-      timestamp: new Date().toISOString(),
-    })
-    store.addSyntax(`COMPUTE log_*= LN(var)`)
-  }, [store])
+        for (const varName of selectedVars) {
+          const col = data[varName] || []
+          const newName = `log_${varName}`
+          data[newName] = col.map(v => {
+            const n = typeof v === 'string' ? parseFloat(v) : v
+            return typeof n === 'number' && !isNaN(n) && n > 0 ? parseFloat(Math.log(n).toFixed(4)) : ''
+          })
+          store.addVariable({
+            id: Date.now().toString(36) + varName,
+            name: newName,
+            type: 'numeric',
+            label: `Log(${varName})`,
+            width: 10, decimals: 4, missing: '', values: {},
+          })
+          createdVars.push(varName)
+        }
+
+        store.setData(data)
+        store.addOutput({
+          id: Date.now().toString(36),
+          title: 'Log Transformation',
+          type: 'table',
+          content: {
+            headers: ['Original', 'Transformed', 'Formula'],
+            rows: createdVars.map(v => [v, `log_${v}`, 'ln(x)']),
+          },
+          timestamp: new Date().toISOString(),
+        })
+        store.addSyntax(`COMPUTE log_*= LN(var)`)
+      } finally {
+        setIsTransforming(false)
+      }
+    }, 0)
+  }, [store, isTransforming])
 
   /* ─── Auto Data Profile ─── */
   const handleAutoProfile = useCallback(() => {
@@ -1104,9 +1139,12 @@ export function useWorkspaceHandlers() {
     })
   }, [store, getNumericVals])
 
-  // Auto-profile when new data is imported (debounced, single-fire)
+  // Auto-profile when new data is imported (debounced, single-fire, stable deps)
   const prevVarCountRef = useRef(store.variables.length)
   const profileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Use a ref for the profile function to avoid it being a dependency that triggers re-runs
+  const handleAutoProfileRef = useRef(handleAutoProfile)
+  handleAutoProfileRef.current = handleAutoProfile
   useEffect(() => {
     const prevCount = prevVarCountRef.current
     const currentCount = store.variables.length
@@ -1115,14 +1153,14 @@ export function useWorkspaceHandlers() {
       prevVarCountRef.current = currentCount
       // Clear any pending profile timer to prevent cascading
       if (profileTimerRef.current) clearTimeout(profileTimerRef.current)
-      profileTimerRef.current = setTimeout(() => handleAutoProfile(), 300)
+      profileTimerRef.current = setTimeout(() => handleAutoProfileRef.current(), 300)
     } else {
       prevVarCountRef.current = currentCount
     }
     return () => {
       if (profileTimerRef.current) clearTimeout(profileTimerRef.current)
     }
-  }, [store.variables.length, handleAutoProfile])
+  }, [store.variables.length])
 
   const handleExportPDF = useCallback(() => {
     generateQuickReport(store.outputs, store.currentProject?.name)
@@ -1130,6 +1168,21 @@ export function useWorkspaceHandlers() {
 
   /* ─── AI Agent Auto-Analysis (with timeout) ─── */
   const agentAbortRef = useRef<AbortController | null>(null)
+
+  const handleCancelAgent = useCallback(() => {
+    if (agentAbortRef.current) {
+      agentAbortRef.current.abort()
+      agentAbortRef.current = null
+    }
+    store.setAgentStatus('idle')
+    store.addOutput({
+      id: Date.now().toString(36),
+      title: 'AI Agent Cancelled',
+      type: 'text',
+      content: 'The AI analysis was cancelled by the user. Any results already computed are still available above.',
+      timestamp: new Date().toISOString(),
+    })
+  }, [store])
 
   const handleRunAgentAnalysis = useCallback(async (goal?: string) => {
     if (store.variables.length === 0) return
@@ -1296,7 +1349,7 @@ export function useWorkspaceHandlers() {
 
     // Validation & Cleaning
     validationResults, setValidationResults,
-    isValidating, isCleaning,
+    isValidating, isCleaning, isTransforming,
     handleValidate,
     handleClean,
 
@@ -1327,5 +1380,6 @@ export function useWorkspaceHandlers() {
     handleExportPDF,
     handleSendChat,
     handleRunAgentAnalysis,
+    handleCancelAgent,
   }
 }

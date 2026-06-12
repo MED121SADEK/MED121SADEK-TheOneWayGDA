@@ -14,7 +14,7 @@ import {
   Edit3, Copy, ChevronRight, TrendingUp, PieChart, ClipboardList,
   ShieldCheck, Sparkles, Check, X, FolderOpen, Download,
   FileSpreadsheet, Play, Zap, Target, Layers, Loader2, AlertTriangle,
-  ArrowRight, CheckCircle2,
+  ArrowRight, CheckCircle2, Ban,
 } from 'lucide-react'
 import { useState, useCallback } from 'react'
 import {
@@ -70,6 +70,16 @@ export function AIPanel(h: HandlerHook) {
             <Sparkles className="w-3 h-3" />
             Auto-Analyze
           </button>
+          {isAgentActive && (
+            <button
+              onClick={() => h.handleCancelAgent()}
+              className="flex items-center justify-center gap-1 bg-red-600/80 hover:bg-red-700 text-white text-[10px] font-medium rounded-md py-1.5 px-2.5 transition-colors"
+              title="Cancel analysis"
+            >
+              <Ban className="w-3 h-3" />
+              Cancel
+            </button>
+          )}
         </div>
 
         <div className="flex gap-1 mt-2">
@@ -709,7 +719,7 @@ export function AnalysisPanel(h: HandlerHook) {
         ].map(a => (
           <button
             key={a.name}
-            disabled={selCount === 0}
+            disabled={selCount === 0 || h.isTransforming}
             onClick={a.action}
             className={cn(
               'flex flex-col items-start gap-1.5 p-3 rounded-xl border text-left transition-all',
