@@ -516,11 +516,12 @@ export function AnalysisPanel(h: HandlerHook) {
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => { h.handleValidate(); setLastRun('Validate'); setLastRunTime(Date.now()) }}
+            disabled={h.isValidating}
             className="flex flex-col items-start gap-1.5 p-3 rounded-xl border border-border/50 hover:border-emerald-400/40 hover:bg-emerald-500/5 cursor-pointer transition-all text-left"
           >
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            {h.isValidating ? <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" /> : <ShieldCheck className="w-4 h-4 text-emerald-400" />}
             <div>
-              <p className="text-[11px] font-semibold">Validate</p>
+              <p className="text-[11px] font-semibold">{h.isValidating ? 'Validating...' : 'Validate'}</p>
               <p className="text-[9px] text-muted-foreground">Check data quality</p>
             </div>
           </button>

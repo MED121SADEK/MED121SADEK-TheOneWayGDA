@@ -54,3 +54,29 @@ Stage Summary:
 - All 12 tools confirmed fully wired and functional
 - Build passes cleanly
 - No changes needed - previous session fixes are intact
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix workspace getting stuck - add timeouts, non-blocking patterns, debounce
+
+Work Log:
+- Identified 5 root causes of workspace freezing
+- Added AbortController + 60s timeout to handleRunAgentAnalysis (client-side)
+- Added AbortController + 30s timeout to handleSendChat (client-side)
+- Both fetches now cancel previous in-flight requests to prevent stacking
+- Both show clear timeout error messages instead of hanging forever
+- Added 55s server-side timeout to /api/ai/agent route (returns 504 on timeout)
+- Wrapped handleValidate in setTimeout(0) for non-blocking execution
+- Wrapped handleClean in setTimeout(0) for non-blocking execution
+- Added isValidating/isCleaning loading states with UI spinners
+- Added re-entry guards (if isValidating/isCleaning return early)
+- Fixed auto-profile useEffect: added debounce (300ms), cleanup timer, only fires on var count increase
+- Updated Clean dialog to show spinner during cleaning
+- Updated Validate button to show spinner during validation
+
+Stage Summary:
+- AI fetches can no longer hang indefinitely - they timeout with clear messages
+- Validate and Clean no longer block the UI thread on large datasets
+- Auto-profile no longer cascades on repeated triggers
+- Build passes cleanly

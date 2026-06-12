@@ -388,7 +388,9 @@ export default function WorkspacePage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => h.setCleanDialogOpen(false)}>{t('workspace.cancel')}</Button>
-            <Button onClick={h.handleClean} disabled={h.store.variables.length === 0}>Apply Cleaning</Button>
+            <Button onClick={h.handleClean} disabled={h.store.variables.length === 0 || h.isCleaning}>
+              {h.isCleaning ? <><span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />Cleaning...</> : 'Apply Cleaning'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

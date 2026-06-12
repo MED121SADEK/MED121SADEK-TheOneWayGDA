@@ -80,10 +80,15 @@ function getNumericVals(data: Record<string, any[]>, varName: string): number[] 
 
 // ─── MAIN AGENT ───
 export async function POST(request: NextRequest) {
+  // Server-side timeout: abort if taking too long
+  const controller = new AbortController()
+  const serverTimeout = setTimeout(() => controller.abort(), 55_000) // 55s (less than client 60s)
+
   try {
     const token = getTokenFromRequest(request)
     const session = token ? await db.userSession.findUnique({ where: { token } }) : null
     if (!session) {
+      clearTimeout(serverTimeout)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -459,9 +464,12 @@ Be specific with numbers. Reference actual variable names and values.`
       insightsCount: results.length,
       timestamp: new Date().toISOString(),
     })
+    clearTimeout(serverTimeout)
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Agent analysis failed'
+    clearTimeout(serverTimeout)
+    const isAbort = error instanceof DOMException && error.name === 'AbortError'
+    const message = isAbort ? 'Analysis timed out on the server. Try with a smaller dataset.' : (error instanceof Error ? error.message : 'Agent analysis failed')
     console.error('AI Agent error:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: message }, { status: isAbort ? 504 : 500 })
   }
 }
