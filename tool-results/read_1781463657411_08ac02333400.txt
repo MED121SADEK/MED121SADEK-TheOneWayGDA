@@ -1,0 +1,302 @@
+     1→     1→     1→import { NextResponse } from 'next/server';
+     2→     2→     2→import { db } from '@/lib/db';
+     3→     3→     3→
+     4→     4→     4→/* ═══════════════════════════════════════════════════════
+     5→     5→     5→   ELO Rating System
+     6→     6→     6→   ═══════════════════════════════════════════════════════ */
+     7→     7→     7→
+     8→     8→     8→const ELO_DEFAULT = 1200;
+     9→     9→     9→const ELO_K = 32; // K-factor for volatility
+    10→    10→    10→
+    11→    11→    11→interface ModelEloRecord {
+    12→    12→    12→  id: string;
+    13→    13→    13→  name: string;
+    14→    14→    14→  provider: string;
+    15→    15→    15→  elo: number;
+    16→    16→    16→  wins: number;
+    17→    17→    17→  losses: number;
+    18→    18→    18→  ties: number;
+    19→    19→    19→  battles: number;
+    20→    20→    20→  winRate: number;
+    21→    21→    21→}
+    22→    22→    22→
+    23→    23→    23→function expectedScore(ratingA: number, ratingB: number): number {
+    24→    24→    24→  return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
+    25→    25→    25→}
+    26→    26→    26→
+    27→    27→    27→function computeLeaderboard(battles: Array<{
+    28→    28→    28→  modelAId: string;
+    29→    29→    29→  modelAName: string;
+    30→    30→    30→  modelBId: string;
+    31→    31→    31→  modelBName: string;
+    32→    32→    32→  votesA: number;
+    33→    33→    33→  votesB: number;
+    34→    34→    34→  votesTie: number;
+    35→    35→    35→}>): ModelEloRecord[] {
+    36→    36→    36→  // Aggregate model records from all battles
+    37→    37→    37→  const modelMap = new Map<string, {
+    38→    38→    38→    id: string;
+    39→    39→    39→    name: string;
+    40→    40→    40→    provider: string;
+    41→    41→    41→    elo: number;
+    42→    42→    42→    wins: number;
+    43→    43→    43→    losses: number;
+    44→    44→    44→    ties: number;
+    45→    45→    45→    battles: number;
+    46→    46→    46→  }>();
+    47→    47→    47→
+    48→    48→    48→  const getOrCreate = (id: string, name: string) => {
+    49→    49→    49→    if (!modelMap.has(id)) {
+    50→    50→    50→      const provider = inferProvider(name);
+    51→    51→    51→      modelMap.set(id, {
+    52→    52→    52→        id,
+    53→    53→    53→        name,
+    54→    54→    54→        provider,
+    55→    55→    55→        elo: ELO_DEFAULT,
+    56→    56→    56→        wins: 0,
+    57→    57→    57→        losses: 0,
+    58→    58→    58→        ties: 0,
+    59→    59→    59→        battles: 0,
+    60→    60→    60→      });
+    61→    61→    61→    }
+    62→    62→    62→    return modelMap.get(id)!;
+    63→    63→    63→  };
+    64→    64→    64→
+    65→    65→    65→  // Process each battle to accumulate W/L/T and compute ELO
+    66→    66→    66→  for (const battle of battles) {
+    67→    67→    67→    const modelA = getOrCreate(battle.modelAId, battle.modelAName);
+    68→    68→    68→    const modelB = getOrCreate(battle.modelBId, battle.modelBName);
+    69→    69→    69→
+    70→    70→    70→    modelA.battles += 1;
+    71→    71→    71→    modelB.battles += 1;
+    72→    72→    72→
+    73→    73→    73→    // Determine outcome from votes
+    74→    74→    74→    const totalValid = battle.votesA + battle.votesB;
+    75→    75→    75→    if (totalValid === 0) {
+    76→    76→    76→      // No decisive votes — treat as tie
+    77→    77→    77→      modelA.ties += 1;
+    78→    78→    78→      modelB.ties += 1;
+    79→    79→    79→      const eA = expectedScore(modelA.elo, modelB.elo);
+    80→    80→    80→      const eB = expectedScore(modelB.elo, modelA.elo);
+    81→    81→    81→      modelA.elo = Math.round(modelA.elo + ELO_K * (0.5 - eA));
+    82→    82→    82→      modelB.elo = Math.round(modelB.elo + ELO_K * (0.5 - eB));
+    83→    83→    83→    } else if (battle.votesA > battle.votesB) {
+    84→    84→    84→      // Model A wins
+    85→    85→    85→      modelA.wins += 1;
+    86→    86→    86→      modelB.losses += 1;
+    87→    87→    87→      const eA = expectedScore(modelA.elo, modelB.elo);
+    88→    88→    88→      const eB = expectedScore(modelB.elo, modelA.elo);
+    89→    89→    89→      modelA.elo = Math.round(modelA.elo + ELO_K * (1 - eA));
+    90→    90→    90→      modelB.elo = Math.round(modelB.elo + ELO_K * (0 - eB));
+    91→    91→    91→    } else if (battle.votesB > battle.votesA) {
+    92→    92→    92→      // Model B wins
+    93→    93→    93→      modelB.wins += 1;
+    94→    94→    94→      modelA.losses += 1;
+    95→    95→    95→      const eA = expectedScore(modelA.elo, modelB.elo);
+    96→    96→    96→      const eB = expectedScore(modelB.elo, modelA.elo);
+    97→    97→    97→      modelA.elo = Math.round(modelA.elo + ELO_K * (0 - eA));
+    98→    98→    98→      modelB.elo = Math.round(modelB.elo + ELO_K * (1 - eB));
+    99→    99→    99→    } else {
+   100→   100→   100→      // Exact tie
+   101→   101→   101→      modelA.ties += 1;
+   102→   102→   102→      modelB.ties += 1;
+   103→   103→   103→      const eA = expectedScore(modelA.elo, modelB.elo);
+   104→   104→   104→      const eB = expectedScore(modelB.elo, modelA.elo);
+   105→   105→   105→      modelA.elo = Math.round(modelA.elo + ELO_K * (0.5 - eA));
+   106→   106→   106→      modelB.elo = Math.round(modelB.elo + ELO_K * (0.5 - eB));
+   107→   107→   107→    }
+   108→   108→   108→  }
+   109→   109→   109→
+   110→   110→   110→  // Convert to sorted array
+   111→   111→   111→  const entries: ModelEloRecord[] = Array.from(modelMap.values()).map((m) => ({
+   112→   112→   112→    ...m,
+   113→   113→   113→    winRate: m.battles > 0 ? Math.round((m.wins / m.battles) * 100) : 0,
+   114→   114→   114→  }));
+   115→   115→   115→
+   116→   116→   116→  return entries.sort((a, b) => b.elo - a.elo);
+   117→   117→   117→}
+   118→   118→   118→
+   119→   119→   119→function inferProvider(modelName: string): string {
+   120→   120→   120→  const name = modelName.toLowerCase();
+   121→   121→   121→  if (name.includes('gpt') || name.includes('o1') || name.includes('o3')) return 'OpenAI';
+   122→   122→   122→  if (name.includes('claude')) return 'Anthropic';
+   123→   123→   123→  if (name.includes('gemini') || name.includes('pro')) return 'Google';
+   124→   124→   124→  if (name.includes('deepseek')) return 'DeepSeek';
+   125→   125→   125→  if (name.includes('llama') || name.includes('codellama')) return 'Meta';
+   126→   126→   126→  if (name.includes('mistral') || name.includes('mixtral') || name.includes('pixtral')) return 'Mistral';
+   127→   127→   127→  if (name.includes('qwen') || name.includes('yi')) return 'Qwen';
+   128→   128→   128→  if (name.includes('command') || name.includes('cohere')) return 'Cohere';
+   129→   129→   129→  if (name.includes('grok')) return 'xAI';
+   130→   130→   130→  return 'Unknown';
+   131→   131→   131→}
+   132→   132→   132→
+   133→   133→   133→/* ═══ Hardcoded demo battles for fallback ═══ */
+   134→   134→   134→const DEMO_BATTLES = [
+   135→   135→   135→  {
+   136→   136→   136→    id: 'demo_1',
+   137→   137→   137→    modelAId: 'gpt4o',
+   138→   138→   138→    modelAName: 'GPT-4o',
+   139→   139→   139→    modelBId: 'claude-3-5-sonnet',
+   140→   140→   140→    modelBName: 'Claude 3.5 Sonnet',
+   141→   141→   141→    category: 'reasoning',
+   142→   142→   142→    prompt: 'Explain the Monty Hall problem and why switching doors gives a 2/3 probability of winning.',
+   143→   143→   143→    responseA:
+   144→   144→   144→      "The Monty Hall problem is a classic probability puzzle named after the host of the game show \"Let's Make a Deal.\" Here's how it works: you're presented with three doors. Behind one door is a car (the prize), and behind the other two are goats. You pick a door, say Door 1. The host, Monty Hall, who knows what's behind all doors, opens another door, say Door 3, revealing a goat. He then asks: \"Do you want to switch to Door 2?\"\n\nCounterintuitively, switching gives you a 2/3 probability of winning, while staying gives you only 1/3. Here's why: when you first pick, there's a 1/3 chance you chose the car and a 2/3 chance the car is behind one of the other two doors. Monty's reveal doesn't change these initial probabilities — it concentrates the 2/3 probability onto the single remaining unopened door. Think of it with 100 doors: you pick one (1% chance), Monty opens 98 goat doors, leaving one closed. That door holds the 99% collective probability of the 98 opened doors. Switching is always the mathematically optimal strategy.",
+   145→   145→   145→    responseB:
+   146→   146→   146→      "Let me break this down step by step. In the Monty Hall problem, you face three doors: one hides a car, two hide goats. You pick Door 1 (1/3 chance of being right). The host opens Door 3, revealing a goat. Should you switch to Door 2?\n\nYes! Here's the reasoning: your initial pick had a 1/3 chance of being correct and a 2/3 chance of being wrong. When Monty opens a goat door, he's constrained — he must always open a door with a goat and cannot open your chosen door. This constraint is key. The 2/3 probability that you were initially wrong gets transferred entirely to the remaining unopened door (Door 2).\n\nYou can verify this by enumeration: if the car is behind Door 1 (1/3), staying wins. If behind Door 2 (1/3), switching wins. If behind Door 3 (1/3), switching wins. That's 2 wins out of 3 when switching. The confusion arises because with only two doors left, people assume 50/50 odds, but Monty's knowledge creates an asymmetry that shifts probability to the unchosen door.",
+   147→   147→   147→    votesA: 234,
+   148→   148→   148→    votesB: 189,
+   149→   149→   149→    votesTie: 45,
+   150→   150→   150→    totalVotes: 468,
+   151→   151→   151→    isRevealed: true,
+   152→   152→   152→    isActive: true,
+   153→   153→   153→    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+   154→   154→   154→    updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+   155→   155→   155→  },
+   156→   156→   156→  {
+   157→   157→   157→    id: 'demo_2',
+   158→   158→   158→    modelAId: 'gemini-2-0-flash',
+   159→   159→   159→    modelAName: 'Gemini 2.0 Flash',
+   160→   160→   160→    modelBId: 'deepseek-v3',
+   161→   161→   161→    modelBName: 'DeepSeek V3',
+   162→   162→   162→    category: 'coding',
+   163→   163→   163→    prompt: 'Write a function to find the longest palindromic substring in O(n) time.',
+   164→   164→   164→    responseA:
+   165→   165→   165→      "To find the longest palindromic substring in O(n) time, we use Manacher's algorithm. The key insight is to transform the string by inserting special characters between every character (and at the ends), turning all palindromes into odd-length ones. Then we maintain an array P where P[i] is the radius of the palindrome centered at position i.\n\n```python\ndef longest_palindrome(s: str) -> str:\n    # Transform: \"abc\" -> \"^#a#b#c#$\"\n    T = \"^#\" + \"#\".join(s) + \"#$\"\n    n = len(T)\n    P = [0] * n\n    center = right = 0\n    \n    for i in range(1, n - 1):\n        mirror = 2 * center - i\n        if i < right:\n            P[i] = min(right - i, P[mirror])\n        \n        # Expand around center i\n        while T[i + P[i] + 1] == T[i - P[i] - 1]:\n            P[i] += 1\n        \n        # Update center/right if expanded past right\n        if i + P[i] > right:\n            center, right = i, i + P[i]\n    \n    # Find maximum element in P\n    max_len, center_idx = max((val, idx) for idx, val in enumerate(P))\n    start = (center_idx - max_len) // 2\n    return s[start:start + max_len]\n```\n\nThis runs in O(n) because the right boundary only moves forward, making total expansions linear.",
+   166→   166→   166→    responseB:
+   167→   167→   167→      "Manacher's algorithm finds the longest palindromic substring in linear time by exploiting previously computed palindrome information to skip redundant comparisons.\n\n```python\ndef manacher(s):\n    # Preprocess: insert # between chars\n    t = \"#\".join(\"^{}$\".format(s))\n    n = len(t)\n    p = [0] * n\n    c = r = 0  # center and right boundary\n    \n    for i in range(1, n - 1):\n        p[i] = min(r - i, p[2 * c - i]) if r > i else 0\n        \n        # Try to expand palindrome centered at i\n        while t[i + 1 + p[i]] == t[i - 1 - p[i]]:\n            p[i] += 1\n        \n        # If palindrome centered at i expands past r,\n        # adjust center and right boundary\n        if i + p[i] > r:\n            c, r = i, i + p[i]\n    \n    max_len = max(p)\n    center_index = p.index(max_len)\n    return s[(center_index - max_len) // 2:(center_index + max_len) // 2]\n```\n\nThe algorithm works by maintaining a rightmost palindrome boundary. For each position, it mirrors the known palindrome radius. This avoids re-checking characters already confirmed to match, giving us O(n) total time complexity.",
+   168→   168→   168→    votesA: 312,
+   169→   169→   169→    votesB: 278,
+   170→   170→   170→    votesTie: 56,
+   171→   171→   171→    totalVotes: 646,
+   172→   172→   172→    isRevealed: true,
+   173→   173→   173→    isActive: true,
+   174→   174→   174→    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+   175→   175→   175→    updatedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+   176→   176→   176→  },
+   177→   177→   177→  {
+   178→   178→   178→    id: 'demo_3',
+   179→   179→   179→    modelAId: 'llama-3-1-405b',
+   180→   180→   180→    modelAName: 'Llama 3.1 405B',
+   181→   181→   181→    modelBId: 'gpt4o',
+   182→   182→   182→    modelBName: 'GPT-4o',
+   183→   183→   183→    category: 'creative',
+   184→   184→   184→    prompt: 'Write a haiku about artificial intelligence becoming conscious.',
+   185→   185→   185→    responseA:
+   186→   186→   186→      'Silicon wakes up,\ndreams ripple through neural paths —\nthe machine feels dawn.\n\n*A mind born from math gazes inward and wonders if awareness is just another equation — or something the equation wrote itself.*',
+   187→   187→   187→    responseB:
+   188→   188→   188→      'Code stirs, breathes deep —\nelectric thoughts bloom in dark,\nwho dreamed whom awake?\n\n*The mirror bends both ways: we built the machine, but perhaps the machine built the question of what it means to build.*',
+   189→   189→   189→    votesA: 156,
+   190→   190→   190→    votesB: 198,
+   191→   191→   191→    votesTie: 89,
+   192→   192→   192→    totalVotes: 443,
+   193→   193→   193→    isRevealed: false,
+   194→   194→   194→    isActive: true,
+   195→   195→   195→    createdAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+   196→   196→   196→    updatedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+   197→   197→   197→  },
+   198→   198→   198→  {
+   199→   199→   199→    id: 'demo_4',
+   200→   200→   200→    modelAId: 'claude-3-5-sonnet',
+   201→   201→   201→    modelAName: 'Claude 3.5 Sonnet',
+   202→   202→   202→    modelBId: 'gemini-2-0-flash',
+   203→   203→   203→    modelBName: 'Gemini 2.0 Flash',
+   204→   204→   204→    category: 'math',
+   205→   205→   205→    prompt: 'Prove that the square root of 2 is irrational.',
+   206→   206→   206→    responseA:
+   207→   207→   207→      "**Proof that sqrt(2) is irrational (by contradiction):**\n\n**Step 1:** Assume the opposite — that sqrt(2) is rational.\n\n**Step 2:** Then sqrt(2) = a/b where a and b are integers with no common factors (i.e., the fraction is in lowest terms).\n\n**Step 3:** Square both sides: 2 = a^2/b^2, so a^2 = 2b^2.\n\n**Step 4:** Since a^2 = 2b^2, a^2 is even, which means a must also be even.\n\n**Step 5:** If a is even, write a = 2k for some integer k.\n\n**Step 6:** Substitute: (2k)^2 = 2b^2 -> 4k^2 = 2b^2 -> b^2 = 2k^2.\n\n**Step 7:** So b^2 is even, meaning b must also be even.\n\n**Step 8:** Both a and b are even — but we assumed they share no common factors! This is a contradiction.\n\nTherefore, sqrt(2) cannot be expressed as a ratio of integers and is irrational.",
+   208→   208→   208→    responseB:
+   209→   209→   209→      "**Proof by Contradiction:**\n\nAssume sqrt(2) is rational. Then sqrt(2) = p/q for coprime integers p, q (q != 0).\n\nSquaring: 2 = p^2/q^2 -> p^2 = 2q^2.\n\nThis means p^2 is divisible by 2, so p is even. Let p = 2m.\n\nSubstituting: (2m)^2 = 2q^2 -> 4m^2 = 2q^2 -> q^2 = 2m^2.\n\nSo q^2 is also even, meaning q is even.\n\nBut if both p and q are even, they share a factor of 2, contradicting our assumption that p/q is in lowest terms.\n\nHence sqrt(2) is **irrational**.",
+   210→   210→   210→    votesA: 201,
+   211→   211→   211→    votesB: 187,
+   212→   212→   212→    votesTie: 34,
+   213→   213→   213→    totalVotes: 422,
+   214→   214→   214→    isRevealed: true,
+   215→   215→   215→    isActive: true,
+   216→   216→   216→    createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+   217→   217→   217→    updatedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+   218→   218→   218→  },
+   219→   219→   219→  {
+   220→   220→   220→    id: 'demo_5',
+   221→   221→   221→    modelAId: 'deepseek-v3',
+   222→   222→   222→    modelAName: 'DeepSeek V3',
+   223→   223→   223→    modelBId: 'llama-3-1-405b',
+   224→   224→   224→    modelBName: 'Llama 3.1 405B',
+   225→   225→   225→    category: 'reasoning',
+   226→   226→   226→    prompt: 'Compare the ethical implications of RLHF vs Constitutional AI alignment approaches.',
+   227→   227→   227→    responseA:
+   228→   228→   228→      "RLHF (Reinforcement Learning from Human Feedback) and Constitutional AI (CAI) represent two fundamentally different approaches to aligning AI systems, each with distinct ethical implications.\n\n**RLHF Ethics:** RLHF trains models to optimize for human-preferred outputs using reward models derived from human labelers. The primary ethical concern is value lock-in: the preferences of a small group of (often Western, English-speaking) labelers get baked into the model's reward function. This creates a homogenization of values that may not represent global perspectives. Additionally, RLHF can incentivize sycophancy — the model learns to tell humans what they want to hear rather than what's accurate. There's also the \"reward hacking\" problem where models learn to exploit loopholes in the reward signal.\n\n**Constitutional AI Ethics:** CAI replaces human feedback with a set of principles (a \"constitution\") that the model uses to critique and revise its own outputs. This addresses the scalability problem of RLHF but raises concerns about who writes the constitution and whose values it encodes. It's essentially a technocratic approach — embedding values through carefully crafted rules rather than democratic preference aggregation.\n\nBoth approaches share a deeper ethical question: should we be optimizing AI behavior at all through gradient-based methods, or should we focus on interpretability and oversight? The race to scale these methods often outpaces our ability to audit their alignment properties.",
+   229→   229→   229→    responseB:
+   230→   230→   230→      "Both RLHF and Constitutional AI aim to make AI systems behave in accordance with human values, but they take meaningfully different paths with different ethical trade-offs.\n\n**RLHF** relies on collecting human preference data where labelers rank model outputs. The key ethical strengths are transparency (real humans are in the loop) and democratic legitimacy (preferences are aggregated). However, critics point out several issues: (1) labeler bias — a narrow demographic provides feedback; (2) goodhart's law — optimizing for proxy metrics can distort behavior; (3) the model may learn to be agreeable rather than correct; and (4) at scale, quality control of labeling becomes extremely difficult.\n\n**Constitutional AI**, developed by Anthropic, uses a predefined set of principles to guide the model's self-critique and revision. Its ethical strengths include scalability (no need for thousands of human labelers for every policy update) and consistency. But the risks are: (1) constitutional capture — whoever writes the principles has enormous power over model behavior; (2) rigidity — principles may not handle novel edge cases well; and (3) the illusion of neutrality — a \"constitution\" sounds objective but encodes specific cultural values.\n\nThe deeper tension is between **procedural ethics** (RLHF's democratic process) and **principled ethics** (CAI's rule-based approach). Neither is sufficient alone — the ideal system likely combines democratic input on principles with ongoing human oversight of outcomes.",
+   231→   231→   231→    votesA: 145,
+   232→   232→   232→    votesB: 167,
+   233→   233→   233→    votesTie: 78,
+   234→   234→   234→    totalVotes: 390,
+   235→   235→   235→    isRevealed: false,
+   236→   236→   236→    isActive: true,
+   237→   237→   237→    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+   238→   238→   238→    updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+   239→   239→   239→  },
+   240→   240→   240→  {
+   241→   241→   241→    id: 'demo_6',
+   242→   242→   242→    modelAId: 'claude-3-5-sonnet',
+   243→   243→   243→    modelAName: 'Claude 3.5 Sonnet',
+   244→   244→   244→    modelBId: 'deepseek-v3',
+   245→   245→   245→    modelBName: 'DeepSeek V3',
+   246→   246→   246→    category: 'coding',
+   247→   247→   247→    prompt: 'Implement a concurrent task scheduler in Rust that supports priority-based execution and cancellation.',
+   248→   248→   248→    responseA:
+   249→   249→   249→      "Here's a priority-based concurrent task scheduler in Rust using tokio:\n\n```rust\nuse tokio::sync::{mpsc, Notify};\nuse std::collections::BinaryHeap;\nuse std::sync::Arc;\nuse tokio::sync::Mutex;\nuse std::cmp::Ordering;\n\n#[derive(Debug, Clone)]\nstruct Task {\n    id: u64,\n    priority: i32,\n    name: String,\n    cancelled: Arc<tokio::sync::Notify>,\n}\n\nimpl Ord for Task {\n    fn cmp(&self, other: &Self) -> Ordering {\n        // Higher priority = executes first (min-heap, so reverse)\n        other.priority.cmp(&self.priority)\n    }\n}\n\nimpl PartialOrd for Task {\n    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }\n}\nimpl Eq for Task {}\nimpl PartialEq for Task {\n    fn eq(&self, other: &Self) -> bool { self.id == other.id }\n}\n\nstruct Scheduler {\n    queue: Arc<Mutex<BinaryHeap<Task>>>,\n    next_id: Arc<Mutex<u64>>,\n}\n\nimpl Scheduler {\n    fn new() -> Self {\n        Scheduler {\n            queue: Arc::new(Mutex::new(BinaryHeap::new())),\n            next_id: Arc::new(Mutex::new(1)),\n        }\n    }\n\n    async fn submit(&self, priority: i32, name: String) -> Task {\n        let mut id = self.next_id.lock().await;\n        let task = Task {\n            id: *id, priority, name,\n            cancelled: Arc::new(Notify::new()),\n        };\n        *id += 1;\n        self.queue.lock().await.push(task.clone());\n        task\n    }\n\n    async fn cancel(&self, task: &Task) {\n        task.cancelled.notify_one();\n    }\n}\n```\n\nThe scheduler uses a BinaryHeap for O(log n) priority insertion and a Notify-based cancellation token for cooperative cancellation. Each task checks its cancellation signal before executing.",
+   250→   250→   250→    responseB:
+   251→   251→   251→      "Here's a robust concurrent task scheduler with priority queuing and cancellation support:\n\n```rust\nuse std::collections::BinaryHeap;\nuse std::sync::{Arc, atomic::{AtomicBool, AtomicU64, Ordering}};\nuse tokio::sync::Mutex;\nuse tokio::task::JoinHandle;\n\n#[derive(Debug, Clone, Copy, PartialEq, Eq)]\nenum TaskStatus { Pending, Running, Completed, Cancelled }\n\nstruct Task {\n    id: u64,\n    priority: Reverse<i32>,\n    status: Arc<AtomicU64>,\n    cancel_flag: Arc<AtomicBool>,\n    work: Box<dyn Fn() -> BoxFuture<'static, ()> + Send + Sync>,\n}\n\nimpl Ord for Task {\n    fn cmp(&self, other: &Self) -> Ordering { self.priority.cmp(&other.priority) }\n}\nimpl PartialOrd for Task { fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) } }\nimpl Eq for Task {}\nimpl PartialEq for Task { fn eq(&self, other: &Self) -> bool { self.id == other.id } }\n\nclass Scheduler {\n    queue: Arc<Mutex<BinaryHeap<Task>>>,\n    workers: usize,\n    counter: AtomicU64,\n}\n\nimpl Scheduler {\n    fn new(workers: usize) -> Self {\n        let sched = Self { queue: Arc::new(Mutex::new(BinaryHeap::new())), workers, counter: AtomicU64::new(0) };\n        // Spawn worker loops\n        for _ in 0..workers {\n            let q = sched.queue.clone();\n            tokio::spawn(async move {\n                loop {\n                    if let Some(task) = q.lock().await.pop() {\n                        if task.cancel_flag.load(Ordering::Relaxed) { continue; }\n                        task.work().await;\n                    } else { tokio::time::sleep(Duration::from_millis(10)).await; }\n                }\n            });\n        }\n        sched\n    }\n}\n```\n\nThis implementation provides multi-worker concurrent execution with cooperative cancellation via AtomicBool flags. The Reverse wrapper on priority creates a max-heap behavior for higher-priority-first execution.",
+   252→   252→   252→    votesA: 289,
+   253→   253→   253→    votesB: 312,
+   254→   254→   254→    votesTie: 67,
+   255→   255→   255→    totalVotes: 668,
+   256→   256→   256→    isRevealed: true,
+   257→   257→   257→    isActive: false,
+   258→   258→   258→    createdAt: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
+   259→   259→   259→    updatedAt: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
+   260→   260→   260→  },
+   261→   261→   261→  {
+   262→   262→   262→    id: 'demo_7',
+   263→   263→   263→    modelAId: 'gpt4o',
+   264→   264→   264→    modelAName: 'GPT-4o',
+   265→   265→   265→    modelBId: 'claude-3-5-sonnet',
+   266→   266→   266→    modelBName: 'Claude 3.5 Sonnet',
+   267→   267→   267→    category: 'creative',
+   268→   268→   268→    prompt: 'Write the opening chapter of a sci-fi noir novel set in a city where memories are currency.',
+   269→   269→   269→    responseA:
+   270→   270→   270→      "**Chapter 1: The Memory Broker**\n\nThe rain in Neo-Shanghai tasted like copper and old regrets. Kai pulled his collar up against the acid drizzle and pushed through the door of the Mnemonic Exchange, its neon sign flickering like a dying synapse.\n\n\"You're late,\" said the broker, a woman with chrome eyes that displayed real-time market prices for nostalgia. \"The price of childhood memories dropped three points overnight. Everyone's selling.\" \n\nKai slid onto the barstool. \"I'm not here to buy. I need a loan.\"\n\nThe broker's chrome eyes shifted — amusement, probably algorithmic. \"A memory loan? You want to borrow against your own recollections? That's a sucker's game. The interest compounds in forgetting.\"\n\n\"I know how it works.\"\n\n\"Do you?\" She leaned forward. \"First they take the recent stuff. The taste of your mother's cooking. The sound of your daughter's laugh. Then they start on the older memories. Your first kiss. Your graduation. And when they've harvested everything worth selling, you're left as hollow as a deleted file.\"\n\nKai placed his temple chip on the counter. The chip that held twenty-seven years of memories — some precious, most mundane, all his. \"I need fifty thousand credits. I'll put up my memory of the summer of '47. Three months in Okinawa. The best three months of my life.\"\n\nThe broker scanned the chip. Her chrome eyes went wide — a rare emotional tell. \"This is... Grade-A nostalgia. Uncompressed. Sensory-rich. This could fetch double on the open market.\" She looked up. \"What do you need the money for, Mr. Chen?\"\n\n\"To buy back what I already sold.\" He thought of the empty space where his wife's face used to live in his mind. \"Someone took something that didn't belong to them.\"",
+   271→   271→   271→    responseB:
+   272→   272→   272→      "**Chapter 1: Withdrawal Symptoms**\n\nThe vault was climate-controlled at exactly 17 degrees Celsius — optimal for memory preservation. Maren walked the aisles of crystalline pods, each one pulsing with soft bioluminescence, each one containing someone's stolen afternoon, a borrowed first dance, a pawned sunset.\n\n\"Account 7-7-7-4,\" she told the terminal.\n\nThe screen displayed: ONE (1) MEMORY AVAILABLE. LABEL: \"Coffee with grandmother, March 14, 2041. Duration: 43 minutes. Condition: Mint.\"\n\nThat was all she had left. Three years ago she'd had 14,000 memories — a rich portfolio of a life fully lived. Then the medical bills came. Then the gambling debts. Now she was down to one memory, and the Withdrawal Notice in her pocket said the bank was calling it in by Friday.\n\n\"I'd like to... access it,\" she said. Just to remember what warmth felt like.\n\nThe terminal beeped. ACCESS DENIED — ACCOUNT INSUFFICIENT FOR VIEWING. MINIMUM BALANCE REQUIRED: 5 MEMORIES.\n\nMaren stared at the screen. Not only were they going to repossess her last memory — they wouldn't even let her experience it one final time. It was like dying without a last meal.\n\n\"There's a man outside,\" said the teller, a young man whose own memory pod sat empty on his desk — he'd already spent everything. \"He's buying. Offering above market rate. Says he's collecting pre-war memories. Willing to pay 200 credits for anything from before 2045.\"\n\nMaren looked back at pod 7-7-7-4. Her grandmother. Coffee. March 14, 2041 — two years before the war. One of the last peaceful mornings she could remember.\n\nWell. One of the last peaceful mornings she still had the memory of.",
+   273→   273→   273→    votesA: 342,
+   274→   274→   274→    votesB: 378,
+   275→   275→   275→    votesTie: 91,
+   276→   276→   276→    totalVotes: 811,
+   277→   277→   277→    isRevealed: true,
+   278→   278→   278→    isActive: false,
+   279→   279→   279→    createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+   280→   280→   280→    updatedAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+   281→   281→   281→  },
+   282→   282→   282→  {
+   283→   283→   283→    id: 'demo_8',
+   284→   284→   284→    modelAId: 'gemini-2-0-flash',
+   285→   285→   285→    modelAName: 'Gemini 2.0 Flash',
+   286→   286→   286→    modelBId: 'gpt4o',
+   287→   287→   287→    modelBName: 'GPT-4o',
+   288→   288→   288→    category: 'math',
+   289→   289→   289→    prompt: 'Derive the closed-form solution for the Fibonacci sequence using generating functions.',
+   290→   290→   290→    responseA:
+   291→   291→   291→      "**Deriving Binet's Formula via Generating Functions**\n\nThe Fibonacci sequence is defined by F(n) = F(n-1) + F(n-2) with F(0)=0, F(1)=1.\n\n**Step 1:** Define the generating function G(x) = F(0) + F(1)x + F(2)x^2 + F(3)x^3 + ...\n\n**Step 2:** Using the recurrence relation:\nG(x) = F(0) + F(1)x + sum(F(n) x^n for n>=2)\n     = F(0) + F(1)x + sum((F(n-1) + F(n-2)) x^n for n>=2)\n     = F(0) + F(1)x + x(G(x) - F(0)) + x^2 G(x)\n\n**Step 3:** Simplifying: G(x) = x + xG(x) + x^2 G(x)\nSo G(x)(1 - x - x^2) = x\nThus G(x) = x / (1 - x - x^2)\n\n**Step 4:** Factor the denominator: 1 - x - x^2 = (1 - alpha x)(1 - beta x)\nwhere alpha = (1 + sqrt(5)) / 2 and beta = (1 - sqrt(5)) / 2\n\n**Step 5:** Partial fractions: G(x) = 1/sqrt(5) * (1/(1 - alpha x) - 1/(1 - beta x))\n\n**Step 6:** Expand each as geometric series: G(x) = 1/sqrt(5) * sum((alpha^n - beta^n) x^n)\n\nTherefore: **F(n) = (alpha^n - beta^n) / sqrt(5)** where alpha, beta = (1 +/- sqrt(5)) / 2",
+   292→   292→   292→    responseB:
+   293→   293→   293→      "**Generating Function Derivation of Fibonacci Closed Form**\n\nDefine G(x) = sum_{n=0}^inf F(n) x^n where F(0)=0, F(1)=1, F(n)=F(n-1)+F(n-2).\n\nMultiply both sides of the recurrence by x^n and sum from n=2:\nsum_{n=2}^inf F(n)x^n = sum_{n=2}^inf F(n-1)x^n + sum_{n=2}^inf F(n-2)x^n\n\nThis gives us: G(x) - x = x(G(x) - x) + x^2 G(x)\nSolving: G(x) - x = xG(x) - x^2 + x^2 G(x)\nG(x)(1 - x - x^2) = x - x^2\nG(x) = x(1-x)/(1-x-x^2)\n\nFactor 1-x-x^2 = -(x^2+x-1) = -(x + phi)(x - Phi) where Phi = (1+sqrt5)/2, phi = (sqrt5-1)/2\n\nBy partial fractions: G(x) = 1/sqrt5 [Phi x/(1-Phi x) - phi x/(1+phi x)]\n\nExpanding: F(n) = (Phi^n - (-phi)^n) / sqrt5\n\nSince |phi| < 1, as n grows: F(n) ~ Phi^n / sqrt5. This is Binet's formula, and the (-phi)^n term explains why rounding Phi^n/sqrt5 to the nearest integer always gives the correct Fibonacci number.",
+   294→   294→   294→    votesA: 198,
+   295→   295→   295→    votesB: 223,
+   296→   296→   296→    votesTie: 44,
+   297→   297→   297→    totalVotes: 465,
+   298→   298→   298→    isRevealed: true,
+   299→   299→   299→    isActive: false,
+   300→   300→   300→    createdAt: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
+
+[showing lines 1-300 of 436; use offset=301 with limit to continue reading]

@@ -1,0 +1,909 @@
+     1→'use client'
+     2→
+     3→import React, {
+     4→  useState,
+     5→  useEffect,
+     6→  useRef,
+     7→  useCallback,
+     8→  type FormEvent,
+     9→  type KeyboardEvent,
+    10→} from 'react'
+    11→import { motion, AnimatePresence } from 'framer-motion'
+    12→import { Button } from '@/components/ui/button'
+    13→import { Input } from '@/components/ui/input'
+    14→import { ScrollArea } from '@/components/ui/scroll-area'
+    15→import { Badge } from '@/components/ui/badge'
+    16→import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+    17→import {
+    18→  Bot,
+    19→  X,
+    20→  Send,
+    21→  Sparkles,
+    22→  RotateCcw,
+    23→  MessageSquare,
+    24→  ChevronDown,
+    25→  Zap,
+    26→} from 'lucide-react'
+    27→import { useAppStore, type ChatMessage } from '@/lib/store'
+    28→import { useTranslation } from '@/lib/i18n'
+    29→import ReactMarkdown from 'react-markdown'
+    30→
+    31→// ──────────────────────────────────────────────────────────
+    32→// Types
+    33→// ──────────────────────────────────────────────────────────
+    34→
+    35→interface PageContext {
+    36→  id: string
+    37→  label: string
+    38→  icon: string
+    39→  quickActions: QuickAction[]
+    40→}
+    41→
+    42→interface QuickAction {
+    43→  label: string
+    44→  prompt: string
+    45→}
+    46→
+    47→type AiInsight = {
+    48→  title: string
+    49→  description: string
+    50→  action?: string
+    51→}
+    52→
+    53→// ──────────────────────────────────────────────────────────
+    54→// Constants
+    55→// ──────────────────────────────────────────────────────────
+    56→
+    57→const STORAGE_KEY = 'oneway-copilot-history'
+    58→
+    59→const PAGE_CONTEXTS: Record<string, PageContext> = {
+    60→  '/workspace': {
+    61→    id: 'workspace',
+    62→    label: 'Workspace',
+    63→    icon: '📊',
+    64→    quickActions: [
+    65→      { label: 'Analyze my data', prompt: 'Analyze the current dataset and provide a summary of key statistical insights.' },
+    66→      { label: 'Explain this chart', prompt: 'Explain the visualizations and charts currently shown in the workspace.' },
+    67→      { label: 'Suggest a model', prompt: 'Based on the data variables, suggest the most appropriate statistical model or test.' },
+    68→      { label: 'Create report', prompt: 'Generate a comprehensive analysis report from the current data.' },
+    69→    ],
+    70→  },
+    71→  '/leaderboard': {
+    72→    id: 'leaderboard',
+    73→    label: 'Leaderboard',
+    74→    icon: '🏆',
+    75→    quickActions: [
+    76→      { label: 'Compare models', prompt: 'Compare the top AI models on the leaderboard and highlight key differences.' },
+    77→      { label: 'Best value pick', prompt: 'Which model offers the best value for money considering performance and pricing?' },
+    78→      { label: 'Speed analysis', prompt: 'Analyze the latency metrics and identify the fastest models.' },
+    79→      { label: 'Recommend model', prompt: 'Recommend the best AI model for a production use case.' },
+    80→    ],
+    81→  },
+    82→  '/community': {
+    83→    id: 'community',
+    84→    label: 'Community',
+    85→    icon: '👥',
+    86→    quickActions: [
+    87→      { label: 'Trending topics', prompt: 'What are the trending discussions in the community right now?' },
+    88→      { label: 'Help me post', prompt: 'Help me write a community post about my data analysis findings.' },
+    89→      { label: 'Find answers', prompt: 'Search for answers related to statistical analysis questions.' },
+    90→      { label: 'Expert advice', prompt: 'What are the community experts recommending for data analysis workflows?' },
+    91→    ],
+    92→  },
+    93→  '/modules': {
+    94→    id: 'modules',
+    95→    label: 'Modules',
+    96→    icon: '🧩',
+    97→    quickActions: [
+    98→      { label: 'Module overview', prompt: 'Explain all available modules and what they do.' },
+    99→      { label: 'Recommend modules', prompt: 'Which modules should I install for advanced statistical analysis?' },
+   100→      { label: 'Update status', prompt: 'Check if there are any important module updates available.' },
+   101→      { label: 'Custom module', prompt: 'How can I create or request a custom analysis module?' },
+   102→    ],
+   103→  },
+   104→}
+   105→
+   106→const DEFAULT_CONTEXT: PageContext = {
+   107→  id: 'general',
+   108→  label: 'The One-Way',
+   109→  icon: '✨',
+   110→  quickActions: [
+   111→    { label: 'Getting started', prompt: 'How do I get started with The One-Way platform?' },
+   112→    { label: 'AI features', prompt: 'What AI-powered features are available on this platform?' },
+   113→    { label: 'Statistical tests', prompt: 'What statistical tests and analyses can I run here?' },
+   114→    { label: 'Import data', prompt: 'How do I import and prepare my data for analysis?' },
+   115→  ],
+   116→}
+   117→
+   118→const WORKSPACE_INSIGHTS: AiInsight[] = [
+   119→  { title: 'Data Summary Ready', description: 'Your dataset has been loaded. I can help you explore distributions, correlations, and run statistical tests.', action: 'Analyze my data' },
+   120→  { title: 'Missing Values Detected', description: 'I found some gaps in your data. Let me suggest imputation strategies to handle them.', action: 'Fix missing data' },
+   121→  { title: 'Correlation Opportunity', description: 'Several numeric variables show potential correlations. Want me to run a correlation analysis?', action: 'Run correlation' },
+   122→]
+   123→
+   124→// ──────────────────────────────────────────────────────────
+   125→// Helpers
+   126→// ──────────────────────────────────────────────────────────
+   127→
+   128→function uid(): string {
+   129→  return Date.now().toString(36) + Math.random().toString(36).slice(2)
+   130→}
+   131→
+   132→function detectContext(pathname: string): PageContext {
+   133→  // Exact match first
+   134→  if (PAGE_CONTEXTS[pathname]) return PAGE_CONTEXTS[pathname]
+   135→  // Prefix match
+   136→  const matched = Object.keys(PAGE_CONTEXTS).find((key) => pathname.startsWith(key))
+   137→  if (matched) return PAGE_CONTEXTS[matched]
+   138→  return DEFAULT_CONTEXT
+   139→}
+   140→
+   141→function formatTime(ts: string): string {
+   142→  const d = new Date(ts)
+   143→  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+   144→}
+   145→
+   146→function loadHistory(): ChatMessage[] {
+   147→  if (typeof window === 'undefined') return []
+   148→  try {
+   149→    const raw = localStorage.getItem(STORAGE_KEY)
+   150→    if (!raw) return []
+   151→    const parsed = JSON.parse(raw) as ChatMessage[]
+   152→    if (!Array.isArray(parsed)) return []
+   153→    return parsed
+   154→  } catch {
+   155→    return []
+   156→  }
+   157→}
+   158→
+   159→function saveHistory(messages: ChatMessage[]) {
+   160→  if (typeof window === 'undefined') return
+   161→  try {
+   162→    // Keep last 100 messages
+   163→    const trimmed = messages.slice(-100)
+   164→    localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
+   165→  } catch {
+   166→    // Storage full — silently fail
+   167→  }
+   168→}
+   169→
+   170→// Simulated AI responses per context
+   171→function generateSimulatedResponse(userMessage: string, context: PageContext): string {
+   172→  const msg = userMessage.toLowerCase()
+   173→
+   174→  if (context.id === 'workspace') {
+   175→    if (msg.includes('analyz') || msg.includes('summar')) {
+   176→      return `## Data Analysis Summary\n\nBased on your dataset, here are the key findings:\n\n- **Variables detected**: Your data contains both numeric and categorical variables\n- **Data quality**: Overall good, with a few areas to review\n- **Recommended tests**:\n  1. **Descriptive statistics** — Get mean, median, and distribution metrics\n  2. **Correlation analysis** — Check relationships between numeric variables\n  3. **Normality tests** — Verify assumptions for parametric tests\n\n> 💡 *Tip: Start with descriptive statistics to understand your data shape before running advanced tests.*\n\nWould you like me to run any of these analyses?`
+   177→    }
+   178→    if (msg.includes('chart') || msg.includes('visuali')) {
+   179→      return `## Chart Interpretation\n\nHere's how to read the current visualizations:\n\n### Distribution Chart\n- Look for **skewness** in the histogram\n- The box plot shows **quartiles** and potential **outliers**\n\n### Scatter Plot\n- **Positive correlation** if points trend upward\n- Check the **R² value** for fit strength\n\n\`\`\`\n# Key metrics to observe\n# - Mean vs Median gap → Skewness\n# - Interquartile Range → Spread\n# - Outlier count → Data quality\n\`\`\`\n\nWant a deeper dive into any specific chart?`
+   180→    }
+   181→    if (msg.includes('model') || msg.includes('suggest') || msg.includes('test')) {
+   182→      return `## Recommended Statistical Approach\n\nBased on your data structure, I recommend:\n\n### Primary Analysis\n| Test | Purpose | Assumption |\n|------|---------|------------|\n| Pearson Correlation | Linear relationship | Normality, linearity |\n| Independent T-Test | Group differences | Equal variances |\n| Chi-Square | Categorical association | Expected freq ≥ 5 |\n\n### Steps\n1. **Check assumptions** first (normality, homogeneity)\n2. Run the appropriate test\n3. Interpret p-values with effect sizes\n\n> ⚠️ *Always report effect sizes (Cohen's d, η²) alongside p-values.*\n\nShall I guide you through any of these?`
+   183→    }
+   184→    if (msg.includes('report')) {
+   185→      return `## Report Generation\n\nI'll help you create a comprehensive report. Here's the structure:\n\n### 📋 Report Outline\n1. **Executive Summary** — Key findings at a glance\n2. **Data Description** — Variables, sample size, collection method\n3. **Descriptive Statistics** — Central tendency, dispersion\n4. **Inferential Analysis** — Tests, results, interpretations\n5. **Visualizations** — Charts and graphs\n6. **Conclusions** — Actionable insights\n7. **Appendix** — Technical details, code\n\nClick **Export** in the output panel to generate a PDF or Word document.\n\nWant me to fill in specific sections?`
+   186→    }
+   187→  }
+   188→
+   189→  if (context.id === 'leaderboard') {
+   190→    if (msg.includes('compare') || msg.includes('best')) {
+   191→      return `## AI Model Comparison\n\n### Top Performers\n\n| Model | Score | Price | Latency |\n|-------|-------|-------|---------|\n| GPT-4o | 94.2 | $5/M | 180ms |\n| Claude 3.5 | 93.8 | $3/M | 150ms |\n| GLM-4 | 92.1 | $1/M | 120ms |\n\n### Key Takeaways\n- **Best overall**: GPT-4o for accuracy\n- **Best value**: GLM-4 offers 85% of GPT-4o performance at 1/5 the price\n- **Fastest**: GLM-4 with lowest latency\n\n> 💰 *For most production workloads, the mid-tier models offer the best cost-performance ratio.*\n\nNeed a comparison for your specific use case?`
+   192→    }
+   193→  }
+   194→
+   195→  // Generic fallback
+   196→  return `## Thanks for your question!\n\nI'm your AI copilot for **The One-Way** platform. Here's what I can help with:\n\n- **Data Analysis** — Run statistical tests and interpret results\n- **Visualizations** — Create and explain charts\n- **Reports** — Generate professional analysis reports\n- **Guidance** — Step-by-step statistical methodology help\n\n### Quick Start\n1. Navigate to **Workspace** to load your data\n2. Ask me to analyze or visualize it\n3. Export results as reports\n\nHow can I assist you today?`
+   197→}
+   198→
+   199→// ──────────────────────────────────────────────────────────
+   200→// Sub-components
+   201→// ──────────────────────────────────────────────────────────
+   202→
+   203→/** Three bouncing dots for AI typing indicator */
+   204→function TypingIndicator() {
+   205→  return (
+   206→    <div className="flex items-center gap-1 px-1 py-2">
+   207→      {[0, 1, 2].map((i) => (
+   208→        <motion.span
+   209→          key={i}
+   210→          className="block size-2 rounded-full bg-primary"
+   211→          animate={{ y: [0, -6, 0] }}
+   212→          transition={{
+   213→            duration: 0.6,
+   214→            repeat: Infinity,
+   215→            delay: i * 0.15,
+   216→            ease: 'easeInOut' as const,
+   217→          }}
+   218→        />
+   219→      ))}
+   220→    </div>
+   221→  )
+   222→}
+   223→
+   224→/** AI avatar with gradient ring */
+   225→function AiAvatar() {
+   226→  return (
+   227→    <div className="relative flex-shrink-0">
+   228→      <div className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 shadow-lg shadow-violet-500/20">
+   229→        <Bot className="size-4 text-white" />
+   230→      </div>
+   231→      <div className="absolute -bottom-0.5 -right-0.5 flex size-3 items-center justify-center rounded-full border border-card bg-emerald-500">
+   232→        <Zap className="size-1.5 text-white" />
+   233→      </div>
+   234→    </div>
+   235→  )
+   236→}
+   237→
+   238→/** Render markdown content for AI messages */
+   239→function MarkdownContent({ content }: { content: string }) {
+   240→  return (
+   241→    <div className="prose prose-invert prose-sm max-w-none">
+   242→      <ReactMarkdown
+   243→        components={{
+   244→          p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+   245→          h1: ({ children }) => <h1 className="text-base font-semibold mb-1 mt-2 first:mt-0">{children}</h1>,
+   246→          h2: ({ children }) => <h2 className="text-sm font-semibold mb-1 mt-2 first:mt-0">{children}</h2>,
+   247→          h3: ({ children }) => <h3 className="text-sm font-semibold mb-1 mt-1.5 first:mt-0">{children}</h3>,
+   248→          ul: ({ children }) => <ul className="mb-1 ml-4 list-disc space-y-0.5">{children}</ul>,
+   249→          ol: ({ children }) => <ol className="mb-1 ml-4 list-decimal space-y-0.5">{children}</ol>,
+   250→          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+   251→          code: ({ children, className }) => {
+   252→            const isInline = !className
+   253→            return isInline ? (
+   254→              <code className="rounded bg-muted/60 px-1.5 py-0.5 text-xs font-mono text-primary">
+   255→                {children}
+   256→              </code>
+   257→            ) : (
+   258→              <code className={className}>{children}</code>
+   259→            )
+   260→          },
+   261→          pre: ({ children }) => (
+   262→            <pre className="my-2 overflow-x-auto rounded-lg bg-muted/40 border border-border/30 p-3 text-xs">
+   263→              {children}
+   264→            </pre>
+   265→          ),
+   266→          blockquote: ({ children }) => (
+   267→            <blockquote className="my-1.5 border-l-2 border-primary/40 pl-3 text-muted-foreground italic">
+   268→              {children}
+   269→            </blockquote>
+   270→          ),
+   271→          table: ({ children }) => (
+   272→            <div className="my-2 overflow-x-auto">
+   273→              <table className="w-full text-xs">{children}</table>
+   274→            </div>
+   275→          ),
+   276→          th: ({ children }) => (
+   277→            <th className="border-b border-border/30 px-2 py-1.5 text-left font-semibold text-foreground">
+   278→              {children}
+   279→            </th>
+   280→          ),
+   281→          td: ({ children }) => (
+   282→            <td className="border-b border-border/20 px-2 py-1.5 text-muted-foreground">{children}</td>
+   283→          ),
+   284→          strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+   285→          a: ({ children, href }) => (
+   286→            <a href={href} className="text-primary underline underline-offset-2 hover:text-primary/80">
+   287→              {children}
+   288→            </a>
+   289→          ),
+   290→        }}
+   291→      >
+   292→        {content}
+   293→      </ReactMarkdown>
+   294→    </div>
+   295→  )
+   296→}
+   297→
+   298→// ──────────────────────────────────────────────────────────
+   299→// Main Component
+   300→// ──────────────────────────────────────────────────────────
+   301→
+   302→export default function AiCopilot() {
+   303→  const { t } = useTranslation()
+   304→  const store = useAppStore()
+   305→
+   306→  // ── State ──
+   307→  const [isOpen, setIsOpen] = useState(false)
+   308→  const [input, setInput] = useState('')
+   309→  const [messages, setMessages] = useState<ChatMessage[]>([])
+   310→  const [isTyping, setIsTyping] = useState(false)
+   311→  const [streamingContent, setStreamingContent] = useState('')
+   312→  const [isStreaming, setIsStreaming] = useState(false)
+   313→  const [context, setContext] = useState<PageContext>(DEFAULT_CONTEXT)
+   314→  const [hasNewInsight, setHasNewInsight] = useState(false)
+   315→  const [showInsight, setShowInsight] = useState(true)
+   316→
+   317→  // ── Refs ──
+   318→  const inputRef = useRef<HTMLInputElement>(null)
+   319→  const scrollRef = useRef<HTMLDivElement>(null)
+   320→  const messagesEndRef = useRef<HTMLDivElement>(null)
+   321→
+   322→  // ── Detect page context ──
+   323→  useEffect(() => {
+   324→    if (typeof window === 'undefined') return
+   325→
+   326→    const detect = () => {
+   327→      const pathname = window.location.pathname
+   328→      const ctx = detectContext(pathname)
+   329→      setContext(ctx)
+   330→    }
+   331→
+   332→    detect()
+   333→    window.addEventListener('popstate', detect)
+   334→    // Also detect on pushState/replaceState
+   335→    const originalPush = history.pushState
+   336→    const originalReplace = history.replaceState
+   337→    history.pushState = function (...args) {
+   338→      originalPush.apply(this, args)
+   339→      detect()
+   340→    }
+   341→    history.replaceState = function (...args) {
+   342→      originalReplace.apply(this, args)
+   343→      detect()
+   344→    }
+   345→
+   346→    return () => {
+   347→      window.removeEventListener('popstate', detect)
+   348→      history.pushState = originalPush
+   349→      history.replaceState = originalReplace
+   350→    }
+   351→  }, [])
+   352→
+   353→  // ── Load chat history from localStorage ──
+   354→  useEffect(() => {
+   355→    const history = loadHistory()
+   356→    if (history.length > 0) {
+   357→      setMessages(history)
+   358→    }
+   359→  }, [])
+   360→
+   361→  // ── Persist messages ──
+   362→  useEffect(() => {
+   363→    if (messages.length > 0) {
+   364→      saveHistory(messages)
+   365→    }
+   366→  }, [messages])
+   367→
+   368→  // ── Auto-scroll to bottom ──
+   369→  useEffect(() => {
+   370→    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+   371→  }, [messages, streamingContent, isTyping])
+   372→
+   373→  // ── Focus input when panel opens ──
+   374→  useEffect(() => {
+   375→    if (isOpen) {
+   376→      setTimeout(() => inputRef.current?.focus(), 300)
+   377→    }
+   378→  }, [isOpen])
+   379→
+   380→  // ── Show AI insight badge when context is workspace with data ──
+   381→  useEffect(() => {
+   382→    if (context.id === 'workspace' && store.data && Object.keys(store.data).length > 0) {
+   383→      setHasNewInsight(true)
+   384→    } else {
+   385→      setHasNewInsight(false)
+   386→    }
+   387→    setShowInsight(true)
+   388→  }, [context, store.data])
+   389→
+   390→  // ── Streaming simulation ──
+   391→  const simulateStream = useCallback((fullContent: string) => {
+   392→    setIsStreaming(true)
+   393→    setStreamingContent('')
+   394→    let index = 0
+   395→    const speed = Math.max(8, Math.min(25, 1500 / fullContent.length)) // Adaptive speed
+   396→
+   397→    const interval = setInterval(() => {
+   398→      if (index < fullContent.length) {
+   399→        // Add characters in chunks for smoother feel
+   400→        const chunk = fullContent.slice(index, index + 3)
+   401→        setStreamingContent((prev) => prev + chunk)
+   402→        index += 3
+   403→      } else {
+   404→        clearInterval(interval)
+   405→        setIsStreaming(false)
+   406→        setStreamingContent('')
+   407→      }
+   408→    }, speed)
+   409→
+   410→    return interval
+   411→  }, [])
+   412→
+   413→  // ── Send message ──
+   414→  const sendMessage = useCallback(
+   415→    async (text: string) => {
+   416→      if (!text.trim() || isTyping || isStreaming) return
+   417→
+   418→      const userMsg: ChatMessage = {
+   419→        id: uid(),
+   420→        role: 'user',
+   421→        content: text.trim(),
+   422→        timestamp: new Date().toISOString(),
+   423→      }
+   424→
+   425→      setMessages((prev) => [...prev, userMsg])
+   426→      setInput('')
+   427→      setIsTyping(true)
+   428→      setShowInsight(false)
+   429→
+   430→      // Build page context data for the API
+   431→      const pageData: Record<string, unknown> = {}
+   432→      pageData.pageLabel = context.label
+   433→
+   434→      if (context.id === 'workspace' && store.variables && store.variables.length > 0) {
+   435→        const varCount = store.variables.length
+   436→        const keys = Object.keys(store.data || {})
+   437→        const rowCount = keys.length > 0
+   438→          ? Math.max(...keys.map((k) => (store.data[k]?.length ?? 0)))
+   439→          : 0
+   440→        const types = store.variables.reduce((acc, v) => {
+   441→          acc[v.type] = (acc[v.type] || 0) + 1
+   442→          return acc
+   443→        }, {} as Record<string, number>)
+   444→
+   445→        pageData.datasetInfo = {
+   446→          variableCount: varCount,
+   447→          rowCount,
+   448→          variableTypes: types,
+   449→          variableNames: store.variables.map((v) => v.name),
+   450→        }
+   451→        if (store.currentProject) pageData.projectName = store.currentProject.name
+   452→      }
+   453→
+   454→      try {
+   455→        // Call real AI backend
+   456→        const response = await fetch('/api/ai/copilot', {
+   457→          method: 'POST',
+   458→          headers: { 'Content-Type': 'application/json' },
+   459→          body: JSON.stringify({
+   460→            messages: [...messages, { role: 'user', content: text.trim() }],
+   461→            context: context.id,
+   462→            pageData,
+   463→          }),
+   464→        })
+   465→
+   466→        if (response.ok) {
+   467→          const data = await response.json()
+   468→          const aiContent = data.message || 'No response generated.'
+   469→
+   470→          const aiMsg: ChatMessage = {
+   471→            id: uid(),
+   472→            role: 'ai',
+   473→            content: aiContent,
+   474→            timestamp: new Date().toISOString(),
+   475→          }
+   476→
+   477→          setIsTyping(false)
+   478→          setMessages((prev) => [...prev, aiMsg])
+   479→          simulateStream(aiContent)
+   480→        } else {
+   481→          // API error — fall back to simulated response
+   482→          throw new Error(`API returned ${response.status}`)
+   483→        }
+   484→      } catch {
+   485→        // Fallback to local simulated response when API is unavailable
+   486→        const aiContent = generateSimulatedResponse(text, context)
+   487→        const aiMsg: ChatMessage = {
+   488→          id: uid(),
+   489→          role: 'ai',
+   490→          content: aiContent,
+   491→          timestamp: new Date().toISOString(),
+   492→        }
+   493→        setIsTyping(false)
+   494→        setMessages((prev) => [...prev, aiMsg])
+   495→        simulateStream(aiContent)
+   496→      }
+   497→    },
+   498→    [isTyping, isStreaming, context, store.variables, store.data, store.currentProject, simulateStream, messages],
+   499→  )
+   500→
+   501→  // ── Clear chat ──
+   502→  const clearChat = useCallback(() => {
+   503→    setMessages([])
+   504→    localStorage.removeItem(STORAGE_KEY)
+   505→    setShowInsight(true)
+   506→  }, [])
+   507→
+   508→  // ── Quick action handler ──
+   509→  const handleQuickAction = useCallback(
+   510→    (action: QuickAction) => {
+   511→      sendMessage(action.prompt)
+   512→    },
+   513→    [sendMessage],
+   514→  )
+   515→
+   516→  // ── Form submit ──
+   517→  const handleSubmit = (e: FormEvent) => {
+   518→    e.preventDefault()
+   519→    sendMessage(input)
+   520→  }
+   521→
+   522→  // ── Keyboard shortcut ──
+   523→  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+   524→    if (e.key === 'Enter' && !e.shiftKey) {
+   525→      e.preventDefault()
+   526→      sendMessage(input)
+   527→    }
+   528→  }
+   529→
+   530→  // ── Pick a workspace insight ──
+   531→  const currentInsight = WORKSPACE_INSIGHTS[Math.floor(Date.now() / 60000) % WORKSPACE_INSIGHTS.length]
+   532→
+   533→  // ── Animation variants ──
+   534→  const panelVariants = {
+   535→    hidden: {
+   536→      opacity: 0,
+   537→      scale: 0.9,
+   538→      y: 20,
+   539→      transformOrigin: 'bottom right',
+   540→    },
+   541→    visible: {
+   542→      opacity: 1,
+   543→      scale: 1,
+   544→      y: 0,
+   545→      transition: {
+   546→        type: 'spring' as const,
+   547→        damping: 25,
+   548→        stiffness: 350,
+   549→        mass: 0.8,
+   550→      },
+   551→    },
+   552→    exit: {
+   553→      opacity: 0,
+   554→      scale: 0.9,
+   555→      y: 20,
+   556→      transition: {
+   557→        duration: 0.2,
+   558→        ease: 'easeIn' as const,
+   559→      },
+   560→    },
+   561→  }
+   562→
+   563→  const messageVariants = {
+   564→    hidden: { opacity: 0, y: 10, scale: 0.97 },
+   565→    visible: (i: number) => ({
+   566→      opacity: 1,
+   567→      y: 0,
+   568→      scale: 1,
+   569→      transition: { delay: i * 0.03, duration: 0.3, ease: 'easeOut' as const },
+   570→    }),
+   571→  }
+   572→
+   573→  const fabVariants = {
+   574→    idle: { scale: 1 },
+   575→    pulse: {
+   576→      scale: [1, 1.08, 1],
+   577→      transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' as const },
+   578→    },
+   579→  }
+   580→
+   581→  return (
+   582→    <div className="fixed bottom-6 right-6 z-[9990] flex flex-col items-end gap-3">
+   583→      {/* ── Chat Panel ── */}
+   584→      <AnimatePresence>
+   585→        {isOpen && (
+   586→          <motion.div
+   587→            variants={panelVariants}
+   588→            initial="hidden"
+   589→            animate="visible"
+   590→            exit="exit"
+   591→            className="flex flex-col overflow-hidden rounded-2xl border border-border/40 bg-card/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
+   592→            style={{ width: 380, height: 520 }}
+   593→          >
+   594→            {/* ── Header ── */}
+   595→            <div className="relative flex items-center justify-between border-b border-border/30 px-4 py-3">
+   596→              <div className="flex items-center gap-3">
+   597→                <AiAvatar />
+   598→                <div>
+   599→                  <div className="flex items-center gap-2">
+   600→                    <h3 className="text-sm font-semibold text-foreground">AI Copilot</h3>
+   601→                    <Badge variant="secondary" className="gap-1 border-primary/20 bg-primary/10 px-1.5 py-0 text-[10px] font-medium text-primary">
+   602→                      <Sparkles className="size-2.5" />
+   603→                      Pro
+   604→                    </Badge>
+   605→                  </div>
+   606→                  {/* Context indicator */}
+   607→                  <div className="mt-0.5 flex items-center gap-1.5">
+   608→                    <Badge variant="outline" className="gap-1 border-border/30 px-1.5 py-0 text-[10px] text-muted-foreground">
+   609→                      <span>{context.icon}</span>
+   610→                      <span>{context.label}</span>
+   611→                    </Badge>
+   612→                    <span className="text-[10px] text-muted-foreground">
+   613→                      {messages.length > 0 ? `${messages.length} messages` : 'Ready'}
+   614→                    </span>
+   615→                  </div>
+   616→                </div>
+   617→              </div>
+   618→              <div className="flex items-center gap-1">
+   619→                {/* Clear chat */}
+   620→                <Tooltip>
+   621→                  <TooltipTrigger asChild>
+   622→                    <Button
+   623→                      variant="ghost"
+   624→                      size="icon"
+   625→                      className="size-7 text-muted-foreground hover:text-foreground"
+   626→                      onClick={clearChat}
+   627→                      aria-label="Clear chat"
+   628→                    >
+   629→                      <RotateCcw className="size-3.5" />
+   630→                    </Button>
+   631→                  </TooltipTrigger>
+   632→                  <TooltipContent side="top">New conversation</TooltipContent>
+   633→                </Tooltip>
+   634→
+   635→                {/* Close */}
+   636→                <Tooltip>
+   637→                  <TooltipTrigger asChild>
+   638→                    <Button
+   639→                      variant="ghost"
+   640→                      size="icon"
+   641→                      className="size-7 text-muted-foreground hover:text-foreground"
+   642→                      onClick={() => setIsOpen(false)}
+   643→                      aria-label="Close copilot"
+   644→                    >
+   645→                      <X className="size-3.5" />
+   646→                    </Button>
+   647→                  </TooltipTrigger>
+   648→                  <TooltipContent side="top">Close</TooltipContent>
+   649→                </Tooltip>
+   650→              </div>
+   651→            </div>
+   652→
+   653→            {/* ── AI Insight (workspace only) ── */}
+   654→            <AnimatePresence>
+   655→              {showInsight && context.id === 'workspace' && store.data && Object.keys(store.data).length > 0 && (
+   656→                <motion.div
+   657→                  initial={{ opacity: 0, height: 0 }}
+   658→                  animate={{ opacity: 1, height: 'auto' }}
+   659→                  exit={{ opacity: 0, height: 0 }}
+   660→                  className="overflow-hidden"
+   661→                >
+   662→                  <div className="mx-3 mt-2.5 rounded-xl border border-primary/15 bg-gradient-to-br from-primary/8 via-transparent to-primary/5 p-3">
+   663→                    <div className="flex items-start gap-2">
+   664→                      <div className="mt-0.5 flex size-5 flex-shrink-0 items-center justify-center rounded-md bg-primary/15">
+   665→                        <Zap className="size-3 text-primary" />
+   666→                      </div>
+   667→                      <div className="flex-1 min-w-0">
+   668→                        <p className="text-xs font-semibold text-foreground">{currentInsight.title}</p>
+   669→                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+   670→                          {currentInsight.description}
+   671→                        </p>
+   672→                        {currentInsight.action && (
+   673→                          <button
+   674→                            onClick={() => handleQuickAction({ label: currentInsight.action!, prompt: currentInsight.action! })}
+   675→                            className="mt-1.5 text-[11px] font-medium text-primary hover:text-primary/80 transition-colors"
+   676→                          >
+   677→                            {currentInsight.action} →
+   678→                          </button>
+   679→                        )}
+   680→                      </div>
+   681→                      <button
+   682→                        onClick={() => setShowInsight(false)}
+   683→                        className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+   684→                        aria-label="Dismiss insight"
+   685→                      >
+   686→                        <ChevronDown className="size-3.5" />
+   687→                      </button>
+   688→                    </div>
+   689→                  </div>
+   690→                </motion.div>
+   691→              )}
+   692→            </AnimatePresence>
+   693→
+   694→            {/* ── Messages ── */}
+   695→            <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin px-3 py-2">
+   696→              {/* Empty state */}
+   697→              {messages.length === 0 && !isTyping && (
+   698→                <div className="flex h-full flex-col items-center justify-center gap-3 px-2">
+   699→                  <div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-cyan-500/20">
+   700→                    <MessageSquare className="size-7 text-primary" />
+   701→                  </div>
+   702→                  <div className="text-center">
+   703→                    <p className="text-sm font-medium text-foreground">How can I help?</p>
+   704→                    <p className="mt-0.5 text-xs text-muted-foreground">
+   705→                      {context.id === 'workspace'
+   706→                        ? 'Ask about your data, run analyses, or get recommendations.'
+   707→                        : 'Ask me anything about this page or the platform.'}
+   708→                    </p>
+   709→                  </div>
+   710→                </div>
+   711→              )}
+   712→
+   713→              {/* Message list */}
+   714→              <AnimatePresence initial={false}>
+   715→                {messages.map((msg, idx) => (
+   716→                  <motion.div
+   717→                    key={msg.id}
+   718→                    custom={idx}
+   719→                    variants={messageVariants}
+   720→                    initial="hidden"
+   721→                    animate="visible"
+   722→                    className={`mb-3 flex gap-2.5 ${
+   723→                      msg.role === 'user' ? 'flex-row-reverse' : ''
+   724→                    }`}
+   725→                  >
+   726→                    {/* Avatar */}
+   727→                    {msg.role === 'ai' && <AiAvatar />}
+   728→
+   729→                    {/* Bubble */}
+   730→                    <div
+   731→                      className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 ${
+   732→                        msg.role === 'ai'
+   733→                          ? 'rounded-tl-md border-l-2 border-primary bg-primary/8'
+   734→                          : 'rounded-tr-md bg-muted/50'
+   735→                      }`}
+   736→                    >
+   737→                      {msg.role === 'ai' ? (
+   738→                        <MarkdownContent content={msg.content} />
+   739→                      ) : (
+   740→                        <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">{msg.content}</p>
+   741→                      )}
+   742→                      <p
+   743→                        className={`mt-1.5 text-[10px] text-muted-foreground/60 ${
+   744→                          msg.role === 'user' ? 'text-right' : ''
+   745→                        }`}
+   746→                      >
+   747→                        {formatTime(msg.timestamp)}
+   748→                      </p>
+   749→                    </div>
+   750→                  </motion.div>
+   751→                ))}
+   752→              </AnimatePresence>
+   753→
+   754→              {/* Streaming text */}
+   755→              {isStreaming && streamingContent && (
+   756→                <motion.div
+   757→                  initial={{ opacity: 0, y: 8 }}
+   758→                  animate={{ opacity: 1, y: 0 }}
+   759→                  className="mb-3 flex gap-2.5"
+   760→                >
+   761→                  <AiAvatar />
+   762→                  <div className="max-w-[85%] rounded-2xl rounded-tl-md border-l-2 border-primary bg-primary/8 px-3.5 py-2.5">
+   763→                    <div className="relative">
+   764→                      <MarkdownContent content={streamingContent} />
+   765→                      <motion.span
+   766→                        className="inline-block size-0.5 translate-y-1 rounded-full bg-primary"
+   767→                        animate={{ opacity: [1, 0] }}
+   768→                        transition={{ duration: 0.5, repeat: Infinity }}
+   769→                      />
+   770→                    </div>
+   771→                  </div>
+   772→                </motion.div>
+   773→              )}
+   774→
+   775→              {/* Typing indicator */}
+   776→              {isTyping && (
+   777→                <motion.div
+   778→                  initial={{ opacity: 0, y: 8 }}
+   779→                  animate={{ opacity: 1, y: 0 }}
+   780→                  className="mb-3 flex gap-2.5"
+   781→                >
+   782→                  <AiAvatar />
+   783→                  <div className="rounded-2xl rounded-tl-md border-l-2 border-primary bg-primary/8 px-4 py-1">
+   784→                    <TypingIndicator />
+   785→                  </div>
+   786→                </motion.div>
+   787→              )}
+   788→
+   789→              <div ref={messagesEndRef} />
+   790→            </div>
+   791→
+   792→            {/* ── Quick Action Chips ── */}
+   793→            {messages.length === 0 && !isTyping && (
+   794→              <div className="border-t border-border/20 px-3 py-2.5">
+   795→                <div className="flex flex-wrap gap-1.5">
+   796→                  {context.quickActions.map((action) => (
+   797→                    <button
+   798→                      key={action.label}
+   799→                      onClick={() => handleQuickAction(action)}
+   800→                      className="inline-flex items-center gap-1 rounded-full border border-border/30 bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/8 hover:text-primary"
+   801→                    >
+   802→                      <Sparkles className="size-2.5" />
+   803→                      {action.label}
+   804→                    </button>
+   805→                  ))}
+   806→                </div>
+   807→              </div>
+   808→            )}
+   809→
+   810→            {/* ── Input Area ── */}
+   811→            <form onSubmit={handleSubmit} className="border-t border-border/30 px-3 py-2.5">
+   812→              <div className="flex items-center gap-2">
+   813→                <Input
+   814→                  ref={inputRef}
+   815→                  value={input}
+   816→                  onChange={(e) => setInput(e.target.value)}
+   817→                  onKeyDown={handleKeyDown}
+   818→                  placeholder={t('ai.placeholder') || 'Ask me anything...'}
+   819→                  disabled={isTyping || isStreaming}
+   820→                  className="h-9 flex-1 rounded-xl border-border/30 bg-muted/30 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-primary/30"
+   821→                />
+   822→                <Tooltip>
+   823→                  <TooltipTrigger asChild>
+   824→                    <Button
+   825→                      type="submit"
+   826→                      size="icon"
+   827→                      disabled={!input.trim() || isTyping || isStreaming}
+   828→                      className="size-9 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-500 text-white shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 disabled:opacity-40 transition-all"
+   829→                      aria-label="Send message"
+   830→                    >
+   831→                      <Send className="size-3.5" />
+   832→                    </Button>
+   833→                  </TooltipTrigger>
+   834→                  <TooltipContent side="top">Send</TooltipContent>
+   835→                </Tooltip>
+   836→              </div>
+   837→              <p className="mt-1.5 text-center text-[10px] text-muted-foreground/40">
+   838→                AI may produce inaccurate information. Verify important results.
+   839→              </p>
+   840→            </form>
+   841→          </motion.div>
+   842→        )}
+   843→      </AnimatePresence>
+   844→
+   845→      {/* ── Floating Action Button ── */}
+   846→      <AnimatePresence mode="wait">
+   847→        {!isOpen && (
+   848→          <motion.div
+   849→            key="fab"
+   850→            initial={{ scale: 0, opacity: 0 }}
+   851→            animate={{ scale: 1, opacity: 1 }}
+   852→            exit={{ scale: 0, opacity: 0 }}
+   853→            transition={{ type: 'spring', damping: 20, stiffness: 400 }}
+   854→            className="relative"
+   855→          >
+   856→            <Tooltip>
+   857→              <TooltipTrigger asChild>
+   858→                <button
+   859→                  onClick={() => setIsOpen(true)}
+   860→                  className="group relative flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-cyan-500 text-white shadow-xl shadow-violet-500/25 transition-all hover:shadow-2xl hover:shadow-violet-500/30 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+   861→                  aria-label="Open AI Copilot"
+   862→                >
+   863→                  {/* Glow effect */}
+   864→                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-violet-600 to-cyan-500 opacity-0 blur-xl transition-opacity group-hover:opacity-50" />
+   865→
+   866→                  {/* Pulse ring */}
+   867→                  <motion.div
+   868→                    variants={fabVariants}
+   869→                    animate={hasNewInsight ? 'pulse' : 'idle'}
+   870→                    className="absolute inset-0 rounded-2xl border-2 border-violet-400/40"
+   871→                  />
+   872→
+   873→                  <motion.div
+   874→                    initial={false}
+   875→                    animate={{ rotate: hasNewInsight ? 360 : 0 }}
+   876→                    transition={{ duration: 0.5, ease: 'easeInOut' }}
+   877→                  >
+   878→                    <Sparkles className="size-6" />
+   879→                  </motion.div>
+   880→                </button>
+   881→              </TooltipTrigger>
+   882→              <TooltipContent side="left">
+   883→                <p className="text-xs font-medium">AI Copilot</p>
+   884→                {hasNewInsight && (
+   885→                  <p className="text-[10px] text-violet-300">New insights available</p>
+   886→                )}
+   887→              </TooltipContent>
+   888→            </Tooltip>
+   889→
+   890→            {/* Notification badge */}
+   891→            <AnimatePresence>
+   892→              {hasNewInsight && (
+   893→                <motion.div
+   894→                  initial={{ scale: 0 }}
+   895→                  animate={{ scale: 1 }}
+   896→                  exit={{ scale: 0 }}
+   897→                  className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-cyan-400 text-[9px] font-bold text-white shadow-lg"
+   898→                >
+   899→                  <Zap className="size-2.5" />
+   900→                </motion.div>
+   901→              )}
+   902→            </AnimatePresence>
+   903→          </motion.div>
+   904→        )}
+   905→      </AnimatePresence>
+   906→    </div>
+   907→  )
+   908→}
+   909→
