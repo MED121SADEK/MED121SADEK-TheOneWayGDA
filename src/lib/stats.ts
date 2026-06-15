@@ -123,7 +123,7 @@ function median(arr: number[]): number {
   return s.length % 2 !== 0 ? s[mid] : (s[mid - 1] + s[mid]) / 2
 }
 
-function sum(arr: number[]): number {
+export function sum(arr: number[]): number {
   return arr.reduce((a, b) => a + b, 0)
 }
 
@@ -774,4 +774,75 @@ export function calcMultipleRegression(
   const pValue = 1 - regularizedIncompleteBeta(k / 2, (n - k - 1) / 2, (k * fStat) / (k * fStat + n - k - 1))
 
   return { coefficients, r2, adjustedR2, fStat, pValue, n, k }
+}
+
+/* ─── Inline Statistical Engine (extracted from useWorkspaceHandlers) ─── */
+export function calcStats(values: number[]) {
+  const nums = values.filter(v => typeof v === 'number' && !isNaN(v))
+  if (nums.length === 0) return null
+  const n = nums.length
+  const s = nums.reduce((a, b) => a + b, 0)
+  const mean = s / n
+  const sorted = [...nums].sort((a, b) => a - b)
+  const median = n % 2 === 0 ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2 : sorted[Math.floor(n / 2)]
+  const variance = nums.reduce((a, b) => a + (b - mean) ** 2, 0) / (n > 1 ? n - 1 : 1)
+  const stddev = Math.sqrt(variance)
+  const min = sorted[0]
+  const max = sorted[n - 1]
+  const freq: Record<number, number> = {}
+  nums.forEach(v => { freq[v] = (freq[v] || 0) + 1 })
+  const maxFreq = Math.max(...Object.values(freq))
+  const mode = nums.find(v => freq[v] === maxFreq)
+  const skewness = n > 2 ? (nums.reduce((a, b) => a + ((b - mean) / stddev) ** 3, 0) * n) / ((n - 1) * (n - 2)) : 0
+  const kurtosis = n > 3 ? (nums.reduce((a, b) => a + ((b - mean) / stddev) ** 4, 0) * n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3)) - 3 * (n - 1) ** 2 / ((n - 2) * (n - 3)) : 0
+  const p25 = sorted[Math.floor(n * 0.25)]
+  const p50 = sorted[Math.floor(n * 0.5)]
+  const p75 = sorted[Math.floor(n * 0.75)]
+  return { n, sum: s, mean, median, mode, variance, stddev, min, max, range: max - min, skewness, kurtosis, p25, p50, p75 }
+}
+
+export function calcCorrelation(x: number[], y: number[]): { r: number; n: number } | null {
+  const pairs: [number, number][] = []
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    if (typeof x[i] === 'number' && typeof y[i] === 'number' && !isNaN(x[i]) && !isNaN(y[i])) {
+      pairs.push([x[i], y[i]])
+    }
+  }
+  if (pairs.length < 3) return null
+  const n = pairs.length
+  const mx = pairs.reduce((a, p) => a + p[0], 0) / n
+  const my = pairs.reduce((a, p) => a + p[1], 0) / n
+  let num = 0, dx = 0, dy = 0
+  for (const [px, py] of pairs) {
+    num += (px - mx) * (py - my)
+    dx += (px - mx) ** 2
+    dy += (py - my) ** 2
+  }
+  const r = dx === 0 || dy === 0 ? 0 : num / Math.sqrt(dx * dy)
+  return { r, n }
+}
+
+export function calcRegression(x: number[], y: number[]): { slope: number; intercept: number; r2: number; n: number } | null {
+  const pairs: [number, number][] = []
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    if (typeof x[i] === 'number' && typeof y[i] === 'number' && !isNaN(x[i]) && !isNaN(y[i])) {
+      pairs.push([x[i], y[i]])
+    }
+  }
+  if (pairs.length < 3) return null
+  const n = pairs.length
+  const mx = pairs.reduce((a, p) => a + p[0], 0) / n
+  const my = pairs.reduce((a, p) => a + p[1], 0) / n
+  let num = 0, den = 0
+  for (const [px, py] of pairs) {
+    num += (px - mx) * (py - my)
+    den += (px - mx) ** 2
+  }
+  if (den === 0) return null
+  const slope = num / den
+  const intercept = my - slope * mx
+  const ssRes = pairs.reduce((a, [px, py]) => a + (py - (slope * px + intercept)) ** 2, 0)
+  const ssTot = pairs.reduce((a, [, py]) => a + (py - my) ** 2, 0)
+  const r2 = ssTot === 0 ? 0 : 1 - ssRes / ssTot
+  return { slope, intercept, r2, n }
 }

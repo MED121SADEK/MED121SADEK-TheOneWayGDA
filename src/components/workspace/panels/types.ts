@@ -1,0 +1,1 @@
+export type HandlerHook = ReturnType<typeof import('@/hooks/useWorkspaceHandlers').useWorkspaceHandlers>
