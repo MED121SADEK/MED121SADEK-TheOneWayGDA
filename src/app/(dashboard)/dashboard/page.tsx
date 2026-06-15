@@ -20,6 +20,7 @@ import {
   Database, Shield, Star, Target, Trophy, Users, Building2,
   Medal, MessageSquare, Crown, Hash,
 } from 'lucide-react'
+import { authFetch } from '@/lib/auth-fetch'
 
 /* ─── Types ─── */
 interface UserData {
@@ -161,14 +162,14 @@ export default function DashboardPage() {
     const session = getSession()
     if (!session) return
     setUser(session.user)
-    fetchStats(session.token)
-    fetchActivities(session.token)
+    fetchStats()
+    fetchActivities()
     fetchPlatformData()
   }, [])
 
-  const fetchStats = useCallback(async (token: string) => {
+  const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch(`/api/auth/stats?token=${token}`)
+      const res = await authFetch('/api/auth/stats')
       if (!res.ok) return
       const data = await res.json()
       setStats(data.stats)
@@ -177,9 +178,9 @@ export default function DashboardPage() {
     }
   }, [])
 
-  const fetchActivities = useCallback(async (token: string) => {
+  const fetchActivities = useCallback(async () => {
     try {
-      const res = await fetch(`/api/auth/activity?token=${token}&limit=10`)
+      const res = await authFetch('/api/auth/activity?limit=10')
       if (!res.ok) return
       const data = await res.json()
       setActivities(data.activities || [])
@@ -220,7 +221,7 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     const session = getSession()
     if (session) {
-      await fetch(`/api/auth/logout?token=${session.token}`, { method: 'POST' }).catch(() => {})
+      await authFetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
     }
     localStorage.removeItem('oneway-auth-token')
     localStorage.removeItem('oneway-user')

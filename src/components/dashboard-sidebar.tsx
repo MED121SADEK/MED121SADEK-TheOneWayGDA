@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { authFetch } from '@/lib/auth-fetch'
 import { useAppStore } from '@/lib/store'
 import {
   LayoutDashboard, BarChart3, Settings, CreditCard, Bell, Code2,
@@ -123,7 +124,7 @@ function SidebarContent({
 
   useEffect(() => {
     if (session) {
-      fetch(`/api/notifications?token=${session.token}&limit=1&unreadOnly=true`)
+      authFetch('/api/notifications?limit=1&unreadOnly=true')
         .then((r) => r.json())
         .then((d) => setUnreadCount(d.total || 0))
         .catch(() => {})
@@ -132,7 +133,7 @@ function SidebarContent({
 
   const handleLogout = useCallback(async () => {
     if (session) {
-      await fetch(`/api/auth/logout?token=${session.token}`, { method: 'POST' }).catch(() => {})
+      await authFetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
     }
     localStorage.removeItem('oneway-auth-token')
     localStorage.removeItem('oneway-user')

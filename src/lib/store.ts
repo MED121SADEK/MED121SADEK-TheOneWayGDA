@@ -606,12 +606,17 @@ export const useAppStore = create<AppState>()(
         const { data, variables } = get()
         const names = variables.map(v => v.name)
         const n = rowCount(data)
-        let csv = names.join(',') + '\n'
+        // Proper CSV escaping: wrap fields containing commas, quotes, or newlines
+        const esc = (val: unknown): string => {
+          const s = val === null || val === undefined ? '' : String(val)
+          if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+            return '"' + s.replace(/"/g, '""') + '"'
+          }
+          return s
+        }
+        let csv = names.map(esc).join(',') + '\n'
         for (let i = 0; i < n; i++) {
-          csv += names.map(name => {
-            const val = data[name]?.[i]
-            return val === null || val === undefined ? '' : String(val)
-          }).join(',') + '\n'
+          csv += names.map(name => esc(data[name]?.[i])).join(',') + '\n'
         }
         return csv
       },
@@ -732,10 +737,24 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'oneway-storage',
-      partialize: (state) => ({
-        projects: state.projects,
-        currentProject: state.currentProject,
-      }),
+      partialize: (state) => {
+        // Guard against localStorage quota overflow (5-10MB limit)
+        const data = JSON.stringify({ projects: state.projects, currentProject: state.currentProject })
+        const MAX_STORAGE_BYTES = 4 * 1024 * 1024 // 4MB safe limit
+        if (data.length > MAX_STORAGE_BYTES) {
+          // Keep only the most recent project to stay under limit
+          const recent = state.projects.slice(0, 1)
+          const trimmed = JSON.stringify({ projects: recent, currentProject: state.currentProject })
+          if (trimmed.length > MAX_STORAGE_BYTES) {
+            // Even one project is too large — don't persist data, only metadata
+            console.warn('[STORE] Project data too large for localStorage, skipping persist')
+            return { projects: state.projects.map(p => ({ ...p, data: {}, outputs: [] })), currentProject: state.currentProject ? { ...state.currentProject, data: {}, outputs: [] } : null }
+          }
+          console.warn('[STORE] Storage approaching limit, keeping only most recent project')
+          return { projects: recent, currentProject: state.currentProject }
+        }
+        return { projects: state.projects, currentProject: state.currentProject }
+      },
     }
   )
 )

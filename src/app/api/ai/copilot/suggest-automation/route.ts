@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db as prisma } from '@/lib/db'
+import { requireAuth } from '@/lib/require-auth'
 
 /* ════════════════════════════════════════════════════════════════
    Proactive Automation Suggestions from Copilot
@@ -127,8 +128,11 @@ function parseSuggestionArray(text: string): AutomationSuggestion[] {
 }
 
 export async function GET(request: NextRequest) {
+  const user = await requireAuth(request)
+  if (!user) return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 })
+
   const startTime = Date.now()
-  const visitorId = request.headers.get('x-visitor-id') || null
+  const visitorId = user.id || request.headers.get('x-visitor-id') || null
   const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
   const userAgent = request.headers.get('user-agent') || null
 

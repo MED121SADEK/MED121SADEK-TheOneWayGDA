@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db as prisma } from '@/lib/db'
+import { requireAuth } from '@/lib/require-auth'
 
 // GET: Retrieve AI's memory/context for a project or visitor
 // Returns structured memory summary built from past decisions, pipelines, and conversations
 export async function GET(request: NextRequest) {
+  const user = await requireAuth(request)
+  if (!user) return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 })
+
   try {
     const { searchParams } = new URL(request.url)
     const visitorId = searchParams.get('visitorId')

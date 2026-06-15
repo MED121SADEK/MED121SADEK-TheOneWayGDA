@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db as prisma } from '@/lib/db'
+import { requireAuth } from '@/lib/require-auth'
 
 // ═══════════════════════════════════════════════════════════════
 // AI Copilot v4 — Deep-Context Expert with Live Data + Memory
@@ -479,7 +480,8 @@ Help users choose the right specialist:
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  let visitorId = request.headers.get('x-visitor-id')
+  const user = await requireAuth(request)
+  const visitorId = user?.id || request.headers.get('x-visitor-id') || null
   const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
   const userAgent = request.headers.get('user-agent') || null
 

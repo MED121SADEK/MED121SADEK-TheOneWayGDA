@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       data: {
         email: normalizedEmail,
         name: name?.trim() || null,
-        password: hashPassword(password),
+        password: await hashPassword(password),
         role: 'pending',
         preferences: JSON.stringify({ theme: 'dark', language: 'en', notifications: true, aiSensitivity: 0.7 }),
       },

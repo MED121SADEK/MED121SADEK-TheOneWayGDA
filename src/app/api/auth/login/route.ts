@@ -17,8 +17,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
-    if (!verifyPassword(password, user.password)) {
+    if (!await verifyPassword(password, user.password)) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
+    }
+
+    // ─── Rehash legacy SHA-256 passwords to scrypt on successful login ───
+    if (!user.password.startsWith('scrypt$')) {
+      const newHash = await hashPassword(password)
+      await db.user.update({ where: { id: user.id }, data: { password: newHash } })
     }
 
     // ─── Pending users: show "under review" message ───

@@ -25,6 +25,7 @@ import {
   FileText, Star, Trash2, MoreVertical, ExternalLink,
   Activity, Building2, Palette,
 } from 'lucide-react'
+import { authFetch } from '@/lib/auth-fetch'
 
 /* ─── Types ─── */
 interface TeamData {
@@ -188,10 +189,10 @@ export default function TeamDetailPage() {
     setLoading(true)
     try {
       const [teamRes, membersRes, sharesRes, activityRes] = await Promise.all([
-        fetch(`/api/teams/${teamId}?token=${session.token}`),
-        fetch(`/api/teams/${teamId}/members?token=${session.token}`),
-        fetch(`/api/teams/${teamId}/shares?token=${session.token}`),
-        fetch(`/api/teams/${teamId}/activity?token=${session.token}&limit=30&offset=0`),
+        authFetch(`/api/teams/${teamId}`),
+        authFetch(`/api/teams/${teamId}/members`),
+        authFetch(`/api/teams/${teamId}/shares`),
+        authFetch(`/api/teams/${teamId}/activity?limit=30&offset=0`),
       ])
       const [teamJson, membersJson, sharesJson, activityJson] = await Promise.all([
         teamRes.json(), membersRes.json(), sharesRes.json(), activityRes.json(),
@@ -214,7 +215,7 @@ export default function TeamDetailPage() {
     if (!session || !shareForm.resourceName.trim()) return
     setSharing(true)
     try {
-      const res = await fetch(`/api/teams/${teamId}/shares?token=${session.token}`, {
+      const res = await authFetch(`/api/teams/${teamId}/shares`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(shareForm),
@@ -233,7 +234,7 @@ export default function TeamDetailPage() {
     if (!session || !inviteForm.email.trim()) return
     setInviting(true)
     try {
-      const res = await fetch(`/api/teams/${teamId}/invites?token=${session.token}`, {
+      const res = await authFetch(`/api/teams/${teamId}/invites`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(inviteForm),
@@ -251,7 +252,7 @@ export default function TeamDetailPage() {
   const handleRoleChange = async (userId: string, newRole: string) => {
     if (!session) return
     try {
-      const res = await fetch(`/api/teams/${teamId}/members?token=${session.token}`, {
+      const res = await authFetch(`/api/teams/${teamId}/members`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, role: newRole }),
@@ -264,7 +265,7 @@ export default function TeamDetailPage() {
   const handleRemoveMember = async (userId: string) => {
     if (!session) return
     try {
-      const res = await fetch(`/api/teams/${teamId}/members?token=${session.token}`, {
+      const res = await authFetch(`/api/teams/${teamId}/members`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
@@ -277,7 +278,7 @@ export default function TeamDetailPage() {
   const handleDeleteShare = async (shareId: string) => {
     if (!session) return
     try {
-      const res = await fetch(`/api/teams/${teamId}/shares?token=${session.token}`, {
+      const res = await authFetch(`/api/teams/${teamId}/shares`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shareId }),
@@ -290,7 +291,7 @@ export default function TeamDetailPage() {
   const handleTogglePin = async (shareId: string, pinned: boolean) => {
     if (!session) return
     try {
-      const res = await fetch(`/api/teams/${teamId}/shares?token=${session.token}`, {
+      const res = await authFetch(`/api/teams/${teamId}/shares`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shareId, isPinned: !pinned }),
@@ -304,7 +305,7 @@ export default function TeamDetailPage() {
     if (!session || !commentText.trim()) return
     setSubmittingComment(true)
     try {
-      const res = await fetch(`/api/teams/${teamId}/comments?token=${session.token}`, {
+      const res = await authFetch(`/api/teams/${teamId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: commentText, shareId }),
@@ -329,7 +330,7 @@ export default function TeamDetailPage() {
   const handleLeaveTeam = async () => {
     if (!session) return
     try {
-      const res = await fetch(`/api/teams/${teamId}/members?token=${session.token}`, {
+      const res = await authFetch(`/api/teams/${teamId}/members`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: session.user.id }),

@@ -23,6 +23,7 @@ import {
   Building2, Shield, Crown, Eye, UserPlus, Sparkles,
   FolderOpen, BarChart3, Workflow, Zap, Star, Settings,
 } from 'lucide-react'
+import { authFetch } from '@/lib/auth-fetch'
 
 /* ─── Types ─── */
 interface Team {
@@ -113,7 +114,7 @@ export default function TeamsPage() {
   const fetchTeams = useCallback(async () => {
     if (!session) return
     try {
-      const res = await fetch(`/api/teams?token=${session.token}`)
+      const res = await authFetch('/api/teams')
       const json = await res.json()
       if (json.success) {
         const userTeams = (json.data || []).filter((t: Team) => t._count?.members)
@@ -126,7 +127,7 @@ export default function TeamsPage() {
   const fetchInvites = useCallback(async () => {
     if (!session) return
     try {
-      const res = await fetch(`/api/teams?token=${session.token}`)
+      const res = await authFetch('/api/teams')
       const json = await res.json()
       // Invites are fetched per-team; for now we show a placeholder
       // In production, a dedicated /api/teams/invites/me endpoint would exist
@@ -138,7 +139,7 @@ export default function TeamsPage() {
     if (!session || !createForm.name.trim()) return
     setCreating(true)
     try {
-      const res = await fetch('/api/teams?token=' + session.token, {
+      const res = await authFetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(createForm),
@@ -158,7 +159,7 @@ export default function TeamsPage() {
     setJoining(true)
     setJoinMsg(null)
     try {
-      const res = await fetch('/api/teams/join?token=' + session.token, {
+      const res = await authFetch('/api/teams/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ inviteCode: joinCode.trim() }),
@@ -184,7 +185,7 @@ export default function TeamsPage() {
       // We need to find which team the invite belongs to
       const invite = invites.find(i => i.id === inviteId)
       if (!invite) return
-      const res = await fetch(`/api/teams/${invite.teamId}/invites?token=${session.token}`, {
+      const res = await authFetch(`/api/teams/${invite.teamId}/invites`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ inviteId, action }),

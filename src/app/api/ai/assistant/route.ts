@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db as prisma } from '@/lib/db'
+import { requireAuth } from '@/lib/require-auth'
 
 // ═══════════════════════════════════════════════════════════════
 // Multi-Specialist AI Assistant System
@@ -308,8 +309,11 @@ Design approach:
 // POST: Chat with a specialist assistant
 // ═══════════════════════════════════════════════════════════════
 export async function POST(request: NextRequest) {
+  const user = await requireAuth(request)
+  if (!user) return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 })
+
   const startTime = Date.now()
-  const visitorId = request.headers.get('x-visitor-id')
+  const visitorId = user.id
   const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
   const userAgent = request.headers.get('user-agent') || null
 
@@ -406,9 +410,9 @@ export async function POST(request: NextRequest) {
         try {
           await prisma.aiAuditLog.create({
             data: {
-              visitorId: visitorId || null,
+              visitorId: user.id,
               action: 'ai_query',
-              details: JSON.stringify({ action: 'assistant_stream', specialist: specialist.id, mode: 'stream' }),
+              details: JSON.stringify({ action: 'assistant_stream', specialist: specialist.id, mode: 'stream', userId: user.id }),
               inputData: JSON.stringify({ lastMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
               durationMs: Date.now() - startTime,
               ipAddress,
@@ -444,9 +448,9 @@ export async function POST(request: NextRequest) {
     try {
       await prisma.aiAuditLog.create({
         data: {
-          visitorId: visitorId || null,
+          visitorId: user.id,
           action: 'ai_query',
-          details: JSON.stringify({ action: 'assistant_response', specialist: specialist.id, specialistName: specialist.name, messageCount: messages.length }),
+          details: JSON.stringify({ action: 'assistant_response', specialist: specialist.id, specialistName: specialist.name, messageCount: messages.length, userId: user.id }),
           inputData: JSON.stringify({ lastMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
           outputData: JSON.stringify({ responseLength: aiMessage.length, tokensUsed }),
           tokensUsed,

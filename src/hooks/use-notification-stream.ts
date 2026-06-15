@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createAuthEventSource } from '@/lib/auth-fetch'
 
 interface LiveNotification {
   id: string
@@ -28,18 +29,9 @@ export function useNotificationStream() {
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mountedRef = useRef(true)
 
-  const getToken = useCallback((): string | null => {
-    if (typeof window === 'undefined') return null
-    try {
-      const s = localStorage.getItem('oneway-auth-token')
-      return s || null
-    } catch { return null }
-  }, [])
-
   const connect = useCallback(() => {
-    // Don't connect if no token or not mounted
-    const token = getToken()
-    if (!token || !mountedRef.current) return
+    // Don't connect if not mounted
+    if (!mountedRef.current) return
 
     // Don't reconnect if tab is hidden
     if (document.hidden) return
@@ -54,7 +46,8 @@ export function useNotificationStream() {
     setStatus(status)
     setError(null)
 
-    const es = new EventSource(`/api/notifications/stream?token=${encodeURIComponent(token)}`)
+    const es = createAuthEventSource('/api/notifications/stream')
+    if (!es) return
     eventSourceRef.current = es
 
     es.addEventListener('connected', () => {
@@ -93,7 +86,7 @@ export function useNotificationStream() {
         if (mountedRef.current) connect()
       }, delay)
     }
-  }, [getToken])
+  }, [])
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {
@@ -112,35 +105,24 @@ export function useNotificationStream() {
   useEffect(() => {
     mountedRef.current = true
 
-    // Wait for token to be available
-    const token = getToken()
-    if (token) {
-      connect()
-    } else {
-      // Listen for auth events
-      const handleAuthChange = () => connect()
-      window.addEventListener('oneway-auth-change', handleAuthChange)
-      window.addEventListener('storage', handleAuthChange)
+    connect()
 
-      // Also try after a short delay (token might be set during hydration)
-      const timer = setTimeout(() => {
-        if (getToken()) connect()
-      }, 2000)
+    // Listen for auth events
+    const handleAuthChange = () => connect()
+    window.addEventListener('oneway-auth-change', handleAuthChange)
+    window.addEventListener('storage', handleAuthChange)
 
-      return () => {
-        mountedRef.current = false
-        disconnect()
-        window.removeEventListener('oneway-auth-change', handleAuthChange)
-        window.removeEventListener('storage', handleAuthChange)
-        clearTimeout(timer)
-      }
-    }
+    // Also try after a short delay (token might be set during hydration)
+    const timer = setTimeout(() => connect(), 2000)
 
     return () => {
       mountedRef.current = false
       disconnect()
+      window.removeEventListener('oneway-auth-change', handleAuthChange)
+      window.removeEventListener('storage', handleAuthChange)
+      clearTimeout(timer)
     }
-  }, [connect, disconnect, getToken])
+  }, [connect, disconnect])
 
   // Pause when tab is hidden, resume when visible
   useEffect(() => {

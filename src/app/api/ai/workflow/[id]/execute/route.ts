@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db as prisma } from '@/lib/db'
+import { requireAuth } from '@/lib/require-auth'
 
 // Per-step execution system prompt
 const STEP_EXECUTION_SYSTEM_PROMPT = `You are an expert data analyst executing a specific step in a statistical analysis pipeline. Given the step details and pipeline context, provide a realistic execution result.
@@ -78,8 +79,11 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireAuth(request)
+  if (!user) return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 })
+
   const pipelineStartTime = Date.now()
-  const visitorId = request.headers.get('x-visitor-id') || null
+  const visitorId = user.id || request.headers.get('x-visitor-id') || null
 
   try {
     const { id } = await params

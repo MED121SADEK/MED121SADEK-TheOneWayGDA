@@ -199,13 +199,15 @@ export function generateCSRFToken(): string {
 export async function hashToken(token: string): Promise<string> {
   if (typeof crypto !== 'undefined' && crypto.subtle) {
     const encoder = new TextEncoder()
-    const data = encoder.encode(token + 'theOneWayGDA_csrf_salt_2026')
+    const csrfSalt = process.env.CSRF_SALT || 'CHANGE_ME_IN_PRODUCTION'
+    const data = encoder.encode(token + csrfSalt)
     const hash = await crypto.subtle.digest('SHA-256', data)
     return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, '0')).join('')
   }
   // Fallback for environments without crypto.subtle
   let hash = 0
-  const str = token + 'theOneWayGDA_csrf_salt_2026'
+  const csrfSalt = process.env.CSRF_SALT || 'CHANGE_ME_IN_PRODUCTION'
+  const str = token + csrfSalt
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i)
     hash = ((hash << 5) - hash) + char

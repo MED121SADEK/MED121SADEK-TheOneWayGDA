@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { authFetch } from '@/lib/auth-fetch'
 
 export interface NotificationItem {
   id: string
@@ -24,20 +25,7 @@ interface UseNotificationsReturn {
   markAllAsRead: () => Promise<void>
 }
 
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const userStr = localStorage.getItem('oneway-user')
-    if (!userStr) return null
-    const user = JSON.parse(userStr) as { id: string; email: string; name: string | null; role: string }
-    // Try to get session token
-    const token = localStorage.getItem('oneway-session-token')
-    if (token) return token
-    return null
-  } catch {
-    return null
-  }
-}
+
 
 function isUserLoggedIn(): boolean {
   if (typeof window === 'undefined') return false
@@ -57,8 +45,7 @@ export function useNotifications(pollInterval: number = 30000): UseNotifications
   const mountedRef = useRef(true)
 
   const fetchNotifications = useCallback(async () => {
-    const token = getToken()
-    if (!token) {
+    if (!isUserLoggedIn()) {
       setNotifications([])
       setUnreadCount(0)
       setIsLoading(false)
@@ -66,7 +53,7 @@ export function useNotifications(pollInterval: number = 30000): UseNotifications
     }
 
     try {
-      const res = await fetch(`/api/notifications?limit=20&unread=true&token=${encodeURIComponent(token)}`)
+      const res = await authFetch('/api/notifications?limit=20&unread=true')
       if (!res.ok) {
         setIsLoading(false)
         return
@@ -84,11 +71,10 @@ export function useNotifications(pollInterval: number = 30000): UseNotifications
   }, [])
 
   const markAsRead = useCallback(async (notificationId: string) => {
-    const token = getToken()
-    if (!token) return
+    if (!isUserLoggedIn()) return
 
     try {
-      const res = await fetch(`/api/notifications?token=${encodeURIComponent(token)}`, {
+      const res = await authFetch('/api/notifications', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notificationId }),
@@ -105,11 +91,10 @@ export function useNotifications(pollInterval: number = 30000): UseNotifications
   }, [])
 
   const markAllAsRead = useCallback(async () => {
-    const token = getToken()
-    if (!token) return
+    if (!isUserLoggedIn()) return
 
     try {
-      const res = await fetch(`/api/notifications?token=${encodeURIComponent(token)}`, {
+      const res = await authFetch('/api/notifications', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markAllRead: true }),

@@ -1,3 +1,5 @@
+import { authFetch } from '@/lib/auth-fetch'
+
 /**
  * Notification Triggers
  *
@@ -15,30 +17,16 @@ export interface NotificationPayload {
   metadata?: Record<string, unknown>
 }
 
-/** Get the auth token for API calls */
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null
-  try {
-    return localStorage.getItem('oneway-session-token') || null
-  } catch {
-    return null
-  }
-}
+
 
 /** Internal: send a POST to /api/notifications */
 async function createNotification(payload: NotificationPayload): Promise<boolean> {
-  const token = getToken()
-  if (!token) return false
-
   try {
-    const res = await fetch(
-      `/api/notifications?token=${encodeURIComponent(token)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      }
-    )
+    const res = await authFetch('/api/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
     return res.ok
   } catch {
     return false

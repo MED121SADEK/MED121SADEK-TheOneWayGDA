@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from '@/lib/i18n'
+import { authFetch } from '@/lib/auth-fetch'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -82,9 +83,9 @@ export default function NotificationsPage() {
     if (!session) return
     if (!append) setLoading(true)
     try {
-      const params = new URLSearchParams({ token: session.token, limit: '30', offset: String(offset) })
+      const params = new URLSearchParams({ limit: '30', offset: String(offset) })
       if (filter === 'unread') params.set('unreadOnly', 'true')
-      const res = await fetch(`/api/notifications?${params}`)
+      const res = await authFetch(`/api/notifications?${params}`)
       const json = await res.json()
       if (json.success) {
         setNotifications(prev => append ? [...prev, ...(json.data || [])] : (json.data || []))
@@ -95,7 +96,7 @@ export default function NotificationsPage() {
   const handleMarkRead = async (id: string) => {
     if (!session) return
     try {
-      await fetch(`/api/notifications?token=${session.token}`, {
+      await authFetch('/api/notifications', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notificationId: id }),
       })
@@ -107,7 +108,7 @@ export default function NotificationsPage() {
     if (!session) return
     setMarkingAll(true)
     try {
-      await fetch(`/api/notifications?token=${session.token}`, {
+      await authFetch('/api/notifications', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markAllRead: true }),
       })
@@ -118,7 +119,7 @@ export default function NotificationsPage() {
   const handleDelete = async (id: string) => {
     if (!session) return
     try {
-      await fetch(`/api/notifications?token=${session.token}`, {
+      await authFetch('/api/notifications', {
         method: 'DELETE', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notificationId: id }),
       })

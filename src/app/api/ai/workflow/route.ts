@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db as prisma } from '@/lib/db'
+import { requireAuth } from '@/lib/require-auth'
 
 // System prompt for workflow generation
 const WORKFLOW_SYSTEM_PROMPT = `You are an expert data analysis workflow designer for The One-Way statistical analysis platform. When the user provides an intent, generate a structured analysis pipeline.
@@ -56,8 +57,11 @@ interface WorkflowResponse {
 }
 
 export async function POST(request: NextRequest) {
+  const user = await requireAuth(request)
+  if (!user) return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 })
+
   const startTime = Date.now()
-  const visitorId = request.headers.get('x-visitor-id') || null
+  const visitorId = user.id || request.headers.get('x-visitor-id') || null
 
   try {
     const body = await request.json()

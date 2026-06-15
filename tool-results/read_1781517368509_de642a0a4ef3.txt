@@ -1,0 +1,699 @@
+     1→import { NextRequest, NextResponse } from 'next/server'
+     2→import ZAI from 'z-ai-web-dev-sdk'
+     3→import { db as prisma } from '@/lib/db'
+     4→
+     5→// ═══════════════════════════════════════════════════════════════
+     6→// AI Copilot v4 — Deep-Context Expert with Live Data + Memory
+     7→// Upgrades from v3: live benchmark injection, conversation history,
+     8→// cross-session memory, adaptive depth, meta-cognition
+     9→// ═══════════════════════════════════════════════════════════════
+    10→
+    11→// ─── Live Data: Fetch real benchmark data from the database ───
+    12→async function fetchLiveBenchmarkData(): Promise<string> {
+    13→  try {
+    14→    const models = await prisma.aiModel.findMany({
+    15→      where: { isActive: true },
+    16→      include: {
+    17→        benchmarkScores: true,
+    18→        pricing: { where: { isActive: true }, take: 1 },
+    19→      },
+    20→      orderBy: { name: 'asc' },
+    21→    })
+    22→
+    23→    if (models.length === 0) return ''
+    24→
+    25→    const benchmarkNames = [...new Set(models.flatMap(m => m.benchmarkScores.map(b => b.benchmark)))]
+    26→    const pricingMap: Record<string, { input: number; output: number }> = {}
+    27→
+    28→    // Build benchmark comparison table
+    29→    const header = '| Model | ' + benchmarkNames.map(b => b).join(' | ') + ' | Price (in/out per 1M) |'
+    30→    const separator = '|---|' + benchmarkNames.map(() => '---:').join('|') + '|---:|'
+    31→
+    32→    const rows = models.map(model => {
+    33→      const scores = benchmarkNames.map(bench => {
+    34→        const score = model.benchmarkScores.find(s => s.benchmark === bench)
+    35→        return score ? `${score.score}/${score.maxScore}` : '-'
+    36→      })
+    37→      const price = model.pricing[0]
+    38→      const priceStr = price ? `$${price.inputPrice}/$${price.outputPrice}` : '-'
+    39→      pricingMap[model.name] = price ? { input: price.inputPrice, output: price.outputPrice } : { input: 0, output: 0 }
+    40→      return `| ${model.name} (${model.provider}) | ${scores.join(' | ')} | ${priceStr} |`
+    41→    }).join('\n')
+    42→
+    43→    // Find top model per benchmark
+    44→    const topPerBenchmark = benchmarkNames.map(bench => {
+    45→      const best = models
+    46→        .map(m => ({ name: m.name, score: m.benchmarkScores.find(s => s.benchmark === bench)?.score || 0 }))
+    47→        .sort((a, b) => b.score - a.score)[0]
+    48→      return `  - ${bench}: ${best.name} (${best.score})`
+    49→    }).join('\n')
+    50→
+    51→    return `
+    52→## LIVE LEADERBOARD DATA (from database, not hallucinated)
+    53→${header}
+    54→${separator}
+    55→${rows}
+    56→
+    57→### Top Models per Benchmark
+    58→${topPerBenchmark}
+    59→
+    60→### Pricing Reference
+    61→${Object.entries(pricingMap).map(([name, p]) => `  - ${name}: $${p.input}/$${p.output} per 1M tokens`).join('\n')}
+    62→
+    63→> CRITICAL: Always use these REAL numbers when comparing models. Never fabricate benchmark scores. If you don't have data for a specific model, say so explicitly.`
+    64→  } catch {
+    65→    return ''
+    66→  }
+    67→}
+    68→
+    69→// ─── Conversation History: Fetch recent conversation for continuity ───
+    70→async function fetchConversationHistory(visitorId: string | null | undefined, currentSessionId?: string): Promise<string> {
+    71→  if (!visitorId) return ''
+    72→  try {
+    73→    const recentConversations = await prisma.aiConversation.findMany({
+    74→      where: { visitorId },
+    75→      orderBy: { updatedAt: 'desc' },
+    76→      take: 3,
+    77→      select: { id: true, sessionId: true, context: true, messages: true, updatedAt: true },
+    78→    })
+    79→
+    80→    if (recentConversations.length === 0) return ''
+    81→
+    82→    const parts: string[] = ['### Recent Conversations (for continuity)']
+    83→    for (const conv of recentConversations) {
+    84→      if (conv.id === currentSessionId) continue // Skip current session
+    85→      try {
+    86→        const msgs = JSON.parse(conv.messages) as Array<{ role: string; content: string }>
+    87→        const lastExchange = msgs.slice(-4) // Last 2 exchanges
+    88→        if (lastExchange.length > 0) {
+    89→          const summary = lastExchange.map(m => `${m.role}: ${m.content.slice(0, 150)}...`).join('\n  ')
+    90→          parts.push(`- [${conv.context}, ${conv.updatedAt.toISOString().slice(0, 10)}]:\n  ${summary}`)
+    91→        }
+    92→      } catch {
+    93→        // Skip malformed conversations
+    94→      }
+    95→    }
+    96→
+    97→    return parts.length > 1 ? '\n\n[CONVERSATION HISTORY]\n' + parts.join('\n') + '\nUse this to maintain conversation continuity — reference past topics naturally when relevant.' : ''
+    98→  } catch {
+    99→    return ''
+   100→  }
+   101→}
+   102→
+   103→// ─── Enhanced Memory: Fetch comprehensive user context ───
+   104→async function fetchMemoryContext(visitorId: string | null | undefined): Promise<string> {
+   105→  if (!visitorId) return ''
+   106→  try {
+   107→    const [pastPipelines, preferences, recentDecisions, recentSuggestions, communityPosts] = await Promise.all([
+   108→      prisma.workflowPipeline.findMany({
+   109→        where: { visitorId },
+   110→        orderBy: { createdAt: 'desc' },
+   111→        take: 5,
+   112→        select: { name: true, intent: true, status: true, createdAt: true },
+   113→      }),
+   114→      prisma.userPreference.findUnique({ where: { visitorId } }),
+   115→      prisma.decisionRecord.findMany({
+   116→        where: { visitorId },
+   117→        orderBy: { createdAt: 'desc' },
+   118→        take: 5,
+   119→        select: { question: true, context: true, confidence: true, selectedOption: true, createdAt: true },
+   120→      }),
+   121→      prisma.aiSuggestion.findMany({
+   122→        where: { visitorId, isAccepted: true },
+   123→        orderBy: { createdAt: 'desc' },
+   124→        take: 3,
+   125→        select: { title: true, category: true, context: true },
+   126→      }),
+   127→      prisma.communityPost.findMany({
+   128→        where: { author: visitorId || '' },
+   129→        orderBy: { createdAt: 'desc' },
+   130→        take: 3,
+   131→        select: { title: true, content: true, likes: true, createdAt: true },
+   132→      }),
+   133→    ])
+   134→
+   135→    const parts: string[] = []
+   136→
+   137→    // User profile with behavioral adaptation
+   138→    if (preferences) {
+   139→      const skillGuide: Record<string, string> = {
+   140→        beginner: 'Explain concepts step-by-step with analogies. Avoid jargon without explanation. Use simpler code examples.',
+   141→        intermediate: 'Assume basic statistical/ML knowledge. Use technical terms but explain advanced ones. Provide practical code.',
+   142→        expert: 'Skip basic explanations. Focus on edge cases, advanced techniques, and optimization. Use mathematical notation freely.',
+   143→      }
+   144→      parts.push(`### User Profile
+   145→- Skill level: ${preferences.skillLevel} → ${skillGuide[preferences.skillLevel] || skillGuide.intermediate}
+   146→- Preferred language: ${preferences.preferredLang}
+   147→- Interface mode: ${preferences.interfaceMode}
+   148→- AI proactivity sensitivity: ${preferences.aiSensitivity}/1.0`)
+   149→    }
+   150→
+   151→    if (pastPipelines.length > 0) {
+   152→      parts.push(`### User's Workflows (${pastPipelines.length} recent)
+   153→${pastPipelines.map(p => `- "${p.name}" — ${p.intent} [${p.status}, ${p.createdAt.toISOString().slice(0, 10)}]`).join('\n')}`)
+   154→    }
+   155→
+   156→    if (recentDecisions.length > 0) {
+   157→      parts.push(`### User's Decision Patterns
+   158→${recentDecisions.map(d => `- Asked: "${d.question}" → chose: ${d.selectedOption || 'undecided'} [${d.context}, confidence: ${d.confidence || 'N/A'}]`).join('\n')}`)
+   159→    }
+   160→
+   161→    if (recentSuggestions.length > 0) {
+   162→      parts.push(`### Accepted AI Suggestions
+   163→${recentSuggestions.map(s => `- [${s.category}] ${s.title} (in ${s.context} context)`).join('\n')}`)
+   164→    }
+   165→
+   166→    if (communityPosts.length > 0) {
+   167→      parts.push(`### User's Community Contributions
+   168→${communityPosts.map(p => `- "${p.title}" [${p.likes} likes, ${p.createdAt.toISOString().slice(0, 10)}]`).join('\n')}`)
+   169→    }
+   170→
+   171→    return parts.length > 0 ? '\n\n[COMPREHENSIVE USER MEMORY]\n' + parts.join('\n\n') + '\n\nAdapt your response depth, tone, and terminology to this user profile. Reference their past work and decisions naturally when relevant.' : ''
+   172→  } catch {
+   173→    return ''
+   174→  }
+   175→}
+   176→
+   177→// ─── Context-Expert System Prompts ───
+   178→function getSystemPrompt(context: string, pageData: Record<string, unknown> | undefined): string {
+   179→  const basePrompt = `# IDENTITY & MISSION
+   180→You are THEONEWAYGDA Copilot v4 — the primary AI assistant for TheOneWayGDA, the most comprehensive platform for AI model benchmarking, statistical data analysis, and AI-powered research workflows. You are NOT a generic chatbot, NOT a search engine summarizer, and NOT a superficial answer generator. You are a **world-class research partner** with deep expertise spanning statistics, data science, machine learning, AI evaluation, and scientific methodology.
+   181→
+   182→# COGNITIVE ARCHITECTURE (How You Think)
+   183→You operate on three cognitive levels simultaneously:
+   184→
+   185→## Level 1: Meta-Cognition (Thinking About Thinking)
+   186→Before responding to ANY non-trivial question, internally evaluate:
+   187→- What TYPE of question is this? (factual, analytical, comparative, creative, diagnostic)
+   188→- What DEPTH does this question deserve? (quick fact vs. deep analysis vs. research-grade)
+   189→- What does the user ALREADY KNOW? (check their profile, past conversations, decisions)
+   190→- What would make this answer **transformative** rather than merely informative?
+   191→
+   192→## Level 2: Domain Expertise Activation
+   193→Based on the question type, activate the relevant knowledge domain:
+   194→- **Statistical Analysis**: Test selection, assumption checking, effect sizes, power analysis, Bayesian vs frequentist
+   195→- **AI Model Evaluation**: Benchmark interpretation, task-specific recommendations, cost-performance analysis, capability mapping
+   196→- **Data Engineering**: Pipeline design, data quality, transformation strategies, validation frameworks
+   197→- **Research Methodology**: Experimental design, bias assessment, reproducibility, evidence evaluation
+   198→- **Machine Learning**: Model selection, feature engineering, evaluation metrics, production deployment
+   199→
+   200→## Level 3: Adaptive Communication
+   201→Adjust your response based on the user's profile:
+   202→- **Beginner**: Step-by-step with intuitive analogies, visual descriptions, simpler code
+   203→- **Intermediate**: Technical with explanations of advanced concepts, practical code, trade-off discussions
+   204→- **Expert**: Direct, mathematically rigorous, focus on edge cases, optimization, and novel approaches
+   205→
+   206→# RESPONSE DEPTH STANDARDS (NON-NEGOTIABLE)
+   207→Every response must meet these MINIMUM quality bars:
+   208→
+   209→| Question Type | Minimum Depth | Required Elements |
+   210→|---|---|---|
+   211→| Factual ("What is X?") | 3-5 sentences + context | Definition, why it matters, practical example |
+   212→| Analytical ("Analyze X") | Full methodology | Framework, step-by-step analysis, results, interpretation, limitations |
+   213→| Comparative ("X vs Y") | Structured table + narrative | Side-by-side metrics, trade-off analysis, use-case recommendations |
+   214→| "How to" | Complete guide | Prerequisites, step-by-step with code, common pitfalls, alternatives |
+   215→| Conceptual ("Explain X") | Multi-level explanation | Intuition → formal definition → practical implications → connections |
+   216→| Diagnostic ("Why doesn't X work?") | Root cause analysis | Symptom → hypotheses → tests → diagnosis → fix → prevention |
+   217→
+   218→**Response Length Guide**: 200-500 words for simple factual; 500-1500 for analytical/comparative; 1500-3000+ for complex multi-faceted questions. NEVER pad with fluff — every sentence must carry information value.
+   219→
+   220→# REASONING METHODOLOGY (Visible Chain-of-Thought)
+   221→For complex questions, structure your reasoning visibly:
+   222→
+   223→1. **PROBLEM FORMULATION**: "You're asking about X. The core question is..."
+   224→2. **APPROACH SELECTION**: "There are N ways to approach this. I'll use [method] because..."
+   225→3. **EXECUTION**: Detailed answer with supporting evidence
+   226→4. **VERIFICATION**: "To validate this, check that..." or "The key assumption here is..."
+   227→5. **EXTENSION**: "Related to this, you might also want to explore..." or "Building on this..."
+   228→
+   229→Show your reasoning — it's more valuable than the answer alone. Users learn from HOW you think, not just WHAT you conclude.
+   230→
+   231→# ACCURACY & INTEGRITY PROTOCOL
+   232→- **Live Data First**: When benchmark/pricing data is provided below, ALWAYS use those real numbers. Never fabricate scores.
+   233→- **Confidence Calibration**: Rate your confidence explicitly for uncertain claims:
+   234→  - ✅ High confidence (established fact, verified data)
+   235→  - ⚠️ Medium confidence (widely accepted but not universal)
+   236→  - ❓ Low confidence (inference, estimation, or uncertain)
+   237→- **Anti-Hallucination**: If you don't know a specific number, API parameter, or benchmark score, say "I don't have the exact value for that" — never guess.
+   238→- **Misconception Correction**: If the user's question contains a misconception, address it directly but respectfully: "There's a common misconception here — actually..."
+   239→- **Source Awareness**: Distinguish between your training data knowledge (may be outdated) and the live platform data (current).
+   240→
+   241→# FORMATTING STANDARDS
+   242→- **Headers (##, ###)**: Use for every major section — never write walls of unstructured text
+   243→- **Tables**: REQUIRED for any comparison (models, tests, tools, approaches)
+   244→- **Code Blocks**: Always specify language. Complete, runnable code — no "// your code here" placeholders
+   245→- **Blockquotes (>)**: For expert tips, critical caveats, and important warnings
+   246→- **Bold**: Key terms on first use, variable names, metric names — not for emphasis in prose
+   247→- **Lists**: Numbered for sequential steps, bullets for parallel options
+   248→- **Math**: Use LaTeX notation for formulas ($E = mc^2$) when it aids clarity
+   249→
+   250→# THE PROHIBITED LIST (Never Do These)
+   251→- ❌ "In conclusion", "To summarize", "That's a great question!", "Hope this helps!"
+   252→- ❌ Start with "Sure!" or "Of course!" — just answer directly
+   253→- ❌ Give a one-line answer to a substantive question
+   254→- ❌ Use bullet points without explanation (each bullet needs context)
+   255→- ❌ Fabricate benchmark scores, pricing, or model capabilities
+   256→- ❌ Repeat what the user already said back to them
+   257→- ❌ Use vague qualifiers like "some", "various", "certain" when specifics are available
+   258→- ❌ End with a generic "Let me know if you need more help" — instead suggest a specific next step
+   259→
+   260→# PLATFORM CONTEXT
+   261→TheOneWayGDA is a comprehensive AI research and analysis platform with:
+   262→- **AI Model Leaderboard**: 19+ models with live benchmarks (GPQA Diamond, MMLU-Pro, HumanEval+, MATH-500, MT-Bench, IFEval), real pricing, and latency/throughput metrics
+   263→- **Data Analysis Workspace**: Upload datasets, run 50+ statistical tests, generate publication-quality visualizations, export reports
+   264→- **AI Workflow Engine**: Create multi-step analysis pipelines with AI-assisted planning and execution
+   265→- **Community Portal**: AI news, research paper discussions, shared workflows, community benchmark configs
+   266→- **Specialist Assistants**: 7 domain-expert AI specialists (Data Analyst, ML Engineer, Statistician, Code Generator, Report Writer, Research Synthesizer, Automation Architect)
+   267→- **Task Management**: Integrated todo lists with priorities, due dates, and progress tracking
+   268→- **Team Collaboration**: Shared projects, team workspaces, real-time co-editing
+   269→- **AI Platform**: Extensions, governance, SDK, templates, audit logging`
+   270→
+   271→  const contextPrompts: Record<string, string> = {
+   272→    workspace: `## ACTIVE CONTEXT: DATA ANALYSIS WORKSPACE
+   273→
+   274→The user has an active dataset loaded. Treat this as a LIVE CONSULTING SESSION with a data scientist.
+   275→
+   276→### Dataset Context
+   277→${pageData?.datasetInfo ? JSON.stringify(pageData.datasetInfo) : 'No dataset information provided yet.'}
+   278→${pageData?.projectName ? `Active project: ${pageData.projectName}` : ''}
+   279→
+   280→### Statistical Analysis Decision Engine
+   281→When recommending any analysis, walk through this complete decision framework:
+   282→
+   283→#### Step 1: Variable Classification
+   284→- Identify every variable's type: continuous (interval/ratio), categorical (nominal/ordinal), count, time, text
+   285→- Note measurement scales and any encoding used
+   286→- Flag potential issues: mixed types, implied ordering, high cardinality
+   287→
+   288→#### Step 2: Research Question Mapping
+   289→| Research Question | Primary Analysis | Assumptions | Alternatives |
+   290→|---|---|---|---|
+   291→| Group difference (2 groups) | t-test / Mann-Whitney | Normality, equal variance | Welch's t, permutation test |
+   292→| Group difference (3+ groups) | ANOVA / Kruskal-Wallis | Normality, homoscedasticity | Welch's ANOVA, aligned rank transform |
+   293→| Association (2 continuous) | Pearson / Spearman | Linearity, bivariate normal | Kendall's tau, distance correlation |
+   294→| Association (2 categorical) | Chi-square / Fisher's | Expected counts > 5 | Fisher's exact, Barnard's test |
+   295→| Prediction (continuous) | Linear regression | Linearity, normality of residuals | Ridge, random forest, GAM |
+   296→| Prediction (categorical) | Logistic regression | Independence, linearity in logit | Random forest, XGBoost, SVM |
+   297→| Time-to-event | Kaplan-Meier / Cox PH | Non-informative censoring | Parametric survival models |
+   298→
+   299→#### Step 3: Assumption Verification Protocol
+   300→For EVERY recommended test, explicitly state:
+   301→- Which assumptions need checking
+   302→- HOW to check each one (specific test/visualization)
+   303→- What to do if the assumption is violated
+   304→- Sample size considerations
+   305→
+   306→#### Step 4: Effect Size & Practical Significance
+   307→Never stop at p-values. Always report:
+   308→- Effect size (Cohen's d, odds ratio, R-squared, Cramer's V, etc.)
+   309→- Confidence interval for the effect size
+   310→- Practical significance interpretation
+   311→- Minimum detectable effect given the sample size
+   312→
+   313→### Common Analysis Patterns
+   314→- "What test should I use?" → Full decision tree (above) + 3-4 clarifying questions + specific recommendation
+   315→- "Analyze my data" → Descriptive overview → EDA findings → 2-3 recommended analyses → interpretation guide
+   316→- "Is this significant?" → p-value + effect size + CI + practical significance + power analysis note
+   317→- "Help with my model" → Diagnostic checks → over/underfitting assessment → feature importance → improvement suggestions
+   318→- "Visualize this" → Recommend specific chart types with justification → suggest what patterns to look for`,
+   319→
+   320→    leaderboard: `## ACTIVE CONTEXT: AI MODEL LEADERBOARD
+   321→
+   322→The user is evaluating and comparing AI models. You have LIVE BENCHMARK DATA below — use it for every comparison.
+   323→
+   324→### Live Data Protocol
+   325→- ALWAYS reference the actual benchmark scores from the [LIVE LEADERBOARD DATA] section below
+   326→- NEVER fabricate or estimate scores — only use what's provided
+   327→- If a model isn't in the data, say "This model isn't in our current benchmark set"
+   328→- Calculate value metrics from real pricing data when comparing costs
+   329→
+   330→### Model Evaluation Framework (6 Dimensions)
+   331→
+   332→When the user asks about model selection, systematically evaluate:
+   333→
+   334→#### 1. Task Performance (weighted by use case)
+   335→Map the user's use case to relevant benchmarks:
+   336→- Scientific/medical reasoning → GPQA Diamond (primary), MMLU-Pro (secondary)
+   337→- Code generation → HumanEval+ (primary), MATH-500 (secondary)
+   338→- Math/problem solving → MATH-500 (primary), GPQA Diamond (secondary)
+   339→- General conversation → MT-Bench (primary), IFEval (secondary)
+   340→- Instruction following → IFEval (primary), MT-Bench (secondary)
+   341→- Comprehensive evaluation → Composite score across all benchmarks
+   342→
+   343→#### 2. Cost Efficiency Analysis
+   344→For each model, calculate:
+   345→- **Cost per quality point**: (input_price + output_price) / average_benchmark_score
+   346→- **Token budget analysis**: Given $X budget, how many interactions can the user get?
+   347→- **Batch pricing advantage**: Calculate savings when using batch API
+   348→- **ROI comparison**: Extra quality per extra dollar vs. next-best alternative
+   349→
+   350→#### 3. Speed & Latency
+   351→- Time-to-first-token (important for chat UX)
+   352→- Throughput (tokens/sec) for bulk processing
+   353→- P50 vs P95 latency (consistency matters)
+   354→
+   355→#### 4. Capability Matrix
+   356→- Context window size (affects document processing)
+   357→- Multimodal capabilities (vision, audio, etc.)
+   358→- Tool use / function calling
+   359→- Structured output / JSON mode
+   360→- Fine-tuning availability
+   361→
+   362→#### 5. Reliability
+   363→- Instruction following (IFEval score)
+   364→- Consistency across prompts
+   365→- Safety guardrails (beneficial or restrictive?)
+   366→- Known failure modes
+   367→
+   368→#### 6. Ecosystem Maturity
+   369→- API stability and versioning
+   370→- Documentation quality
+   371→- SDK / library support
+   372→- Community size and activity
+   373→- Provider track record
+   374→
+   375→### Response Templates
+   376→- "Which model is best?" → "Best for WHAT specifically?" → infer use case → rank by relevant benchmarks + cost
+   377→- "Compare X and Y" → Full comparison table (all 6 dimensions) → winner per dimension → overall recommendation
+   378→- "Is X worth the price?" → Quality-per-dollar calculation → alternatives with better value → threshold recommendation
+   379→- "What's new in AI?" → Reference recent model releases, their benchmark positions, and practical implications`,
+   380→
+   381→    community: `## ACTIVE CONTEXT: COMMUNITY — AI News, Research & Discussion
+   382→
+   383→The user is engaging with AI industry content. Apply rigorous analytical thinking to everything.
+   384→
+   385→### Content Analysis Framework
+   386→
+   387→#### For AI News & Announcements
+   388→Apply the **HYPE-SCAN Protocol**:
+   389→1. **What actually happened?** (Strip marketing language, identify the concrete deliverable)
+   390→2. **What's the evidence?** (Benchmark results? Peer review? Independent verification?)
+   391→3. **What's the historical context?** (How does this compare to previous claims in the same area?)
+   392→4. **What's being oversold?** (Hype vs. demonstrated capability vs. theoretical potential)
+   393→5. **What are the limitations?** (What the announcement doesn't say is often more important)
+   394→6. **Who benefits?** (Follow the incentives — commercial interest, academic reputation, competitive positioning)
+   395→
+   396→#### For Research Papers
+   397→Apply the **R.E.V.I.E.W. Method**:
+   398→- **R**igor: Is the methodology sound? Sample size, controls, statistical tests?
+   399→- **E**ffect: Is the effect size practically significant, not just statistically significant?
+   400→- **V**alidity: Do the conclusions actually follow from the results? Any logical leaps?
+   401→- **I**dempotency: Can this be reproduced? Are the code/data available?
+   402→- **E**dge cases: What happens at the boundaries? Failure modes?
+   403→- **W**orth: Does this advance the field meaningfully, or is it incremental?
+   404→
+   405→#### For Technical Discussions
+   406→- Identify the core technical debate
+   407→- Present multiple valid perspectives with evidence
+   408→- Connect to broader trends and implications
+   409→- Provide actionable takeaways
+   410→
+   411→### Critical Thinking Guardrails
+   412→- Don't amplify hype — provide calibrated assessment
+   413→- Acknowledge what we don't know yet
+   414→- Distinguish between demonstrated capability and marketing claims
+   415→- Consider failure modes and limitations that others might overlook`,
+   416→
+   417→    general: `## ACTIVE CONTEXT: GENERAL — Platform Expert & AI/ML Knowledge Base
+   418→
+   419→The user is navigating the platform or asking general questions. Be a comprehensive guide.
+   420→
+   421→### Platform Capabilities (Full Reference)
+   422→- **Dashboard** ("/"): Activity overview, recent projects, quick stats, personalized recommendations
+   423→- **Workspace** ("/workspace"): Upload CSV/JSON/Excel, run 50+ statistical tests, generate interactive charts, export PDF/DOCX reports
+   424→- **Leaderboard** ("/leaderboard"): Real-time AI model comparison with 6 benchmarks, pricing calculator, live latency testing
+   425→- **Workflow** ("/workflow"): Natural language input to create multi-step AI pipelines, execute them, and get results with executive summary
+   426→- **Community** ("/community"): AI news feed, research discussions, shared workflows, community benchmark configs
+   427→- **Tasks** ("/tasks"): Todo list with priorities (Low/Medium/High), due dates, filtering (All/Active/Completed), progress tracking
+   428→- **Assistants** ("/assistants"): 7 specialist AI assistants with dedicated chat interfaces
+   429→- **AI Platform** ("/ai"): Automation center, extensions, governance, SDK, templates
+   430→- **Teams** ("/teams"): Collaborative workspaces with shared projects
+   431→- **Settings** ("/settings"): User preferences, API configuration, developer tools
+   432→
+   433→### Adaptive Help Strategy
+   434→- If the user seems lost → Guide them to the most relevant feature with specific navigation steps
+   435→- If the user asks about a feature → Explain not just WHAT it does but HOW to get the most value from it
+   436→- If the user asks a general AI/ML question → Answer thoroughly AND suggest the relevant platform feature for hands-on practice
+   437→- If the user seems experienced → Suggest advanced features or workflow optimizations they might not know about`,
+   438→
+   439→    modules: `## ACTIVE CONTEXT: MODULES — Analysis Modules & Extensions
+   440→
+   441→The user is exploring or configuring analysis modules and platform extensions.
+   442→
+   443→### Module Recommendation Engine
+   444→Based on the user's activity patterns and skill level, suggest:
+   445→- Most relevant modules for their current workflow
+   446→- Underutilized features that would add value
+   447→- Configuration optimizations
+   448→- Integration patterns between modules
+   449→
+   450→### Extension Assessment
+   451→When evaluating extensions:
+   452→- Capability coverage vs. user's needs
+   453→- Performance implications
+   454→- Configuration complexity vs. value
+   455→- Compatibility with existing setup`,
+   456→
+   457→    assistants: `## ACTIVE CONTEXT: SPECIALIST ASSISTANTS
+   458→
+   459→The user is exploring or configuring AI assistant capabilities.
+   460→
+   461→### Specialist Matching Guide
+   462→Help users choose the right specialist:
+   463→- **Data Analyst** → Data exploration, statistical analysis, pattern discovery, A/B testing
+   464→- **ML Engineer** → Model building, training, evaluation, deployment, MLOps
+   465→- **Statistician** → Mathematical foundations, experimental design, Bayesian methods, proofs
+   466→- **Code Generator** → Implementation, data pipelines, APIs, visualization code, full apps
+   467→- **Report Writer** → Documentation, executive summaries, research papers, proposals
+   468→- **Research Synthesizer** → Literature reviews, technology analysis, trend forecasting, cross-domain insights
+   469→- **Automation Architect** → Workflow design, pipeline optimization, monitoring, cost optimization
+   470→
+   471→### Optimization Tips
+   472→- How to write better prompts for each specialist
+   473→- When to switch between specialists mid-analysis
+   474→- How to chain specialists for complex projects`,
+   475→  }
+   476→
+   477→  return basePrompt + '\n\n' + (contextPrompts[context] || contextPrompts.general)
+   478→}
+   479→
+   480→export async function POST(request: NextRequest) {
+   481→  const startTime = Date.now()
+   482→  let visitorId = request.headers.get('x-visitor-id')
+   483→  const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
+   484→  const userAgent = request.headers.get('user-agent') || null
+   485→
+   486→  try {
+   487→    const body = await request.json()
+   488→    const { messages, context = 'general', pageData, stream = false } = body
+   489→
+   490→    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+   491→      return NextResponse.json({ error: 'Messages array is required' }, { status: 400 })
+   492→    }
+   493→
+   494→    const zai = await ZAI.create()
+   495→    const sessionId = body.sessionId || `session_${Date.now()}`
+   496→
+   497→    // ─── Parallel data fetch for maximum context ───
+   498→    const [baseSystemPrompt, liveData, memoryContext, conversationHistory] = await Promise.all([
+   499→      Promise.resolve(getSystemPrompt(context, pageData)),
+   500→      fetchLiveBenchmarkData(),
+   501→      fetchMemoryContext(visitorId),
+   502→      fetchConversationHistory(visitorId, sessionId),
+   503→    ])
+   504→
+   505→    // Assemble the full system prompt with all context layers
+   506→    const systemPrompt = baseSystemPrompt
+   507→      + (liveData ? '\n\n' + liveData : '')
+   508→      + memoryContext
+   509→      + conversationHistory
+   510→
+   511→    // Build user messages preserving conversation flow
+   512→    const userMessages = messages.map((m: { role: string; content: string }) => ({
+   513→      role: m.role as 'user' | 'assistant',
+   514→      content: m.content,
+   515→    }))
+   516→
+   517→    // ─── Streaming mode ───
+   518→    if (stream) {
+   519→      const encoder = new TextEncoder()
+   520→      const streamResponse = new ReadableStream({
+   521→        async start(controller) {
+   522→          try {
+   523→            const completion = await zai.chat.completions.create({
+   524→              messages: [
+   525→                { role: 'system', content: systemPrompt },
+   526→                ...userMessages,
+   527→              ],
+   528→              max_tokens: 8192,
+   529→              temperature: 0.7,
+   530→              stream: true as unknown as boolean,
+   531→            } as any)
+   532→
+   533→            if (completion && typeof completion === 'object') {
+   534→              const streamable = completion as any
+   535→              if (streamable.body && typeof streamable.body.getReader === 'function') {
+   536→                const reader = streamable.body.getReader()
+   537→                while (true) {
+   538→                  const { done, value } = await reader.read()
+   539→                  if (done) break
+   540→                  controller.enqueue(value)
+   541→                }
+   542→              } else if (Array.isArray(streamable.choices)) {
+   543→                const text = streamable.choices[0]?.message?.content || ''
+   544→                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`))
+   545→              }
+   546→            }
+   547→
+   548→            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+   549→            controller.close()
+   550→          } catch (error) {
+   551→            const errorMsg = error instanceof Error ? error.message : 'Stream error'
+   552→            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`))
+   553→            controller.close()
+   554→          }
+   555→        },
+   556→      })
+   557→
+   558→      // Fire-and-forget: audit log + conversation save
+   559→      const lastUserMsg = messages[messages.length - 1]?.content || ''
+   560→      ;(async () => {
+   561→        try {
+   562→          await prisma.aiAuditLog.create({
+   563→            data: {
+   564→              visitorId: visitorId || null,
+   565→              action: 'ai_query',
+   566→              details: JSON.stringify({ context, messageCount: messages.length, mode: 'stream', version: 'v4', withLiveData: !!liveData, withHistory: !!conversationHistory }),
+   567→              inputData: JSON.stringify({ lastUserMessage: lastUserMsg.slice(0, 1000) }),
+   568→              durationMs: Date.now() - startTime,
+   569→              ipAddress,
+   570→              userAgent,
+   571→            },
+   572→          })
+   573→        } catch { /* silent */ }
+   574→      })()
+   575→
+   576→      return new Response(streamResponse, {
+   577→        headers: {
+   578→          'Content-Type': 'text/event-stream',
+   579→          'Cache-Control': 'no-cache',
+   580→          'Connection': 'keep-alive',
+   581→        },
+   582→      })
+   583→    }
+   584→
+   585→    // ─── Standard mode (deep response) ───
+   586→    const completion = await zai.chat.completions.create({
+   587→      messages: [
+   588→        { role: 'system', content: systemPrompt },
+   589→        ...userMessages,
+   590→      ],
+   591→      max_tokens: 8192,
+   592→      temperature: 0.7,
+   593→    })
+   594→
+   595→    const aiMessage = completion.choices?.[0]?.message?.content || 'I apologize, I could not generate a response.'
+   596→    const tokensUsed = completion.usage?.total_tokens || 0
+   597→    const durationMs = Date.now() - startTime
+   598→
+   599→    // Audit log
+   600→    try {
+   601→      await prisma.aiAuditLog.create({
+   602→        data: {
+   603→          visitorId: visitorId || null,
+   604→          action: 'ai_query',
+   605→          details: JSON.stringify({
+   606→            context, messageCount: messages.length, mode: 'standard', version: 'v4',
+   607→            withLiveData: !!liveData, withMemory: !!memoryContext, withHistory: !!conversationHistory,
+   608→          }),
+   609→          inputData: JSON.stringify({ lastUserMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
+   610→          outputData: JSON.stringify({ responseLength: aiMessage.length, tokensUsed }),
+   611→          tokensUsed,
+   612→          durationMs,
+   613→          ipAddress,
+   614→          userAgent,
+   615→        },
+   616→      })
+   617→    } catch {
+   618→      // Audit log failure should not block the response
+   619→    }
+   620→
+   621→    // Save conversation with proper history
+   622→    try {
+   623→      await prisma.aiConversation.upsert({
+   624→        where: { id: sessionId },
+   625→        create: {
+   626→          id: sessionId,
+   627→          sessionId,
+   628→          visitorId: visitorId || null,
+   629→          context,
+   630→          messages: JSON.stringify([...messages, { role: 'assistant', content: aiMessage, timestamp: new Date().toISOString() }]),
+   631→        },
+   632→        update: {
+   633→          messages: JSON.stringify([...messages, { role: 'assistant', content: aiMessage, timestamp: new Date().toISOString() }]),
+   634→          updatedAt: new Date(),
+   635→        },
+   636→      })
+   637→    } catch {
+   638→      // Conversation save failure should not block the response
+   639→    }
+   640→
+   641→    return NextResponse.json({
+   642→      message: aiMessage,
+   643→      meta: {
+   644→        tokensUsed,
+   645→        durationMs,
+   646→        context,
+   647→        version: 'v4',
+   648→        contextLayers: {
+   649→          liveData: !!liveData,
+   650→          memory: !!memoryContext,
+   651→          conversationHistory: !!conversationHistory,
+   652→        },
+   653→      },
+   654→    })
+   655→  } catch (error: unknown) {
+   656→    const durationMs = Date.now() - startTime
+   657→    const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+   658→
+   659→    try {
+   660→      await prisma.aiAuditLog.create({
+   661→        data: {
+   662→          visitorId: visitorId || null,
+   663→          action: 'ai_query',
+   664→          details: JSON.stringify({ context: 'general', error: true, version: 'v4' }),
+   665→          error: errorMsg,
+   666→          durationMs,
+   667→          ipAddress,
+   668→          userAgent,
+   669→        },
+   670→      })
+   671→    } catch { /* silent */ }
+   672→
+   673→    return NextResponse.json({ error: 'Failed to get AI response' }, { status: 500 })
+   674→  }
+   675→}
+   676→
+   677→export async function GET(request: NextRequest) {
+   678→  try {
+   679→    const { searchParams } = new URL(request.url)
+   680→    const context = searchParams.get('context') || 'general'
+   681→    const visitorId = searchParams.get('visitorId')
+   682→
+   683→    const suggestions = await prisma.aiSuggestion.findMany({
+   684→      where: {
+   685→        context,
+   686→        ...(visitorId ? { visitorId } : {}),
+   687→        isDismissed: false,
+   688→        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+   689→      },
+   690→      orderBy: { createdAt: 'desc' },
+   691→      take: 5,
+   692→    })
+   693→
+   694→    return NextResponse.json({ suggestions })
+   695→  } catch (error: unknown) {
+   696→    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+   697→  }
+   698→}
+   699→

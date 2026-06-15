@@ -17,6 +17,7 @@ import {
   Loader2, Shield, Users, Database, BarChart3, Workflow, Star,
   Rocket, HeadphonesIcon, Lock,
 } from 'lucide-react'
+import { authFetch } from '@/lib/auth-fetch'
 
 interface BillingData {
   plan: string; status: string
@@ -90,7 +91,7 @@ export default function BillingPage() {
   const fetchBilling = useCallback(async () => {
     if (!session) return
     try {
-      const res = await fetch(`/api/billing?token=${session.token}`)
+      const res = await authFetch('/api/billing')
       const json = await res.json()
       if (json.success) setBilling(json.data)
     } catch { /* silent */ } finally { setLoading(false) }
@@ -99,7 +100,7 @@ export default function BillingPage() {
   const fetchUsage = useCallback(async () => {
     if (!session) return
     try {
-      const res = await fetch(`/api/usage?token=${session.token}&period=month`)
+      const res = await authFetch('/api/usage?period=month')
       const json = await res.json()
       if (json.success) setUsage(json.data)
     } catch { /* silent */ }
@@ -109,7 +110,7 @@ export default function BillingPage() {
     if (!session) return
     setUpgrading(plan)
     try {
-      const res = await fetch(`/api/billing?token=${session.token}`, {
+      const res = await authFetch('/api/billing', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan }),
       })

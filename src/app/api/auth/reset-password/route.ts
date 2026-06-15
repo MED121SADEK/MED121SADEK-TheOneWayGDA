@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update password and clear reset token
-    const hashedPassword = hashPassword(password)
+    const hashedPassword = await hashPassword(password)
     await db.user.update({
       where: { id: user.id },
       data: {

@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/require-auth'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const user = await requireAuth(request)
+  if (!user) return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 })
+
   try {
     const projects = await db.project.findMany({
+      where: { userId: user.id },
       orderBy: { updatedAt: 'desc' },
     })
     return NextResponse.json(projects)
@@ -13,6 +18,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const user = await requireAuth(request)
+  if (!user) return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 })
+
   try {
     const body = await request.json()
     const project = await db.project.create({
@@ -24,6 +32,7 @@ export async function POST(request: NextRequest) {
         outputs: body.outputs || '[]',
         shared: body.shared || false,
         sharedWith: body.sharedWith || null,
+        userId: user.id,
       },
     })
     return NextResponse.json(project)

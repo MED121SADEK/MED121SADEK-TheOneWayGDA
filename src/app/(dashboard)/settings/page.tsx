@@ -21,6 +21,7 @@ import {
   Loader2, Shield, Clock, Trash2, X, Plus, Lock, Key,
   Activity, Settings, CheckCircle2, AlertTriangle,
 } from 'lucide-react'
+import { authFetch } from '@/lib/auth-fetch'
 
 /* ─── Types ─── */
 interface UserData {
@@ -119,14 +120,14 @@ export default function SettingsPage() {
         const prefs = u.preferences ? JSON.parse(String(u.preferences)) : {}
         setNotifications(prefs.notifications !== false)
       } catch { /* use defaults */ }
-      fetchActivities(session.token)
+      fetchActivities()
     }
     setLoading(false)
   }, [router])
 
-  const fetchActivities = useCallback(async (token: string) => {
+  const fetchActivities = useCallback(async () => {
     try {
-      const res = await fetch(`/api/auth/activity?token=${token}&limit=20`)
+      const res = await authFetch('/api/auth/activity?limit=20')
       if (res.ok) {
         const data = await res.json()
         setActivities(data.activities || [])

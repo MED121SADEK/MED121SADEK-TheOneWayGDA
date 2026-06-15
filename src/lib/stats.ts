@@ -349,9 +349,10 @@ export function calcTTest(
   const den = se1 ** 2 / (n1 - 1) + se2 ** 2 / (n2 - 1)
   const df = den === 0 ? n1 + n2 - 2 : num / den
 
-  // P-value (two-tailed) using z-approximation for large df, or t-distribution approx
-  const z = t // For large df, t approaches z
-  const pValue = twoTailedPFromZ(z) // approximate; accurate for large n
+  // P-value (two-tailed) using t-distribution via regularized incomplete beta
+  // This is accurate for all sample sizes, not just large n
+  const x = df / (df + t * t)
+  const pValue = 2 * regularizedIncompleteBeta(df / 2, 0.5, x)
 
   // Cohen's d (pooled)
   const pooledSD = Math.sqrt(((n1 - 1) * s1 * s1 + (n2 - 1) * s2 * s2) / (n1 + n2 - 2))
