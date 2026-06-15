@@ -140,7 +140,7 @@ interface AppState {
 
   addSyntax: (syntax: string) => void
 
-  importCSV: (text: string) => void
+  importCSV: (text: string) => void | Promise<void>
   importFile: (file: File) => void
   exportCSV: () => string
   exportJSON: () => string
@@ -176,6 +176,34 @@ function rowCount(data: Record<string, any[]>): number {
   const keys = Object.keys(data)
   if (keys.length === 0) return 0
   return Math.max(...keys.map(k => data[k]?.length ?? 0))
+}
+
+// ── localStorage size monitoring ──
+const STORAGE_WARNING_THRESHOLD = 3 * 1024 * 1024 // 3MB — warn before 4MB hard limit
+let _lastStorageWarning = 0
+
+export function getStorageUsage(): { usedBytes: number; usedMB: number; percentage: number } {
+  if (typeof window === 'undefined') return { usedBytes: 0, usedMB: 0, percentage: 0 }
+  let total = 0
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key) total += (localStorage.getItem(key) || '').length
+  }
+  // Typical browser limit is 5-10MB; use 5MB as reference
+  const limit = 5 * 1024 * 1024
+  return { usedBytes: total, usedMB: Math.round(total / 1024 / 1024 * 100) / 100, percentage: Math.round(total / limit * 100) }
+}
+
+function checkStorageSize() {
+  if (typeof window === 'undefined') return
+  const { usedBytes } = getStorageUsage()
+  const now = Date.now()
+  // Throttle warnings to once per 60 seconds
+  if (usedBytes > STORAGE_WARNING_THRESHOLD && now - _lastStorageWarning > 60_000) {
+    _lastStorageWarning = now
+    const mb = (usedBytes / 1024 / 1024).toFixed(1)
+    console.warn(`[STORE] localStorage usage at ${mb}MB — consider exporting old projects and clearing history`)
+  }
 }
 
 export const useAppStore = create<AppState>()(
@@ -353,11 +381,10 @@ export const useAppStore = create<AppState>()(
 
       addSyntax: (syntax) => set(s => ({ syntaxHistory: [...s.syntaxHistory, syntax] })),
 
-      importCSV: (text) => {
-        // Try PapaParse first, fallback to manual parsing
+      importCSV: async (text) => {
+        // Dynamic import PapaParse to avoid bundling it in the initial chunk
         try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const Papa = require('papaparse')
+          const Papa = (await import('papaparse')).default
           const result = Papa.parse(text.trim(), {
             header: true,
             skipEmptyLines: true,
@@ -376,7 +403,7 @@ export const useAppStore = create<AppState>()(
               })
             })
 
-            for (const row of result.data) {
+            for (const row of result.data as Record<string, unknown>[]) {
               headers.forEach(h => {
                 const raw = String(row[h] ?? '').trim()
                 const num = parseFloat(raw)
@@ -494,10 +521,10 @@ export const useAppStore = create<AppState>()(
         if (ext === 'xlsx' || ext === 'xls') {
           const reader = new FileReader()
           reader.onerror = () => console.error('Failed to read Excel file')
-          reader.onload = (ev) => {
+          reader.onload = async (ev) => {
             try {
-              // eslint-disable-next-line @typescript-eslint/no-require-imports
-              const XLSX = require('xlsx')
+              // Dynamic import xlsx to avoid bundling it in the initial chunk (~1MB)
+              const XLSX = (await import('xlsx')).default
               const wb = XLSX.read(ev.target!.result, { type: 'array' })
               if (!wb.SheetNames || wb.SheetNames.length === 0) {
                 console.error('Excel file has no sheets')
@@ -753,6 +780,7 @@ export const useAppStore = create<AppState>()(
           console.warn('[STORE] Storage approaching limit, keeping only most recent project')
           return { projects: recent, currentProject: state.currentProject }
         }
+        checkStorageSize()
         return { projects: state.projects, currentProject: state.currentProject }
       },
     }
