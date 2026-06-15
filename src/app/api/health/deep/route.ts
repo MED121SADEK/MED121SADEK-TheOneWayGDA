@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db as prisma } from '@/lib/db'
 import { healthMonitor } from '@/lib/monitor'
+import { isRedisAvailable } from '@/lib/rate-limit'
 
 interface DeepHealthResult {
   status: 'healthy' | 'degraded' | 'unhealthy'
@@ -27,6 +28,7 @@ interface DeepHealthResult {
     apiEndpoints: { status: string; tested: number; total: number }
     aiSdk: { status: string; details: string }
     diskSpace: { status: string; details: string }
+    redis: { status: string; details: string }
   }
   metrics: {
     uptime: string
@@ -87,7 +89,19 @@ export async function GET() {
       aiDetails = 'ZAI SDK import warning'
     }
 
-    // ── Check 5: Disk Space ──
+    // ── Check 5: Redis (distributed rate limiting) ──
+    let redisStatus = 'healthy'
+    let redisDetails = 'Not configured (using in-memory fallback)'
+    try {
+      const redisOk = await isRedisAvailable()
+      redisStatus = redisOk ? 'healthy' : 'degraded'
+      redisDetails = redisOk ? 'Redis connected — distributed rate limiting active' : 'REDIS_URL not set or unreachable — in-memory fallback'
+    } catch {
+      redisStatus = 'degraded'
+      redisDetails = 'Redis check failed'
+    }
+
+    // ── Check 6: Disk Space ──
     let diskStatus = 'healthy'
     let diskDetails = 'Not measured'
     try {
@@ -104,7 +118,7 @@ export async function GET() {
     }
 
     // ── Overall Status ──
-    const allChecks = [dbStatus, memStatus, apiStatus, aiStatus, diskStatus]
+    const allChecks = [dbStatus, memStatus, apiStatus, aiStatus, redisStatus, diskStatus]
     const overallStatus: 'healthy' | 'degraded' | 'unhealthy' =
       allChecks.every((s) => s === 'healthy')
         ? 'healthy'
@@ -132,6 +146,7 @@ export async function GET() {
         apiEndpoints: { status: apiStatus, tested: apiEndpoints.length, total: apiEndpoints.length },
         aiSdk: { status: aiStatus, details: aiDetails },
         diskSpace: { status: diskStatus, details: diskDetails },
+        redis: { status: redisStatus, details: redisDetails },
       },
       metrics: {
         uptime: report.uptime,

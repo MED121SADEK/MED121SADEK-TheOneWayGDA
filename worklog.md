@@ -20,6 +20,44 @@ Stage Summary:
 - Remaining items: P1-5 (Redis rate limiting - infrastructure), P2-12 (decompose monolithic files)
 
 ---
+Task ID: P1-5
+Agent: Main Agent
+Task: Distributed rate limiting with Redis (Upstash)
+
+Work Log:
+- Installed `@upstash/redis` + `@upstash/ratelimit` packages
+- Created `src/lib/rate-limit.ts` — unified rate limiting module:
+  - Redis-backed via Upstash REST API (Edge-compatible, works in middleware)
+  - Automatic in-memory fallback when REDIS_URL not set
+  - Raw INCR + EXPIRE pattern (supports per-route variable limits)
+  - Lazy singleton Redis client with cached availability check
+  - Exports: `rateLimit()`, `simpleRateLimit()`, `getRouteLimit()`, `isRedisAvailable()`
+  - All route limit config centralized in `ROUTE_LIMITS` (moved from middleware)
+- Refactored `src/middleware.ts` (167 → 88 lines):
+  - Removed ~70 lines of in-memory rate limiting (Map, checkRateLimit, getRateLimit, ROUTE_LIMITS)
+  - Now imports `rateLimit` from shared module
+  - Middleware function made `async` for Redis calls
+  - WAF, admin protection, security headers, request ID all preserved
+- Refactored `src/app/api/visitor/route.ts`:
+  - Removed 10-line inline rate limiter (Map + isRateLimited function)
+  - Now uses `simpleRateLimit(ip, 5)` from shared module
+  - 429 response now includes `Retry-After` header
+- Added Redis check to `src/app/api/health/deep/route.ts`:
+  - New `redis` field in health check response
+  - Reports "healthy" when Redis connected, "degraded" when using fallback
+- Updated `.env.example` with Redis configuration docs:
+  - Option A: Upstash (UPSTASH_REDIS_REST_URL + TOKEN) for Vercel/serverless
+  - Option B: Self-hosted Redis (REDIS_URL) for Docker/VPS
+- Fixed 1 TS error: `_redisInitPromise` typed as `Promise<void>` not `Promise<boolean>`
+- Verified zero new TypeScript errors (25 pre-existing errors unchanged)
+
+Stage Summary:
+- Files created: `src/lib/rate-limit.ts`
+- Files modified: `src/middleware.ts`, `src/app/api/visitor/route.ts`, `src/app/api/health/deep/route.ts`, `.env.example`
+- Zero behavior change when REDIS_URL is not set (in-memory fallback identical to original)
+- When REDIS_URL is set: rate limits shared across all serverless instances
+
+---
 Task ID: P2-12
 Agent: Main Agent
 Task: Decompose 3 monolithic files (community, WorkspacePanels, useWorkspaceHandlers)

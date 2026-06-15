@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { sendVisitorNotification } from '@/lib/email'
-
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-const RATE_LIMIT = 5
-const RATE_WINDOW = 60_000
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now()
-  const entry = rateLimitMap.get(ip)
-  if (!entry || now > entry.resetAt) { rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_WINDOW }); return false }
-  entry.count++; return entry.count > RATE_LIMIT
-}
+import { simpleRateLimit } from '@/lib/rate-limit'
 
 function isValidEmail(email: string): boolean {
   return /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email)
@@ -48,7 +38,8 @@ export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || request.headers.get('x-real-ip') || 'unknown'
-    if (isRateLimited(ip)) return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })
+    const rl = await simpleRateLimit(ip, 5)
+    if (!rl.allowed) return NextResponse.json({ error: 'Too many requests.', retryAfter: rl.retryAfter }, { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } })
 
     const body = await request.json()
     const { email, name, visitorType } = body
