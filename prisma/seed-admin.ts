@@ -29,7 +29,7 @@ async function main() {
     create: {
       email: ADMIN_EMAIL,
       name: 'Admin',
-      password: hashPassword(ADMIN_PASSWORD),
+      password: await hashPassword(ADMIN_PASSWORD),
       role: 'admin',
       isOnboarded: true,
       preferences: JSON.stringify({

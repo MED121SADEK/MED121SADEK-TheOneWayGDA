@@ -1,7 +1,4 @@
 import { randomBytes, timingSafeEqual, scrypt as _scrypt } from 'crypto'
-import { promisify } from 'util'
-
-const scryptAsync = promisify(_scrypt)
 
 // ── Scrypt parameters (OWASP recommended) ──
 const SCRYPT_KEYLEN = 64
@@ -12,14 +9,20 @@ const SCRYPT_PARALLEL = 1    // p (parallelization)
 // Prefix used to identify scrypt-hashed passwords (vs legacy SHA-256)
 const SCRYPT_PREFIX = 'scrypt$'
 
+/** Promisified scrypt with proper typing (avoids util.promisify type issues) */
+function scryptAsync(password: string | Buffer, salt: Buffer, keylen: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    _scrypt(password, salt, keylen, { cost: SCRYPT_COST, blockSize: SCRYPT_BLOCK, parallelization: SCRYPT_PARALLEL }, (err, derivedKey) => {
+      if (err) reject(err)
+      else resolve(derivedKey)
+    })
+  })
+}
+
 // ── Password hashing with scrypt (OWASP-recommended) ──
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16)
-  const derived = await scryptAsync(password, salt, SCRYPT_KEYLEN, {
-    cost: SCRYPT_COST,
-    blockSize: SCRYPT_BLOCK,
-    parallelization: SCRYPT_PARALLEL,
-  })
+  const derived = await scryptAsync(password, salt, SCRYPT_KEYLEN)
   // Format: scrypt$<hex_salt>$<hex_hash>
   return `${SCRYPT_PREFIX}${salt.toString('hex')}$${derived.toString('hex')}`
 }
@@ -33,11 +36,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
     const salt = Buffer.from(parts[1], 'hex')
     const expected = Buffer.from(parts[2], 'hex')
     try {
-      const derived = await scryptAsync(password, salt, SCRYPT_KEYLEN, {
-        cost: SCRYPT_COST,
-        blockSize: SCRYPT_BLOCK,
-        parallelization: SCRYPT_PARALLEL,
-      })
+      const derived = await scryptAsync(password, salt, SCRYPT_KEYLEN)
       return timingSafeEqual(expected, derived)
     } catch {
       return false
@@ -91,7 +90,7 @@ export async function verifySession(token: string): Promise<{ userId: string; em
       if (session) db.userSession.delete({ where: { id: session.id } }).catch(() => {})
       return null
     }
-    return session.user
+    return { userId: session.user.id, email: session.user.email, role: session.user.role, name: session.user.name }
   } catch {
     return null
   }

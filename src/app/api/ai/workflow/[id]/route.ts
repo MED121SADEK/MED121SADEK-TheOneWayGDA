@@ -88,7 +88,7 @@ export async function POST(
   if (!user) return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 })
 
   const startTime = Date.now()
-  const visitorId = user.id || request.headers.get('x-visitor-id') || null
+  const visitorId = user.userId || request.headers.get('x-visitor-id') || null
 
   try {
     const { id } = await params

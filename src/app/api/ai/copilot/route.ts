@@ -231,7 +231,7 @@ async function getCachedMemoryContext(visitorId: string | null | undefined): Pro
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
   const user = await requireAuth(request)
-  const visitorId = user?.id || request.headers.get('x-visitor-id') || null
+  const visitorId = user?.userId || request.headers.get('x-visitor-id') || null
   const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
   const userAgent = request.headers.get('user-agent') || null
 

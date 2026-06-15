@@ -313,7 +313,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 })
 
   const startTime = Date.now()
-  const visitorId = user.id
+  const visitorId = user.userId
   const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
   const userAgent = request.headers.get('user-agent') || null
 
@@ -410,9 +410,9 @@ export async function POST(request: NextRequest) {
         try {
           await prisma.aiAuditLog.create({
             data: {
-              visitorId: user.id,
+              visitorId: user.userId,
               action: 'ai_query',
-              details: JSON.stringify({ action: 'assistant_stream', specialist: specialist.id, mode: 'stream', userId: user.id }),
+              details: JSON.stringify({ action: 'assistant_stream', specialist: specialist.id, mode: 'stream', userId: user.userId }),
               inputData: JSON.stringify({ lastMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
               durationMs: Date.now() - startTime,
               ipAddress,
@@ -448,9 +448,9 @@ export async function POST(request: NextRequest) {
     try {
       await prisma.aiAuditLog.create({
         data: {
-          visitorId: user.id,
+          visitorId: user.userId,
           action: 'ai_query',
-          details: JSON.stringify({ action: 'assistant_response', specialist: specialist.id, specialistName: specialist.name, messageCount: messages.length, userId: user.id }),
+          details: JSON.stringify({ action: 'assistant_response', specialist: specialist.id, specialistName: specialist.name, messageCount: messages.length, userId: user.userId }),
           inputData: JSON.stringify({ lastMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
           outputData: JSON.stringify({ responseLength: aiMessage.length, tokensUsed }),
           tokensUsed,
