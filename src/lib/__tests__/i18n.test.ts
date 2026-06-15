@@ -8,6 +8,7 @@ const enKeys = {
   'community.featuredUpdates': 'Important AI Updates',
   'community.refreshNews': 'Fetch News',
   'community.colleagueEmail': 'colleague@example.com',
+  'community.readFull': 'Read full article',
 }
 
 describe('i18n key consistency', () => {

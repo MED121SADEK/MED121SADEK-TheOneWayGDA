@@ -112,3 +112,27 @@ Stage Summary:
 - `tsc --noEmit` now passes with 0 errors (was 25)
 - Files modified: auth.ts, tsconfig.json, 8 API routes, seed-admin.ts
 - No behavior changes — all fixes are type-level only
+
+---
+Task ID: vitest+build
+Agent: Main Agent
+Task: Set up vitest, run 4 test files, fix build errors
+
+Work Log:
+- Installed vitest, @vitejs/plugin-react, jsdom as dev dependencies
+- Created vitest.config.ts (jsdom env, @ alias, react plugin)
+- Added test/test:watch scripts to package.json
+- Fixed i18n.test.ts: added missing `community.readFull` key to local enKeys object
+- Tests: 61/61 passing across 4 test files (utils, error-tracker, recommendations, i18n)
+- Build failed: Next.js 16 detects both middleware.ts AND proxy.ts — requires proxy.ts only
+- Migrated updated Redis-backed rate limiting from middleware.ts → proxy.ts
+- Deleted stale middleware.ts
+- Build passes cleanly, tsc --noEmit passes with 0 errors
+
+Stage Summary:
+- 61/61 tests passing
+- `next build` succeeds (production)
+- `tsc --noEmit` — 0 errors
+- Files created: vitest.config.ts
+- Files modified: proxy.ts (Redis rate limiting), i18n.test.ts (missing key), package.json (scripts)
+- Files deleted: src/middleware.ts (migrated to proxy.ts)
