@@ -124,3 +124,44 @@ Stage Summary:
 - Build is currently broken due to Next.js 16 middleware/proxy conflict
 - Top priorities: fix build blocker, replace SHA-256 hashing, fix EmailGate hooks violation, add API authentication
 - Generated: /home/z/my-project/download/TheOneWayGDA_Quality_Audit_Report.pdf (14 pages, 161 KB)
+
+---
+Task ID: fix-9
+Agent: main
+Task: AI copilot prompt caching — cache base system prompt + benchmark data, smart context injection
+
+Work Log:
+- Analyzed copilot route: base system prompt is ~300 lines of static instructions rebuilt on every request
+- Added `_basePromptCache` Map keyed by (context + pageData flags) — prompt built once per context, reused forever
+- Created `getCachedBenchmarkData()` — caches benchmark DB query results for 15 min TTL
+- Created `getCachedMemoryContext()` — caches per-visitor memory for 5 min TTL with auto-cleanup
+- Added smart context injection: benchmark data only on leaderboard/general, memory/history only on first message, skipped on follow-ups
+- Updated POST handler to call new cached functions
+
+Stage Summary:
+- ~300 lines of static system prompt now cached (built once per context key)
+- Benchmark DB queries reduced from every-request to once per 15 minutes
+- Memory context queries reduced from every-request to once per 5 minutes per user
+- Follow-up messages skip memory/history fetching entirely (biggest win for multi-turn conversations)
+- Estimated token savings: 30-50% on follow-up messages, 10-20% on first messages
+
+---
+Task ID: fix-11
+Agent: main
+Task: Consolidate rate limiting to single implementation
+
+Work Log:
+- Verified `security.ts` rate limiter was dead code (zero imports across entire codebase)
+- Removed runtime rate limiter from `security.ts`, kept only type definitions and constants for reference
+- Added doc comment pointing to middleware as the single source of truth
+- Rewrote middleware rate limiter with per-sub-route bucketing (longest-prefix match)
+- Before: all /api/ai/* routes shared one bucket (exhausting copilot limit would block assistant)
+- After: copilot (60/min), assistant (60/min), workflow (30/min), each have independent buckets
+- Added brute-force protection for auth endpoints: login (30/min), register (10/min), forgot/reset (5/min)
+- Key now uses IP:path_prefix instead of IP:heavy|standard for proper bucketing
+
+Stage Summary:
+- Single rate limiting implementation (middleware.ts only)
+- 15 granular route limits vs 5 before
+- No more cross-route rate limit exhaustion
+- Removed ~60 lines of dead duplicate code from security.ts

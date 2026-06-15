@@ -2,31 +2,18 @@
  * Security Utilities — comprehensive protection suite for TheOneWayGDA
  *
  * Features:
- *  - Rate limiting (in-memory, per-IP)
  *  - Input sanitization (XSS, injection, script tags)
  *  - Request validation (size limits, content-type checks)
  *  - CSRF token generation and validation
  *  - Payload size enforcement
+ *
+ * NOTE: Rate limiting is handled centrally in src/middleware.ts.
+ *       All API requests pass through the middleware which enforces
+ *       per-IP, per-route rate limits with proper bucketing.
+ *       Do NOT add rate limiting here — it would be a duplicate.
  */
 
-// ─── Rate Limiter ───
-interface RateLimitEntry {
-  count: number
-  resetAt: number
-}
-
-const rateLimitStore = new Map<string, RateLimitEntry>()
-
-// Cleanup old entries every 5 minutes
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, entry] of rateLimitStore.entries()) {
-    if (entry.resetAt <= now) {
-      rateLimitStore.delete(key)
-    }
-  }
-}, 5 * 60 * 1000)
-
+// ─── Rate Limiting Types (for reference — actual enforcement is in middleware) ───
 export interface RateLimitConfig {
   /** Maximum requests in the window */
   maxRequests: number
@@ -34,47 +21,23 @@ export interface RateLimitConfig {
   windowMs: number
 }
 
-const DEFAULT_RATE_LIMIT: RateLimitConfig = {
-  maxRequests: 60,
-  windowMs: 60 * 1000, // 1 minute
+/** Default: 120 req/min for standard API routes */
+export const DEFAULT_RATE_LIMIT: RateLimitConfig = {
+  maxRequests: 120,
+  windowMs: 60 * 1000,
 }
 
-const STRICT_RATE_LIMIT: RateLimitConfig = {
+/** Strict: 15 req/min for sensitive operations */
+export const STRICT_RATE_LIMIT: RateLimitConfig = {
   maxRequests: 15,
-  windowMs: 60 * 1000, // 1 minute
+  windowMs: 60 * 1000,
 }
 
-const AI_RATE_LIMIT: RateLimitConfig = {
-  maxRequests: 20,
-  windowMs: 60 * 1000, // 1 minute
+/** AI routes: 60 req/min (increased from 30, per-sub-route bucketing in middleware) */
+export const AI_RATE_LIMIT: RateLimitConfig = {
+  maxRequests: 60,
+  windowMs: 60 * 1000,
 }
-
-/**
- * Check rate limit for a given identifier (IP, session, etc.)
- * Returns true if the request should be allowed, false if rate limited.
- */
-export function checkRateLimit(
-  identifier: string,
-  config: RateLimitConfig = DEFAULT_RATE_LIMIT
-): { allowed: boolean; remaining: number; resetAt: number } {
-  const now = Date.now()
-  const entry = rateLimitStore.get(identifier)
-
-  if (!entry || entry.resetAt <= now) {
-    const resetAt = now + config.windowMs
-    rateLimitStore.set(identifier, { count: 1, resetAt })
-    return { allowed: true, remaining: config.maxRequests - 1, resetAt }
-  }
-
-  if (entry.count >= config.maxRequests) {
-    return { allowed: false, remaining: 0, resetAt: entry.resetAt }
-  }
-
-  entry.count++
-  return { allowed: true, remaining: config.maxRequests - entry.count, resetAt: entry.resetAt }
-}
-
-export { DEFAULT_RATE_LIMIT, STRICT_RATE_LIMIT, AI_RATE_LIMIT }
 
 // ─── Input Sanitization ───
 

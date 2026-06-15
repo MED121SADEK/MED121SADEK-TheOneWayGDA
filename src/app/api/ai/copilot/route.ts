@@ -176,7 +176,15 @@ ${communityPosts.map(p => `- "${p.title}" [${p.likes} likes, ${p.createdAt.toISO
 }
 
 // ─── Context-Expert System Prompts ───
-function getSystemPrompt(context: string, pageData: Record<string, unknown> | undefined): string {
+
+// Cache: the base prompt is static (~300 lines of instructions that never change).
+// We build it once per context key and reuse it.
+const _basePromptCache = new Map<string, string>()
+
+function getBaseSystemPrompt(context: string, pageData: Record<string, unknown> | undefined): string {
+  const cacheKey = context + ':' + (pageData?.datasetInfo ? 'd' : '') + (pageData?.projectName ? 'p' : '')
+  if (_basePromptCache.has(cacheKey)) return _basePromptCache.get(cacheKey)!
+
   const basePrompt = `# IDENTITY & MISSION
 You are THEONEWAYGDA Copilot v4 — the primary AI assistant for TheOneWayGDA, the most comprehensive platform for AI model benchmarking, statistical data analysis, and AI-powered research workflows. You are NOT a generic chatbot, NOT a search engine summarizer, and NOT a superficial answer generator. You are a **world-class research partner** with deep expertise spanning statistics, data science, machine learning, AI evaluation, and scientific methodology.
 
@@ -478,6 +486,37 @@ Help users choose the right specialist:
   return basePrompt + '\n\n' + (contextPrompts[context] || contextPrompts.general)
 }
 
+// Benchmark data changes only when models/scores update. Cache for 15 minutes.
+const _benchmarkCache = { data: '', fetchedAt: 0, TTL: 15 * 60 * 1000 }
+async function getCachedBenchmarkData(): Promise<string> {
+  const now = Date.now()
+  if (_benchmarkCache.data && now - _benchmarkCache.fetchedAt < _benchmarkCache.TTL) {
+    return _benchmarkCache.data
+  }
+  _benchmarkCache.data = await fetchLiveBenchmarkData()
+  _benchmarkCache.fetchedAt = now
+  return _benchmarkCache.data
+}
+
+// Memory context: cache per visitor for 5 minutes (user profile rarely changes)
+const _memoryCache = new Map<string, { data: string; fetchedAt: number }>()
+const MEMORY_TTL = 5 * 60 * 1000
+async function getCachedMemoryContext(visitorId: string | null | undefined): Promise<string> {
+  if (!visitorId) return ''
+  const cached = _memoryCache.get(visitorId)
+  if (cached && Date.now() - cached.fetchedAt < MEMORY_TTL) return cached.data
+  const data = await fetchMemoryContext(visitorId)
+  _memoryCache.set(visitorId, { data, fetchedAt: Date.now() })
+  // Cleanup old entries every 50 calls
+  if (_memoryCache.size > 500) {
+    const now = Date.now()
+    for (const [k, v] of _memoryCache) {
+      if (now - v.fetchedAt > MEMORY_TTL) _memoryCache.delete(k)
+    }
+  }
+  return data
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
   const user = await requireAuth(request)
@@ -496,12 +535,18 @@ export async function POST(request: NextRequest) {
     const zai = await ZAI.create()
     const sessionId = body.sessionId || `session_${Date.now()}`
 
-    // ─── Parallel data fetch for maximum context ───
+    // Smart context injection: only include expensive data when relevant
+    const isFirstMessage = messages.length <= 1
+    const shouldIncludeLiveData = context === 'leaderboard' || context === 'general'
+    const shouldIncludeMemory = isFirstMessage
+    const shouldIncludeHistory = isFirstMessage && messages.length === 1 // skip for single-shot
+
+    // ─── Parallel data fetch (cached internally) ───
     const [baseSystemPrompt, liveData, memoryContext, conversationHistory] = await Promise.all([
-      Promise.resolve(getSystemPrompt(context, pageData)),
-      fetchLiveBenchmarkData(),
-      fetchMemoryContext(visitorId),
-      fetchConversationHistory(visitorId, sessionId),
+      Promise.resolve(getBaseSystemPrompt(context, pageData)),
+      shouldIncludeLiveData ? getCachedBenchmarkData() : Promise.resolve(''),
+      shouldIncludeMemory ? getCachedMemoryContext(visitorId) : Promise.resolve(''),
+      shouldIncludeHistory ? fetchConversationHistory(visitorId, sessionId) : Promise.resolve(''),
     ])
 
     // Assemble the full system prompt with all context layers

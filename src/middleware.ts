@@ -6,7 +6,8 @@ import { NextRequest, NextResponse } from 'next/server'
  * Optimizations:
  *  - Skips static assets entirely (no processing overhead)
  *  - Reduced matcher scope for faster page loads
- *  - Per-route rate limit tiers
+ *  - Per-sub-route rate limit buckets (no cross-route sharing)
+ *  - Longest-prefix matching for precise route limits
  *  - Cache headers for static-like responses
  */
 
@@ -17,30 +18,50 @@ const BLOCKED_PATTERNS = [
   /(?:\.\.\/|\.\.\\)/,
 ]
 
-// In-memory rate limit store (per IP, per minute window)
+// In-memory rate limit store (per IP per route prefix, per minute window)
 const rateLimitStore = new Map<string, { count: number; windowStart: number }>()
 const RATE_LIMIT_WINDOW_MS = 60_000
 
-// Per-route rate limits
+// Per-sub-route rate limits — longest prefix match wins.
+// Each sub-route gets its own bucket, preventing cross-route exhaustion.
 const ROUTE_LIMITS: Record<string, number> = {
   'default': 120,
-  '/api/auth': 300,
-  '/api/ai': 60,       // AI routes are expensive — lower limit
-  '/api/workflow': 30, // Workflow execution is very expensive
+  // Auth: strict on login/register to prevent brute-force
+  '/api/auth/login': 30,
+  '/api/auth/register': 10,
+  '/api/auth/forgot-password': 5,
+  '/api/auth/reset-password': 5,
+  '/api/auth': 300,             // Other auth (me, stats, activity)
+  // AI: per-endpoint bucketing so copilot/assistant/workflow don't share limits
+  '/api/ai/copilot': 60,
+  '/api/ai/assistant': 60,
+  '/api/ai/workflow': 30,      // Pipeline execution is expensive
+  '/api/workflow/flagship': 30,
+  '/api/ai': 120,               // Other AI (extensions, governance, SDK, etc.)
   '/api/leaderboard': 200,
+  '/api/scan': 20,               // Document scanning (calls AI vision)
+  '/api/community/posts': 60,     // Community writes
+  '/api/search': 120,
 }
 
+// Longest-prefix matching: finds the most specific route limit
 function getRateLimit(path: string): number {
+  let bestLen = 0
+  let bestLimit = ROUTE_LIMITS.default
   for (const [route, limit] of Object.entries(ROUTE_LIMITS)) {
     if (route === 'default') continue
-    if (path.startsWith(route)) return limit
+    if (path.startsWith(route) && route.length > bestLen) {
+      bestLen = route.length
+      bestLimit = limit
+    }
   }
-  return ROUTE_LIMITS.default
+  return bestLimit
 }
 
 function checkRateLimit(ip: string, path: string): { allowed: boolean; remaining: number; resetAt: number } {
   const max = getRateLimit(path)
-  const key = `${ip}:${path.startsWith('/api/ai') || path.startsWith('/api/workflow') ? 'heavy' : 'standard'}`
+  // Key = IP + path prefix (first 80 chars) — per-route bucketing
+  const key = `${ip}:${path.substring(0, 80)}`
   const now = Date.now()
 
   let entry = rateLimitStore.get(key)
@@ -53,7 +74,7 @@ function checkRateLimit(ip: string, path: string): { allowed: boolean; remaining
   const remaining = Math.max(0, max - entry.count)
   const resetAt = entry.windowStart + RATE_LIMIT_WINDOW_MS
 
-  // Cleanup old entries every 100 requests
+  // Cleanup old entries periodically
   if (rateLimitStore.size > 5000) {
     for (const [k, v] of rateLimitStore) {
       if (now - v.windowStart > RATE_LIMIT_WINDOW_MS) rateLimitStore.delete(k)
