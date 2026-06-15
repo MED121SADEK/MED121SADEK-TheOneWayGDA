@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { I18nProvider } from "@/lib/i18n";
 import { GdprConsent } from "@/components/gdpr-consent";
 import { EmailGate } from "@/components/EmailGate";
@@ -214,6 +215,7 @@ export default function RootLayout({
             <PageTransition>{children}</PageTransition>
             <AiCopilot />
             <Toaster />
+            <SonnerToaster />
           </AppProviders>
         </I18nProvider>
       </body>

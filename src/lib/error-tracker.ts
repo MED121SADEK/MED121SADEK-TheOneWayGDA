@@ -45,6 +45,9 @@ function categorizeError(message: string, source: string): ErrorCategory {
     msg.includes('econnrefused') ||
     msg.includes('failed to fetch') ||
     msg.includes('net::') ||
+    msg.includes('429') ||
+    msg.includes('rate') ||
+    msg.includes('too many') ||
     source === 'unhandledrejection'
   ) {
     return 'network'

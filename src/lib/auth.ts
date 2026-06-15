@@ -1,3 +1,60 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════
+ *  AUTH ARCHITECTURE OVERVIEW
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ *  This system uses THREE independent auth mechanisms, each with a
+ *  distinct scope — do not confuse them.
+ *
+ *  ─────────────────────────────────────────────────────────────────
+ *  1. SESSION TOKEN AUTH  (primary — used by the main application)
+ *  ─────────────────────────────────────────────────────────────────
+ *  Flow:  User logs in (email + password)
+ *         → server calls generateToken() → stores in UserSession table
+ *         → client receives token, saves as localStorage 'oneway-auth-token'
+ *         → client sends token via `Authorization: Bearer <token>` header
+ *         → API routes call requireAuth() → verifySession() → DB lookup
+ *         → returns { userId, email, role, name } or null
+ *
+ *  Token lifecycle:
+ *    - Created on successful login (src/app/api/login/route.ts)
+ *    - 30-day expiry set at creation (expiresAt column)
+ *    - Verified on every authenticated API call via verifySession()
+ *    - Expired sessions are lazily deleted on failed verification
+ *    - No refresh-token rotation; user re-authenticates after expiry
+ *
+ *  Key functions in this file:
+ *    generateToken()       — creates a 48-byte random hex token
+ *    getTokenFromRequest() — extracts token from Authorization or x-auth-token header
+ *    verifySession()       — looks up token in DB, checks expiry, returns user
+ *    hashPassword()        — scrypt hashing (OWASP-recommended)
+ *    verifyPassword()      — verifies scrypt (new) or SHA-256 (legacy) hashes
+ *
+ *  ─────────────────────────────────────────────────────────────────
+ *  2. ADMIN COOKIE AUTH  (only for /admin/* page routes)
+ *  ─────────────────────────────────────────────────────────────────
+ *  Flow:  Admin enters ADMIN_SECRET password on /admin/login page
+ *         → server sets `oneway-admin-token` HTTP-only cookie
+ *         → middleware (src/proxy.ts) checks cookie on /admin/* routes
+ *         → redirects to / if cookie missing
+ *
+ *  ⚠  This is a SEPARATE system — it does NOT issue or verify session
+ *     tokens, and it is NOT used for API authentication.
+ *
+ *  ─────────────────────────────────────────────────────────────────
+ *  3. VISITOR EMAIL AUTH  (no login required — public registration)
+ *  ─────────────────────────────────────────────────────────────────
+ *  Flow:  Visitor submits email via /api/visitor (POST)
+ *         → upserted into Visitor table with status 'pending'
+ *         → admin reviews and sets status to 'accepted' or 'rejected'
+ *         → GET /api/visitor?email=... returns the visitor's current status
+ *
+ *  ⚠  This is NOT a login mechanism. Visitors never get a session token.
+ *     Their access is determined by their Visitor.status field, checked
+ *     client-side or server-side as needed.
+ * ═══════════════════════════════════════════════════════════════════
+ */
+
 import { randomBytes, timingSafeEqual, scrypt as _scrypt } from 'crypto'
 
 // ── Scrypt parameters (OWASP recommended) ──

@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from '@/lib/i18n'
-import { authFetch } from '@/lib/auth-fetch'
+import { authFetch, createAuthEventSource } from '@/lib/auth-fetch'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -73,11 +73,39 @@ export default function NotificationsPage() {
   const [filter, setFilter] = useState('all')
   const [offset, setOffset] = useState(0)
   const [markingAll, setMarkingAll] = useState(false)
+  const seenIdsRef = useRef<Set<string>>(new Set())
 
+  // ── Initial fetch + refetch on filter change ──
   useEffect(() => {
     if (!session) return
     fetchNotifs(false)
   }, [session, filter])
+
+  // ── SSE: real-time new notifications ──
+  useEffect(() => {
+    if (!session) return
+
+    const es = createAuthEventSource('/api/notifications/stream')
+    if (!es) return
+
+    es.addEventListener('notification', (e) => {
+      try {
+        const notif: Notification = JSON.parse(e.data)
+        if (seenIdsRef.current.has(notif.id)) return
+        seenIdsRef.current.add(notif.id)
+        setNotifications(prev => {
+          if (prev.some(n => n.id === notif.id)) return prev
+          return [notif, ...prev]
+        })
+      } catch { /* ignore */ }
+    })
+
+    es.onerror = () => {
+      // EventSource auto-reconnects
+    }
+
+    return () => { es.close() }
+  }, [session])
 
   const fetchNotifs = useCallback(async (append: boolean) => {
     if (!session) return
@@ -88,7 +116,10 @@ export default function NotificationsPage() {
       const res = await authFetch(`/api/notifications?${params}`)
       const json = await res.json()
       if (json.success) {
-        setNotifications(prev => append ? [...prev, ...(json.data || [])] : (json.data || []))
+        const items = json.data.notifications || json.data || []
+        // Track IDs to avoid SSE duplicates
+        items.forEach((n: Notification) => seenIdsRef.current.add(n.id))
+        setNotifications(prev => append ? [...prev, ...items] : items)
       }
     } catch { /* silent */ } finally { setLoading(false) }
   }, [session, filter, offset])

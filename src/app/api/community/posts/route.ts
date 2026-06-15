@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { db } from '@/lib/db'
 
 // GET /api/community/posts — List posts (feed)
@@ -82,21 +83,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Content is too long (max 10,000 chars).' }, { status: 400 })
     }
 
-    const post = await db.communityPost.create({
-      data: {
+    const normalizedTitle = title.trim()
+    const normalizedContent = content.trim()
+    const normalizedAuthor = author.trim().toLowerCase()
+
+    const hash = createHash('sha256').update(normalizedTitle + '\n' + normalizedContent).digest('hex')
+
+    const post = await db.communityPost.upsert({
+      where: { author_contentHash: { author: normalizedAuthor, contentHash: hash } },
+      update: {},
+      create: {
         type: 'community',
-        title: title.trim(),
-        content: content.trim(),
-        author: author.trim().toLowerCase(),
+        title: normalizedTitle,
+        content: normalizedContent,
+        author: normalizedAuthor,
         authorName: authorName?.trim() || null,
         imageUrl: imageUrl?.trim() || null,
         sourceUrl: sourceUrl?.trim() || null,
         sourceName: sourceName?.trim() || null,
         tags: tags ? JSON.stringify(tags) : null,
+        contentHash: hash,
       },
     })
 
-    return NextResponse.json({ post, success: true }, { status: 201 })
+    // Return 200 if the post already existed (idempotent), 201 if newly created
+    const isExisting = post.createdAt.getTime() < Date.now() - 5000
+    return NextResponse.json({ post, success: true }, { status: isExisting ? 200 : 201 })
   } catch (error) {
     console.error('Post creation error:', error)
     return NextResponse.json({ error: 'Failed to create post' }, { status: 500 })

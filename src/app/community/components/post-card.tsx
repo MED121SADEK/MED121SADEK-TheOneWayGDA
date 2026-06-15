@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -140,20 +141,37 @@ export function PostCard({
           <Link href={`/community/${post.id}`} className="group/title">
             <h3 className="text-base font-semibold leading-snug group-hover/title:text-primary transition-colors">{post.title}</h3>
           </Link>
-          <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
-            {post.content.length > 300 ? (
-              <>
-                {truncate(post.content, 300)}
-                {post.sourceUrl && (
-                  <a href={post.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1 inline-flex items-center gap-0.5">
-                    Read more <ExternalLink className="size-3" />
-                  </a>
-                )}
-              </>
-            ) : (
-              post.content
-            )}
-          </p>
+          <div className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => <p className="m-0">{children}</p>,
+              h1: ({ children }) => <span className="text-lg font-semibold mt-3 mb-1 block">{children}</span>,
+              h2: ({ children }) => <span className="text-lg font-semibold mt-3 mb-1 block">{children}</span>,
+              h3: ({ children }) => <span className="text-base font-semibold mt-2 mb-1 block">{children}</span>,
+              code: ({ className, children }) => {
+                const isBlock = /\n/.test(String(children))
+                if (isBlock) {
+                  return <pre className="bg-muted rounded p-2 text-xs font-mono overflow-x-auto mt-2 mb-2"><code>{children}</code></pre>
+                }
+                return <code className="bg-muted rounded px-1 py-0.5 text-xs font-mono">{children}</code>
+              },
+              pre: ({ children }) => <>{children}</>,
+              a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{children}</a>,
+              ul: ({ children }) => <ul className="list-disc pl-5 mt-1 mb-1">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal pl-5 mt-1 mb-1">{children}</ol>,
+              blockquote: ({ children }) => <blockquote className="border-l-2 border-border pl-3 italic text-muted-foreground">{children}</blockquote>,
+              strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+              em: ({ children }) => <em className="italic">{children}</em>,
+            }}
+          >
+            {post.content.length > 300 ? truncate(post.content, 300) : post.content}
+          </ReactMarkdown>
+          </div>
+          {post.content.length > 300 && post.sourceUrl && (
+            <a href={post.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1 inline-flex items-center gap-0.5 text-sm">
+              Read more <ExternalLink className="size-3" />
+            </a>
+          )}
         </div>
 
         {/* Image */}
@@ -237,7 +255,18 @@ export function PostCard({
                           <span className="text-xs font-semibold">{comment.authorName || comment.author.split('@')[0]}</span>
                           <span className="text-[10px] text-muted-foreground">{timeAgo(comment.createdAt)}</span>
                         </div>
-                        <p className="text-sm text-foreground/90 mt-0.5 leading-relaxed">{comment.content}</p>
+                        <div className="text-sm text-foreground/90 mt-0.5 leading-relaxed">
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => <p className="m-0">{children}</p>,
+                            code: ({ children }) => <code className="bg-muted rounded px-1 py-0.5 text-xs font-mono">{children}</code>,
+                            a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{children}</a>,
+                            strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                          }}
+                        >
+                          {comment.content}
+                        </ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   ))}

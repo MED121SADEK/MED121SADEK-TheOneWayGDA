@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { pushSnapshot as pushUndoSnapshot, undo as performUndo, redo as performRedo, clearHistory as clearUndoHistory } from '@/lib/undo-store'
 
 export interface Variable {
   id: string
@@ -112,13 +113,20 @@ interface AppState {
   agentStatus: 'idle' | 'planning' | 'analyzing' | 'interpreting' | 'done' | 'error'
   agentResults: any[]
 
+  // Auto-save
+  autoSaveEnabled: boolean
+  currentProjectId: string | null
+  lastSaved: number | null
+  autoSaveStatus: 'idle' | 'saving' | 'saved'
+
   setView: (view: 'landing' | 'workspace') => void
   setWorkspaceTab: (tab: 'data' | 'variables' | 'output' | 'syntax') => void
-  createProject: (name: string, description?: string) => void
+  createProject: (name: string, description?: string) => Promise<void>
   loadProject: (id: string) => void
   saveProject: () => void
   deleteProject: (id: string) => void
   renameProject: (id: string, name: string) => void
+  setAutoSaveEnabled: (enabled: boolean) => void
 
   setData: (data: Record<string, any[]>) => void
   addVariable: (variable: Variable) => void
@@ -166,6 +174,10 @@ interface AppState {
 
   // Document AI - Import scan results into data
   importScanResults: (results: ScanResult) => void
+
+  // Undo / Redo
+  undo: () => void
+  redo: () => void
 }
 
 function uid(): string {
@@ -206,9 +218,51 @@ function checkStorageSize() {
   }
 }
 
+// ── Auto-save to DB ──
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const token = localStorage.getItem('oneway-auth-token')
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch {
+    return {}
+  }
+}
+
 export const useAppStore = create<AppState>()(
   persist(
-    (set, get) => ({
+    (set, get) => {
+      // ── Debounced auto-save function ──
+      function scheduleAutoSave() {
+        if (!get().autoSaveEnabled || !get().currentProjectId) return
+        if (autoSaveTimer) clearTimeout(autoSaveTimer)
+        set({ autoSaveStatus: 'saving' })
+        autoSaveTimer = setTimeout(async () => {
+          const state = get()
+          if (!state.currentProjectId) return
+          try {
+            set({ autoSaveStatus: 'saving' })
+            await fetch('/api/projects', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+              body: JSON.stringify({
+                id: state.currentProjectId,
+                data: JSON.stringify(state.data),
+                variables: JSON.stringify(state.variables),
+                outputs: JSON.stringify(state.outputs || []),
+              }),
+            })
+            set({ autoSaveStatus: 'saved', lastSaved: Date.now() })
+          } catch (err) {
+            console.warn('[AutoSave] Failed:', err)
+            set({ autoSaveStatus: 'idle' })
+          }
+        }, 3000)
+      }
+
+      return {
       view: 'landing',
       workspaceTab: 'data',
       currentProject: null,
@@ -233,12 +287,40 @@ export const useAppStore = create<AppState>()(
       agentStatus: 'idle',
       agentResults: [],
 
+      // Auto-save
+      autoSaveEnabled: false,
+      currentProjectId: null,
+      lastSaved: null,
+      autoSaveStatus: 'idle' as const,
+
       setView: (view) => set({ view }),
       setWorkspaceTab: (tab) => set({ workspaceTab: tab }),
 
-      createProject: (name, description = '') => {
+      createProject: async (name, description = '') => {
+        clearUndoHistory()
+
+        // Try to create in DB first to get a real ID
+        let dbId: string | null = null
+        try {
+          const token = typeof window !== 'undefined' ? localStorage.getItem('oneway-auth-token') : null
+          if (token) {
+            const res = await fetch('/api/projects', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ name, description, data: '{}', variables: '[]', outputs: '[]' }),
+            })
+            if (res.ok) {
+              const dbProject = await res.json()
+              dbId = dbProject.id
+            }
+          }
+        } catch (err) {
+          console.warn('[AutoSave] Failed to create project in DB:', err)
+        }
+
+        const projectId = dbId || uid()
         const project: Project = {
-          id: uid(),
+          id: projectId,
           name,
           description,
           data: {},
@@ -249,6 +331,7 @@ export const useAppStore = create<AppState>()(
         }
         set({
           currentProject: project,
+          currentProjectId: dbId,
           data: {},
           variables: [],
           outputs: [],
@@ -257,6 +340,7 @@ export const useAppStore = create<AppState>()(
           syntaxHistory: [],
           view: 'workspace',
           workspaceTab: 'data',
+          autoSaveStatus: 'idle',
         })
         const existing = get().projects
         set({ projects: [project, ...existing] })
@@ -265,8 +349,11 @@ export const useAppStore = create<AppState>()(
       loadProject: (id) => {
         const project = get().projects.find(p => p.id === id)
         if (!project) return
+        clearUndoHistory()
+        if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null }
         set({
           currentProject: project,
+          currentProjectId: id,
           data: project.data,
           variables: project.variables,
           outputs: project.outputs || [],
@@ -275,6 +362,7 @@ export const useAppStore = create<AppState>()(
           syntaxHistory: [],
           view: 'workspace',
           workspaceTab: 'data',
+          autoSaveStatus: 'idle',
         })
       },
 
@@ -316,54 +404,80 @@ export const useAppStore = create<AppState>()(
         })
       },
 
-      setData: (data) => set({ data }),
-      addVariable: (variable) => set(s => ({
-        variables: [...s.variables, variable],
-        data: { ...s.data, [variable.name]: [] },
-      })),
-      updateVariable: (id, updates) => set(s => {
-        const old = s.variables.find(v => v.id === id)
-        if (!old) return s
-        const vars = s.variables.map(v => v.id === id ? { ...v, ...updates } : v)
-        let data = { ...s.data }
-        if (updates.name && updates.name !== old.name) {
-          data[updates.name] = data[old.name]
-          delete data[old.name]
-        }
-        return { variables: vars, data }
-      }),
-      deleteVariable: (id) => set(s => {
-        const v = s.variables.find(x => x.id === id)
-        if (!v) return s
-        const data = { ...s.data }
-        delete data[v.name]
-        return {
-          variables: s.variables.filter(x => x.id !== id),
-          data,
-          selectedVariables: s.selectedVariables.filter(n => n !== v.name),
-        }
-      }),
-      setCellValue: (varName, rowIndex, value) => set(s => {
-        const arr = [...(s.data[varName] || [])]
-        while (arr.length <= rowIndex) arr.push(null)
-        arr[rowIndex] = value
-        return { data: { ...s.data, [varName]: arr } }
-      }),
-      addRow: () => set(s => {
-        const data = { ...s.data }
-        const n = rowCount(data)
-        for (const key of Object.keys(data)) {
-          data[key] = [...(data[key] || []), null]
-        }
-        return { data }
-      }),
-      deleteRow: (index) => set(s => {
-        const data = { ...s.data }
-        for (const key of Object.keys(data)) {
-          data[key] = (data[key] || []).filter((_: any, i: number) => i !== index)
-        }
-        return { data }
-      }),
+      setData: (data) => {
+        pushUndoSnapshot(get().data)
+        set({ data })
+        scheduleAutoSave()
+      },
+      addVariable: (variable) => {
+        set(s => ({
+          variables: [...s.variables, variable],
+          data: { ...s.data, [variable.name]: [] },
+        }))
+        scheduleAutoSave()
+      },
+      updateVariable: (id, updates) => {
+        const old = get().variables.find(v => v.id === id)
+        if (!old) return
+        set(s => {
+          const vars = s.variables.map(v => v.id === id ? { ...v, ...updates } : v)
+          let data = { ...s.data }
+          if (updates.name && updates.name !== old.name) {
+            data[updates.name] = data[old.name]
+            delete data[old.name]
+          }
+          return { variables: vars, data }
+        })
+        scheduleAutoSave()
+      },
+      deleteVariable: (id) => {
+        pushUndoSnapshot(get().data)
+        set(s => {
+          const v = s.variables.find(x => x.id === id)
+          if (!v) return s
+          const data = { ...s.data }
+          delete data[v.name]
+          return {
+            variables: s.variables.filter(x => x.id !== id),
+            data,
+            selectedVariables: s.selectedVariables.filter(n => n !== v.name),
+          }
+        })
+        scheduleAutoSave()
+      },
+      setCellValue: (varName, rowIndex, value) => {
+        pushUndoSnapshot(get().data)
+        set(s => {
+          const arr = [...(s.data[varName] || [])]
+          while (arr.length <= rowIndex) arr.push(null)
+          arr[rowIndex] = value
+          return { data: { ...s.data, [varName]: arr } }
+        })
+        scheduleAutoSave()
+      },
+      addRow: () => {
+        pushUndoSnapshot(get().data)
+        set(s => {
+          const data = { ...s.data }
+          const n = rowCount(data)
+          for (const key of Object.keys(data)) {
+            data[key] = [...(data[key] || []), null]
+          }
+          return { data }
+        })
+        scheduleAutoSave()
+      },
+      deleteRow: (index) => {
+        pushUndoSnapshot(get().data)
+        set(s => {
+          const data = { ...s.data }
+          for (const key of Object.keys(data)) {
+            data[key] = (data[key] || []).filter((_: any, i: number) => i !== index)
+          }
+          return { data }
+        })
+        scheduleAutoSave()
+      },
 
       toggleVariableSelection: (varName) => set(s => ({
         selectedVariables: s.selectedVariables.includes(varName)
@@ -372,8 +486,14 @@ export const useAppStore = create<AppState>()(
       })),
       setSelectedVariables: (names) => set({ selectedVariables: names }),
 
-      addOutput: (output) => set(s => ({ outputs: [...s.outputs, output] })),
-      clearOutputs: () => set({ outputs: [] }),
+      addOutput: (output) => {
+        set(s => ({ outputs: [...s.outputs, output] }))
+        scheduleAutoSave()
+      },
+      clearOutputs: () => {
+        set({ outputs: [] })
+        scheduleAutoSave()
+      },
 
       addChatMessage: (message) => set(s => ({ chatMessages: [...s.chatMessages, message] })),
       setAiTyping: (typing) => set({ isAiTyping: typing }),
@@ -382,6 +502,7 @@ export const useAppStore = create<AppState>()(
       addSyntax: (syntax) => set(s => ({ syntaxHistory: [...s.syntaxHistory, syntax] })),
 
       importCSV: async (text) => {
+        clearUndoHistory()
         // Dynamic import PapaParse to avoid bundling it in the initial chunk
         try {
           const Papa = (await import('papaparse')).default
@@ -429,6 +550,7 @@ export const useAppStore = create<AppState>()(
             })
 
             set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+            scheduleAutoSave()
             return
           }
         } catch (err) {
@@ -513,9 +635,11 @@ export const useAppStore = create<AppState>()(
         })
 
         set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+        scheduleAutoSave()
       },
 
       importFile: (file) => {
+        clearUndoHistory()
         const ext = file.name.split('.').pop()?.toLowerCase()
 
         if (ext === 'xlsx' || ext === 'xls') {
@@ -574,6 +698,7 @@ export const useAppStore = create<AppState>()(
               })
 
               set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+              scheduleAutoSave()
             } catch (err) {
               console.error('Excel import error:', err)
             }
@@ -612,6 +737,7 @@ export const useAppStore = create<AppState>()(
                 if (v.type === 'string') v.decimals = 0
               })
               set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+              scheduleAutoSave()
             } catch (err) {
               console.error('JSON import error:', err)
             }
@@ -760,8 +886,28 @@ export const useAppStore = create<AppState>()(
           view: 'workspace',
           workspaceTab: 'data',
         })
+        scheduleAutoSave()
       },
-    }),
+
+      // Undo / Redo
+      undo: () => {
+        const previous = performUndo(get().data)
+        if (previous !== null) {
+          set({ data: previous as Record<string, any[]> })
+          scheduleAutoSave()
+        }
+      },
+      redo: () => {
+        const next = performRedo(get().data)
+        if (next !== null) {
+          set({ data: next as Record<string, any[]> })
+          scheduleAutoSave()
+        }
+      },
+
+      setAutoSaveEnabled: (enabled) => set({ autoSaveEnabled: enabled }),
+      }
+    },
     {
       name: 'oneway-storage',
       partialize: (state) => {

@@ -7,12 +7,31 @@ import { getTokenFromRequest } from '@/lib/auth'
  *
  * Streams new notifications to authenticated users in real-time.
  * Uses polling internally (every 10s) to check for new notifications.
+ *
+ * Auth: EventSource API cannot send custom headers, so the token is
+ * passed via query param (see createAuthEventSource in auth-fetch.ts).
  */
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+/**
+ * Extract token from an SSE request.
+ * Falls back to query param because EventSource cannot set Authorization headers.
+ */
+function getTokenForSSE(request: NextRequest): string | null {
+  // Standard header-based extraction
+  const headerToken = getTokenFromRequest(request)
+  if (headerToken) return headerToken
+
+  // Query-param fallback for EventSource (which cannot set custom headers)
+  const queryToken = request.nextUrl.searchParams.get('token')
+  if (queryToken) return queryToken
+
+  return null
+}
+
 export async function GET(request: NextRequest) {
-  const token = getTokenFromRequest(request)
+  const token = getTokenForSSE(request)
   if (!token) {
     return new NextResponse('Unauthorized', { status: 401 })
   }

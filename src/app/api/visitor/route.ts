@@ -1,3 +1,19 @@
+/**
+ * Visitor registration & status API — PUBLIC (no session auth required).
+ *
+ * This is intentionally a public endpoint: anyone can register their email
+ * and check their visitor status. Access control is based on the Visitor
+ * model's status field (pending / accepted / rejected), not on session tokens.
+ *
+ * POST /api/visitor  — register or update a visitor (uses upsert for idempotency;
+ *                       re-registering the same email updates existing record instead
+ *                       of creating a duplicate)
+ * GET  /api/visitor  — retrieve aggregate stats, or ?email=... for a single
+ *                       visitor's status
+ *
+ * Rate-limited to 5 requests/IP to prevent abuse.
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { sendVisitorNotification } from '@/lib/email'

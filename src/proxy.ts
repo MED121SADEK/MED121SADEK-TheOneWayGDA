@@ -12,6 +12,11 @@ import { rateLimit } from '@/lib/rate-limit'
  *  - Admin route protection via cookie check
  *  - Security headers on page routes
  *  - Request ID on all responses
+ *
+ * API versioning: /api/v1/* is the versioned equivalent of /api/*.
+ * Requests to /api/v1/<endpoint> are proxied to /api/<endpoint> by
+ * src/app/api/v1/[[...path]]/route.ts, so rate limits and auth apply
+ * identically. When v2 is needed, create /api/v2/* with new behavior.
  */
 
 // Patterns to block (basic WAF)
@@ -27,7 +32,11 @@ export async function proxy(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
              request.headers.get('x-real-ip') || 'unknown'
 
-  // ── Protect admin routes ──
+  // ── Protect admin page routes (cookie-based, NOT session-token auth) ──
+  // This check ONLY guards the /admin/* PAGE routes (e.g. /admin/visitors).
+  // It is completely separate from the session-token auth used by API routes.
+  // The cookie is set when the admin enters ADMIN_SECRET on /admin/login.
+  // If the cookie is missing, the user is redirected to the homepage.
   if (pathname.startsWith('/admin')) {
     const adminToken = request.cookies.get('oneway-admin-token')?.value
     if (!adminToken) {

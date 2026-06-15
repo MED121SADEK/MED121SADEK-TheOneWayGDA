@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Loader2, Mail, Lock, Shield, Clock, XCircle, MailCheck } from 'lucide-react'
+import { ArrowLeft, Loader2, Mail, Lock, Shield, XCircle } from 'lucide-react'
 
 const fadeUp = {
   initial: { opacity: 0, y: 20 },
@@ -18,7 +18,7 @@ const fadeUp = {
 }
 
 type BlockedState = {
-  type: 'pending' | 'rejected'
+  type: 'rejected'
   email: string
   name?: string | null
   message: string
@@ -47,10 +47,16 @@ export default function LoginPage() {
 
       const data = await res.json()
 
-      // Handle pending / rejected users
-      if (data.status === 'pending' || data.status === 'rejected') {
+      // Redirect pending users to the status check page
+      if (data.status === 'pending') {
+        router.push(`/auth/status?email=${encodeURIComponent(data.email)}`)
+        return
+      }
+
+      // Handle rejected users inline
+      if (data.status === 'rejected') {
         setBlockedState({
-          type: data.status,
+          type: 'rejected',
           email: data.email,
           name: data.name,
           message: data.message,
@@ -107,42 +113,7 @@ export default function LoginPage() {
         <motion.div {...fadeUp} className="w-full max-w-md">
 
           <AnimatePresence mode="wait">
-            {blockedState?.type === 'pending' ? (
-              /* ─── Pending Review ─── */
-              <motion.div
-                key="pending"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <Card className="border-border/40 bg-card/60 backdrop-blur-sm">
-                  <CardHeader className="text-center pb-2">
-                    <div className="mx-auto mb-4 size-16 rounded-2xl bg-amber-500/10 flex items-center justify-center">
-                      <Clock className="size-8 text-amber-500" />
-                    </div>
-                    <CardTitle className="text-2xl font-bold">Still Under Review</CardTitle>
-                    <CardDescription className="text-sm text-muted-foreground mt-1">
-                      Your account has not been approved yet
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-4 space-y-5">
-                    <div className="rounded-xl bg-amber-500/5 border border-amber-500/15 px-5 py-4">
-                      <p className="text-sm text-foreground/90 leading-relaxed">
-                        {blockedState.message}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                      <MailCheck className="size-3.5" />
-                      <span>Notification will be sent to {blockedState.email}</span>
-                    </div>
-                    <Button variant="outline" className="w-full" onClick={clearBlocked}>
-                      Try Again
-                    </Button>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ) : blockedState?.type === 'rejected' ? (
+            {blockedState?.type === 'rejected' ? (
               /* ─── Rejected ─── */
               <motion.div
                 key="rejected"

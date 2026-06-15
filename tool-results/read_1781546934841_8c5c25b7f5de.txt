@@ -1,0 +1,920 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback } from 'react'
+     4→import Image from 'next/image'
+     5→import Link from 'next/link'
+     6→import { useParams, useRouter } from 'next/navigation'
+     7→import { motion, AnimatePresence } from 'framer-motion'
+     8→import { useTranslation } from '@/lib/i18n'
+     9→import { Button } from '@/components/ui/button'
+    10→import { Input } from '@/components/ui/input'
+    11→import { Textarea } from '@/components/ui/textarea'
+    12→import { Badge } from '@/components/ui/badge'
+    13→import { Separator } from '@/components/ui/separator'
+    14→import {
+    15→  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+    16→} from '@/components/ui/dialog'
+    17→import {
+    18→  ArrowLeft, Heart, MessageCircle, Bookmark, Repeat2, Share2,
+    19→  ExternalLink, Trash2, Send, Clock, Tag, TrendingUp, Link2,
+    20→  Loader2, Check, Copy, Mail, Sparkles, Newspaper, Users, Award,
+    21→  FileText, Eye, BadgeCheck, MoreHorizontal,
+    22→} from 'lucide-react'
+    23→
+    24→/* ─── Types ─── */
+    25→interface Post {
+    26→  id: string
+    27→  type: string
+    28→  title: string
+    29→  content: string
+    30→  author: string
+    31→  authorName?: string | null
+    32→  imageUrl?: string | null
+    33→  sourceUrl?: string | null
+    34→  sourceName?: string | null
+    35→  tags?: string | null
+    36→  likes: number
+    37→  comments: number
+    38→  reposts: number
+    39→  saves: number
+    40→  featured: boolean
+    41→  createdAt: string
+    42→  updatedAt: string
+    43→}
+    44→
+    45→interface Comment {
+    46→  id: string
+    47→  postId: string
+    48→  author: string
+    49→  authorName?: string | null
+    50→  content: string
+    51→  createdAt: string
+    52→}
+    53→
+    54→interface VerifiedInfo {
+    55→  email: string
+    56→  displayName: string
+    57→  institution?: string | null
+    58→  role?: string | null
+    59→  badgeType: string
+    60→  bio?: string | null
+    61→  websiteUrl?: string | null
+    62→}
+    63→
+    64→function getSession(): { email: string; name: string } | null {
+    65→  if (typeof window === 'undefined') return null
+    66→  try {
+    67→    const s = localStorage.getItem('oneway-visitor-session')
+    68→    if (!s) return null
+    69→    return JSON.parse(s)
+    70→  } catch { return null }
+    71→}
+    72→
+    73→function timeAgo(date: string): string {
+    74→  const now = Date.now()
+    75→  const d = new Date(date).getTime()
+    76→  const diff = now - d
+    77→  const mins = Math.floor(diff / 60000)
+    78→  if (mins < 1) return 'just now'
+    79→  if (mins < 60) return `${mins}m ago`
+    80→  const hrs = Math.floor(mins / 60)
+    81→  if (hrs < 24) return `${hrs}h ago`
+    82→  const days = Math.floor(hrs / 24)
+    83→  if (days < 7) return `${days}d ago`
+    84→  return new Date(date).toLocaleDateString()
+    85→}
+    86→
+    87→function parseTags(tags: string | null | undefined): string[] {
+    88→  if (!tags) return []
+    89→  try { return JSON.parse(tags) } catch { return [] }
+    90→}
+    91→
+    92→function getPostTypeInfo(type: string): { label: string; icon: any; bg: string; border: string; text: string } {
+    93→  switch (type) {
+    94→    case 'auto':
+    95→      return { label: 'Auto-Published', icon: Sparkles, bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400' }
+    96→    case 'digest':
+    97→      return { label: 'Daily Digest', icon: FileText, bg: 'bg-violet-500/10', border: 'border-violet-500/30', text: 'text-violet-400' }
+    98→    case 'user_highlight':
+    99→      return { label: 'Community Pick', icon: Award, bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400' }
+   100→    case 'news':
+   101→      return { label: 'AI News', icon: Newspaper, bg: 'bg-sky-500/10', border: 'border-sky-500/30', text: 'text-sky-400' }
+   102→    default:
+   103→      return { label: 'Community', icon: Users, bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400' }
+   104→  }
+   105→}
+   106→
+   107→function getBadgeColor(badgeType: string) {
+   108→  switch (badgeType) {
+   109→    case 'bot': return { border: 'rgba(99,102,241,0.4)', bg: 'rgba(99,102,241,0.1)', color: '#818cf8', label: 'Bot' }
+   110→    case 'institution': return { border: 'rgba(168,85,247,0.4)', bg: 'rgba(168,85,247,0.1)', color: '#c084fc', label: 'Institution' }
+   111→    case 'official': return { border: 'rgba(59,130,246,0.4)', bg: 'rgba(59,130,246,0.1)', color: '#60a5fa', label: 'Official' }
+   112→    default: return { border: 'rgba(16,185,129,0.4)', bg: 'rgba(16,185,129,0.1)', color: '#34d399', label: 'Verified' }
+   113→  }
+   114→}
+   115→
+   116→/* ─── MAIN PAGE ─── */
+   117→export default function PostDetailPage() {
+   118→  const { t, locale, dir } = useTranslation()
+   119→  const params = useParams()
+   120→  const router = useRouter()
+   121→  const postId = params.id as string
+   122→  const session = getSession()
+   123→
+   124→  // Post state
+   125→  const [post, setPost] = useState<Post | null>(null)
+   126→  const [loading, setLoading] = useState(true)
+   127→  const [error, setError] = useState<string | null>(null)
+   128→
+   129→  // Interaction state
+   130→  const [isLiked, setIsLiked] = useState(false)
+   131→  const [isSaved, setIsSaved] = useState(false)
+   132→  const [hasReposted, setHasReposted] = useState(false)
+   133→
+   134→  // Comments
+   135→  const [comments, setComments] = useState<Comment[]>([])
+   136→  const [commentsLoading, setCommentsLoading] = useState(true)
+   137→  const [commentText, setCommentText] = useState('')
+   138→  const [commentSubmitting, setCommentSubmitting] = useState(false)
+   139→  const [replyingTo, setReplyingTo] = useState<string | null>(null)
+   140→  const [replyText, setReplyText] = useState('')
+   141→
+   142→  // Verified researcher
+   143→  const [verifiedInfo, setVerifiedInfo] = useState<VerifiedInfo | null>(null)
+   144→
+   145→  // Related posts
+   146→  const [relatedPosts, setRelatedPosts] = useState<Post[]>([])
+   147→
+   148→  // Share dialog
+   149→  const [shareOpen, setShareOpen] = useState(false)
+   150→  const [shareEmail, setShareEmail] = useState('')
+   151→  const [copiedLink, setCopiedLink] = useState(false)
+   152→
+   153→  /* ─── Fetch Post ─── */
+   154→  useEffect(() => {
+   155→    const fetchPost = async () => {
+   156→      try {
+   157→        const res = await fetch(`/api/community/posts/${postId}`)
+   158→        if (!res.ok) {
+   159→          setError('Post not found')
+   160→          return
+   161→        }
+   162→        const data = await res.json()
+   163→        setPost(data.post)
+   164→      } catch {
+   165→        setError('Failed to load post')
+   166→      } finally {
+   167→        setLoading(false)
+   168→      }
+   169→    }
+   170→    fetchPost()
+   171→  }, [postId])
+   172→
+   173→  /* ─── Fetch Interaction State ─── */
+   174→  useEffect(() => {
+   175→    if (!session || !postId) return
+   176→    const fetchInteractions = async () => {
+   177→      try {
+   178→        const res = await fetch(`/api/community/posts/${postId}/interact?visitorId=${session.email}`)
+   179→        const data = await res.json()
+   180→        setIsLiked(data.liked || false)
+   181→        setIsSaved(data.saved || false)
+   182→      } catch { /* silent */ }
+   183→    }
+   184→    fetchInteractions()
+   185→  }, [postId, session])
+   186→
+   187→  /* ─── Fetch Verified Researcher ─── */
+   188→  useEffect(() => {
+   189→    if (!post?.author) return
+   190→    const fetchVerified = async () => {
+   191→      try {
+   192→        const res = await fetch(`/api/community/verified?email=${post.author}`)
+   193→        const data = await res.json()
+   194→        if (data.researchers && data.researchers.length > 0) {
+   195→          setVerifiedInfo(data.researchers[0])
+   196→        }
+   197→      } catch { /* silent */ }
+   198→    }
+   199→    fetchVerified()
+   200→  }, [post?.author])
+   201→
+   202→  /* ─── Fetch Comments ─── */
+   203→  const fetchComments = useCallback(async () => {
+   204→    if (!postId) return
+   205→    setCommentsLoading(true)
+   206→    try {
+   207→      const res = await fetch(`/api/community/posts/${postId}/comments`)
+   208→      const data = await res.json()
+   209→      setComments(data.comments || [])
+   210→    } catch { /* silent */ }
+   211→    setCommentsLoading(false)
+   212→  }, [postId])
+   213→
+   214→  useEffect(() => { fetchComments() }, [fetchComments])
+   215→
+   216→  /* ─── Fetch Related Posts ─── */
+   217→  useEffect(() => {
+   218→    if (!post) return
+   219→    const fetchRelated = async () => {
+   220→      try {
+   221→        const tags = parseTags(post.tags)
+   222→        const searchQuery = post.title.split(' ').slice(0, 3).join(' ')
+   223→        const params = new URLSearchParams({
+   224→          limit: '5',
+   225→          sort: 'popular',
+   226→          search: searchQuery,
+   227→        })
+   228→        const res = await fetch(`/api/community/posts?${params}`)
+   229→        const data = await res.json()
+   230→        const related = data.posts.filter((p: Post) => p.id !== post.id).slice(0, 4)
+   231→        setRelatedPosts(related)
+   232→      } catch { /* silent */ }
+   233→    }
+   234→    fetchRelated()
+   235→  }, [post])
+   236→
+   237→  /* ─── Actions ─── */
+   238→  const handleLike = async () => {
+   239→    if (!session) return
+   240→    const action = isLiked ? 'unlike' : 'like'
+   241→    setIsLiked(!isLiked)
+   242→    setPost(prev => prev ? { ...prev, likes: prev.likes + (isLiked ? -1 : 1) } : null)
+   243→    try {
+   244→      await fetch(`/api/community/posts/${postId}/interact`, {
+   245→        method: 'POST',
+   246→        headers: { 'Content-Type': 'application/json' },
+   247→        body: JSON.stringify({ visitorId: session.email, action }),
+   248→      })
+   249→    } catch { /* revert */ }
+   250→  }
+   251→
+   252→  const handleSave = async () => {
+   253→    if (!session) return
+   254→    const action = isSaved ? 'unsave' : 'save'
+   255→    setIsSaved(!isSaved)
+   256→    setPost(prev => prev ? { ...prev, saves: prev.saves + (isSaved ? -1 : 1) } : null)
+   257→    try {
+   258→      await fetch(`/api/community/posts/${postId}/interact`, {
+   259→        method: 'POST',
+   260→        headers: { 'Content-Type': 'application/json' },
+   261→        body: JSON.stringify({ visitorId: session.email, action }),
+   262→      })
+   263→    } catch { /* revert */ }
+   264→  }
+   265→
+   266→  const handleRepost = async () => {
+   267→    if (!session || hasReposted) return
+   268→    setHasReposted(true)
+   269→    setPost(prev => prev ? { ...prev, reposts: prev.reposts + 1 } : null)
+   270→    try {
+   271→      await fetch(`/api/community/posts/${postId}/interact`, {
+   272→        method: 'POST',
+   273→        headers: { 'Content-Type': 'application/json' },
+   274→        body: JSON.stringify({ visitorId: session.email, action: 'repost' }),
+   275→      })
+   276→    } catch { /* revert */ }
+   277→  }
+   278→
+   279→  const handleDelete = async () => {
+   280→    if (!session || !post || session.email !== post.author) return
+   281→    try {
+   282→      const res = await fetch(`/api/community/posts/${postId}?author=${session.email}`, { method: 'DELETE' })
+   283→      if (res.ok) {
+   284→        router.push('/community')
+   285→      }
+   286→    } catch { /* silent */ }
+   287→  }
+   288→
+   289→  /* ─── Comments ─── */
+   290→  const submitComment = async () => {
+   291→    if (!session || !commentText.trim()) return
+   292→    setCommentSubmitting(true)
+   293→    const optimisticComment: Comment = {
+   294→      id: 'temp-' + Date.now(),
+   295→      postId,
+   296→      author: session.email,
+   297→      authorName: session.name,
+   298→      content: commentText.trim(),
+   299→      createdAt: new Date().toISOString(),
+   300→    }
+   301→    setComments(prev => [optimisticComment, ...prev])
+   302→    setPost(prev => prev ? { ...prev, comments: prev.comments + 1 } : null)
+   303→    setCommentText('')
+   304→    try {
+   305→      await fetch(`/api/community/posts/${postId}/comments`, {
+   306→        method: 'POST',
+   307→        headers: { 'Content-Type': 'application/json' },
+   308→        body: JSON.stringify({
+   309→          author: session.email,
+   310→          authorName: session.name,
+   311→          content: commentText.trim(),
+   312→        }),
+   313→      })
+   314→      fetchComments()
+   315→    } catch { /* silent */ }
+   316→    setCommentSubmitting(false)
+   317→  }
+   318→
+   319→  const submitReply = async (parentId: string) => {
+   320→    if (!session || !replyText.trim()) return
+   321→    const optimisticComment: Comment = {
+   322→      id: 'temp-' + Date.now(),
+   323→      postId,
+   324→      author: session.email,
+   325→      authorName: session.name,
+   326→      content: replyText.trim(),
+   327→      createdAt: new Date().toISOString(),
+   328→    }
+   329→    setComments(prev => {
+   330→      const idx = prev.findIndex(c => c.id === parentId)
+   331→      if (idx >= 0) {
+   332→        const updated = [...prev]
+   333→        updated.splice(idx + 1, 0, optimisticComment)
+   334→        return updated
+   335→      }
+   336→      return [...prev, optimisticComment]
+   337→    })
+   338→    setPost(prev => prev ? { ...prev, comments: prev.comments + 1 } : null)
+   339→    setReplyText('')
+   340→    setReplyingTo(null)
+   341→    try {
+   342→      await fetch(`/api/community/posts/${postId}/comments`, {
+   343→        method: 'POST',
+   344→        headers: { 'Content-Type': 'application/json' },
+   345→        body: JSON.stringify({
+   346→          author: session.email,
+   347→          authorName: session.name,
+   348→          content: replyText.trim(),
+   349→          parentId,
+   350→        }),
+   351→      })
+   352→      fetchComments()
+   353→    } catch { /* silent */ }
+   354→  }
+   355→
+   356→  /* ─── Share ─── */
+   357→  const handleCopyLink = () => {
+   358→    navigator.clipboard.writeText(`${window.location.origin}/community/${postId}`)
+   359→    setCopiedLink(true)
+   360→    setTimeout(() => setCopiedLink(false), 2000)
+   361→  }
+   362→
+   363→  const handleShareEmail = () => {
+   364→    if (!post || !shareEmail.trim()) return
+   365→    const subject = encodeURIComponent(`Check this out: ${post.title}`)
+   366→    const body = encodeURIComponent(
+   367→      `I thought you'd find this interesting:\n\n${post.title}\n\n${post.sourceUrl || `${window.location.origin}/community/${postId}`}\n\n- Shared from TheOneWayGDA`
+   368→    )
+   369→    window.open(`mailto:${shareEmail.trim()}?subject=${subject}&body=${body}`)
+   370→    setShareEmail('')
+   371→    setShareOpen(false)
+   372→  }
+   373→
+   374→  /* ─── Loading / Error ─── */
+   375→  if (loading) {
+   376→    return (
+   377→      <div className="min-h-screen flex flex-col mesh-gradient noise-overlay" dir={dir}>
+   378→        <nav className="sticky top-0 z-50 nav-premium">
+   379→          <div className="max-w-4xl mx-auto flex items-center px-4 sm:px-6 h-14 gap-3">
+   380→            <Link href="/community" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+   381→              <ArrowLeft className="size-4" />
+   382→            </Link>
+   383→            <span className="text-sm text-muted-foreground">Loading post...</span>
+   384→          </div>
+   385→        </nav>
+   386→        <div className="flex-1 flex items-center justify-center">
+   387→          <Loader2 className="size-10 text-primary animate-spin" />
+   388→        </div>
+   389→      </div>
+   390→    )
+   391→  }
+   392→
+   393→  if (error || !post) {
+   394→    return (
+   395→      <div className="min-h-screen flex flex-col mesh-gradient noise-overlay" dir={dir}>
+   396→        <nav className="sticky top-0 z-50 nav-premium">
+   397→          <div className="max-w-4xl mx-auto flex items-center px-4 sm:px-6 h-14 gap-3">
+   398→            <Link href="/community" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+   399→              <ArrowLeft className="size-4" />
+   400→            </Link>
+   401→            <span className="text-sm text-muted-foreground">Back to Community</span>
+   402→          </div>
+   403→        </nav>
+   404→        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+   405→          <Newspaper className="size-16 text-muted-foreground/30 mb-4" />
+   406→          <h2 className="text-xl font-semibold text-muted-foreground mb-2">{error || 'Post not found'}</h2>
+   407→          <p className="text-sm text-muted-foreground/70 mb-6">This post may have been deleted or doesn&apos;t exist.</p>
+   408→          <Link href="/community">
+   409→            <Button variant="outline" className="gap-2">
+   410→              <ArrowLeft className="size-4" />
+   411→              Back to Community
+   412→            </Button>
+   413→          </Link>
+   414→        </div>
+   415→      </div>
+   416→    )
+   417→  }
+   418→
+   419→  const postTypeInfo = getPostTypeInfo(post.type)
+   420→  const tags = parseTags(post.tags)
+   421→  const badgeColor = verifiedInfo ? getBadgeColor(verifiedInfo.badgeType) : null
+   422→
+   423→  return (
+   424→    <div className="min-h-screen flex flex-col mesh-gradient noise-overlay" dir={dir}>
+   425→      {/* NAV */}
+   426→      <nav className="sticky top-0 z-50 nav-premium">
+   427→        <div className="max-w-4xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14 gap-3">
+   428→          <div className="flex items-center gap-3">
+   429→            <button
+   430→              onClick={() => router.back()}
+   431→              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+   432→            >
+   433→              <ArrowLeft className="size-4" />
+   434→              <span className="text-sm hidden sm:inline">Back</span>
+   435→            </button>
+   436→            <Separator orientation="vertical" className="h-5" />
+   437→            <Image src="/images/logo.png" alt="TheOneWayGDA" width={24} height={24} className="rounded-lg" />
+   438→            <span className="text-sm font-semibold gradient-text-premium">Post</span>
+   439→          </div>
+   440→          <div className="flex items-center gap-2">
+   441→            {session && session.email === post.author && (
+   442→              <Button
+   443→                variant="ghost"
+   444→                size="sm"
+   445→                onClick={handleDelete}
+   446→                className="gap-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+   447→              >
+   448→                <Trash2 className="size-3.5" />
+   449→                <span className="hidden sm:inline">Delete</span>
+   450→              </Button>
+   451→            )}
+   452→            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)} className="gap-1.5 text-xs">
+   453→              <Share2 className="size-3.5" />
+   454→              <span className="hidden sm:inline">Share</span>
+   455→            </Button>
+   456→          </div>
+   457→        </div>
+   458→      </nav>
+   459→
+   460→      <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-6">
+   461→        <motion.div
+   462→          initial={{ opacity: 0, y: 20 }}
+   463→          animate={{ opacity: 1, y: 0 }}
+   464→          transition={{ duration: 0.4 }}
+   465→        >
+   466→          {/* Post Type Badge */}
+   467→          <div className="mb-4">
+   468→            <Badge variant="outline" className={`${postTypeInfo.bg} ${postTypeInfo.border} ${postTypeInfo.text} gap-1.5 text-xs border`}>
+   469→              <postTypeInfo.icon className="size-3" />
+   470→              {postTypeInfo.label}
+   471→            </Badge>
+   472→            {post.featured && (
+   473→              <Badge variant="outline" className="ml-2 text-xs bg-amber-500/10 text-amber-400 border-amber-500/30 gap-1">
+   474→                <TrendingUp className="size-3" />
+   475→                Featured
+   476→              </Badge>
+   477→            )}
+   478→          </div>
+   479→
+   480→          {/* Post Header */}
+   481→          <div className="flex items-start justify-between gap-4 mb-4">
+   482→            <div className="flex items-center gap-3">
+   483→              <div className="size-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center flex-shrink-0">
+   484→                {verifiedInfo ? (
+   485→                  <span className="text-sm font-bold text-primary">
+   486→                    {(verifiedInfo.displayName || verifiedInfo.email)[0].toUpperCase()}
+   487→                  </span>
+   488→                ) : (
+   489→                  <span className="text-sm font-bold text-muted-foreground">
+   490→                    {(post.authorName || post.author)[0].toUpperCase()}
+   491→                  </span>
+   492→                )}
+   493→              </div>
+   494→              <div>
+   495→                <div className="flex items-center gap-2">
+   496→                  <Link href={`/profile/${encodeURIComponent(post.author)}`} className="hover:underline">
+   497→                    <span className="text-sm font-semibold">
+   498→                      {verifiedInfo ? verifiedInfo.displayName : (post.authorName || post.author.split('@')[0])}
+   499→                    </span>
+   500→                  </Link>
+   501→                  {badgeColor && (
+   502→                    <span
+   503→                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+   504→                      style={{
+   505→                        border: `1px solid ${badgeColor.border}`,
+   506→                        backgroundColor: badgeColor.bg,
+   507→                        color: badgeColor.color,
+   508→                      }}
+   509→                      title={
+   510→                        verifiedInfo?.institution
+   511→                          ? `${badgeColor.label === 'Bot' ? 'Official Bot' : badgeColor.label} — ${verifiedInfo.institution}${verifiedInfo.role ? ` · ${verifiedInfo.role}` : ''}`
+   512→                          : badgeColor.label
+   513→                      }
+   514→                    >
+   515→                      <BadgeCheck className="size-2.5" />
+   516→                      {badgeColor.label}
+   517→                    </span>
+   518→                  )}
+   519→                </div>
+   520→                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+   521→                  <span>{timeAgo(post.createdAt)}</span>
+   522→                  <span className="inline-block size-1 rounded-full bg-muted-foreground/40" />
+   523→                  <Clock className="size-3" />
+   524→                  <span>{new Date(post.createdAt).toLocaleString()}</span>
+   525→                </div>
+   526→              </div>
+   527→            </div>
+   528→
+   529→            {/* Source link */}
+   530→            {post.sourceUrl && (
+   531→              <a
+   532→                href={post.sourceUrl}
+   533→                target="_blank"
+   534→                rel="noopener noreferrer"
+   535→                className="flex items-center gap-1.5 text-xs text-primary hover:underline flex-shrink-0"
+   536→              >
+   537→                <ExternalLink className="size-3" />
+   538→                {post.sourceName || 'Source'}
+   539→              </a>
+   540→            )}
+   541→          </div>
+   542→
+   543→          {/* Post Title */}
+   544→          <h1 className="text-2xl sm:text-3xl font-bold leading-tight mb-4">
+   545→            {post.title}
+   546→          </h1>
+   547→
+   548→          {/* Post Content — FULL, no truncation */}
+   549→          <div className="prose prose-sm dark:prose-invert max-w-none mb-6">
+   550→            <div className="text-sm sm:text-base text-foreground/90 leading-relaxed whitespace-pre-line">
+   551→              {post.content}
+   552→            </div>
+   553→          </div>
+   554→
+   555→          {/* Post Image */}
+   556→          {post.imageUrl && (
+   557→            <div className="mb-6 rounded-xl overflow-hidden border border-border/30">
+   558→              <img
+   559→                src={post.imageUrl}
+   560→                alt={post.title}
+   561→                className="w-full max-h-[500px] object-cover"
+   562→                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+   563→              />
+   564→            </div>
+   565→          )}
+   566→
+   567→          {/* Tags */}
+   568→          {tags.length > 0 && (
+   569→            <div className="flex flex-wrap gap-1.5 mb-6">
+   570→              {tags
+   571→                .filter(tag => !['Hidden', 'Flagged'].includes(tag))
+   572→                .map(tag => (
+   573→                  <Badge key={tag} variant="secondary" className="text-[10px] gap-1 px-2 py-0.5">
+   574→                    <Tag className="size-2.5" />
+   575→                    {tag}
+   576→                  </Badge>
+   577→                ))}
+   578→            </div>
+   579→          )}
+   580→
+   581→          {/* Engagement Stats Bar */}
+   582→          <div className="flex items-center gap-5 px-4 py-3 rounded-xl bg-card/60 border border-border/20 text-xs text-muted-foreground mb-6">
+   583→            <span className="flex items-center gap-1.5">
+   584→              <Eye className="size-3.5" />
+   585→              <span className="font-medium text-foreground">{post.likes + post.comments + post.reposts}</span> views
+   586→            </span>
+   587→            <span className="flex items-center gap-1.5">
+   588→              <Heart className="size-3.5 text-rose-400" />
+   589→              <span className="font-medium text-foreground">{post.likes}</span>
+   590→            </span>
+   591→            <span className="flex items-center gap-1.5">
+   592→              <MessageCircle className="size-3.5 text-blue-400" />
+   593→              <span className="font-medium text-foreground">{post.comments}</span>
+   594→            </span>
+   595→            <span className="flex items-center gap-1.5">
+   596→              <Repeat2 className="size-3.5 text-emerald-400" />
+   597→              <span className="font-medium text-foreground">{post.reposts}</span>
+   598→            </span>
+   599→            <span className="flex items-center gap-1.5">
+   600→              <Bookmark className="size-3.5 text-amber-400" />
+   601→              <span className="font-medium text-foreground">{post.saves}</span>
+   602→            </span>
+   603→          </div>
+   604→
+   605→          {/* Action Buttons */}
+   606→          <div className="flex items-center gap-2 mb-8">
+   607→            <Button
+   608→              variant={isLiked ? 'default' : 'outline'}
+   609→              size="sm"
+   610→              onClick={handleLike}
+   611→              className={`gap-2 rounded-full text-sm ${isLiked ? 'bg-rose-500/90 hover:bg-rose-600 text-white border-rose-500' : ''}`}
+   612→            >
+   613→              <Heart className={`size-4 ${isLiked ? 'fill-current' : ''}`} />
+   614→              {post.likes > 0 && post.likes}
+   615→            </Button>
+   616→            <Button
+   617→              variant="outline"
+   618→              size="sm"
+   619→              onClick={() => document.getElementById('comments-section')?.scrollIntoView({ behavior: 'smooth' })}
+   620→              className="gap-2 rounded-full text-sm"
+   621→            >
+   622→              <MessageCircle className="size-4" />
+   623→              {post.comments > 0 && post.comments}
+   624→            </Button>
+   625→            <Button
+   626→              variant={hasReposted ? 'default' : 'outline'}
+   627→              size="sm"
+   628→              onClick={handleRepost}
+   629→              disabled={hasReposted}
+   630→              className={`gap-2 rounded-full text-sm ${hasReposted ? 'bg-emerald-500/90 hover:bg-emerald-600 text-white border-emerald-500' : ''}`}
+   631→            >
+   632→              <Repeat2 className={`size-4 ${hasReposted ? '' : ''}`} />
+   633→              {post.reposts > 0 && post.reposts}
+   634→            </Button>
+   635→            <Button
+   636→              variant={isSaved ? 'default' : 'outline'}
+   637→              size="sm"
+   638→              onClick={handleSave}
+   639→              className={`gap-2 rounded-full text-sm ${isSaved ? 'bg-amber-500/90 hover:bg-amber-600 text-white border-amber-500' : ''}`}
+   640→            >
+   641→              <Bookmark className={`size-4 ${isSaved ? 'fill-current' : ''}`} />
+   642→              {post.saves > 0 && post.saves}
+   643→            </Button>
+   644→            <Button
+   645→              variant="outline"
+   646→              size="sm"
+   647→              onClick={() => setShareOpen(true)}
+   648→              className="gap-2 rounded-full text-sm"
+   649→            >
+   650→              <Share2 className="size-4" />
+   651→            </Button>
+   652→          </div>
+   653→
+   654→          {/* Source URL Card */}
+   655→          {post.sourceUrl && (
+   656→            <a
+   657→              href={post.sourceUrl}
+   658→              target="_blank"
+   659→              rel="noopener noreferrer"
+   660→              className="group flex items-center gap-3 p-4 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all mb-8"
+   661→            >
+   662→              <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+   663→                <ExternalLink className="size-5 text-primary" />
+   664→              </div>
+   665→              <div className="min-w-0 flex-1">
+   666→                <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+   667→                  {post.sourceName || 'Read the full article'}
+   668→                </p>
+   669→                <p className="text-xs text-muted-foreground truncate">{post.sourceUrl}</p>
+   670→              </div>
+   671→              <BadgeCheck className="size-4 text-primary/50 flex-shrink-0" />
+   672→            </a>
+   673→          )}
+   674→
+   675→          <Separator className="mb-8" />
+   676→
+   677→          {/* Comments Section */}
+   678→          <div id="comments-section" className="scroll-mt-20">
+   679→            <div className="flex items-center gap-2 mb-6">
+   680→              <MessageCircle className="size-5 text-blue-400" />
+   681→              <h2 className="text-lg font-semibold">Comments</h2>
+   682→              <Badge variant="secondary" className="text-xs">{post.comments}</Badge>
+   683→            </div>
+   684→
+   685→            {/* Comment Input */}
+   686→            {session ? (
+   687→              <div className="mb-6">
+   688→                <div className="flex gap-3">
+   689→                  <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
+   690→                    <span className="text-xs font-bold text-primary">{session.name[0].toUpperCase()}</span>
+   691→                  </div>
+   692→                  <div className="flex-1">
+   693→                    <Textarea
+   694→                      value={commentText}
+   695→                      onChange={(e) => setCommentText(e.target.value)}
+   696→                      placeholder="Share your thoughts on this post..."
+   697→                      rows={3}
+   698→                      maxLength={2000}
+   699→                      className="rounded-xl resize-none text-sm mb-2"
+   700→                    />
+   701→                    <div className="flex items-center justify-between">
+   702→                      <span className="text-[10px] text-muted-foreground">{commentText.length}/2,000</span>
+   703→                      <Button
+   704→                        size="sm"
+   705→                        onClick={submitComment}
+   706→                        disabled={!commentText.trim() || commentSubmitting}
+   707→                        className="gap-1.5 rounded-full text-xs"
+   708→                      >
+   709→                        {commentSubmitting ? (
+   710→                          <Loader2 className="size-3 animate-spin" />
+   711→                        ) : (
+   712→                          <Send className="size-3" />
+   713→                        )}
+   714→                        Comment
+   715→                      </Button>
+   716→                    </div>
+   717→                  </div>
+   718→                </div>
+   719→              </div>
+   720→            ) : (
+   721→              <div className="mb-6 p-4 rounded-xl border border-border/30 bg-muted/20 text-center">
+   722→                <p className="text-sm text-muted-foreground">
+   723→                  <Link href="/auth/login" className="text-primary hover:underline font-medium">Sign in</Link>
+   724→                  {' '}to join the conversation.
+   725→                </p>
+   726→              </div>
+   727→            )}
+   728→
+   729→            {/* Comments List */}
+   730→            {commentsLoading ? (
+   731→              <div className="flex items-center justify-center py-8">
+   732→                <Loader2 className="size-6 text-muted-foreground animate-spin" />
+   733→              </div>
+   734→            ) : comments.length === 0 ? (
+   735→              <div className="text-center py-10 text-muted-foreground">
+   736→                <MessageCircle className="size-10 mx-auto mb-3 text-muted-foreground/30" />
+   737→                <p className="text-sm font-medium mb-1">No comments yet</p>
+   738→                <p className="text-xs text-muted-foreground/70">Be the first to share your thoughts on this post.</p>
+   739→              </div>
+   740→            ) : (
+   741→              <div className="space-y-4">
+   742→                <AnimatePresence>
+   743→                  {comments.map((comment, i) => (
+   744→                    <motion.div
+   745→                      key={comment.id}
+   746→                      initial={{ opacity: 0, y: 10 }}
+   747→                      animate={{ opacity: 1, y: 0 }}
+   748→                      transition={{ delay: i * 0.05 }}
+   749→                      className="flex gap-3 p-3 rounded-xl bg-card/40 border border-border/20 hover:border-border/40 transition-colors"
+   750→                    >
+   751→                      <div className="size-8 rounded-full bg-muted/50 flex items-center justify-center flex-shrink-0">
+   752→                        <span className="text-xs font-bold text-muted-foreground">
+   753→                          {(comment.authorName || comment.author)[0].toUpperCase()}
+   754→                        </span>
+   755→                      </div>
+   756→                      <div className="flex-1 min-w-0">
+   757→                        <div className="flex items-center gap-2 mb-1">
+   758→                          <span className="text-xs font-semibold">
+   759→                            {comment.authorName || comment.author.split('@')[0]}
+   760→                          </span>
+   761→                          <span className="text-[10px] text-muted-foreground">{timeAgo(comment.createdAt)}</span>
+   762→                        </div>
+   763→                        <p className="text-sm text-foreground/85 leading-relaxed whitespace-pre-line">
+   764→                          {comment.content}
+   765→                        </p>
+   766→                        <div className="flex items-center gap-3 mt-2">
+   767→                          {session && (
+   768→                            <button
+   769→                              onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+   770→                              className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
+   771→                            >
+   772→                              Reply
+   773→                            </button>
+   774→                          )}
+   775→                        </div>
+   776→                        {/* Reply Input */}
+   777→                        {replyingTo === comment.id && (
+   778→                          <motion.div
+   779→                            initial={{ opacity: 0, height: 0 }}
+   780→                            animate={{ opacity: 1, height: 'auto' }}
+   781→                            className="mt-3 flex gap-2"
+   782→                          >
+   783→                            <Input
+   784→                              value={replyText}
+   785→                              onChange={(e) => setReplyText(e.target.value)}
+   786→                              placeholder={`Reply to ${comment.authorName || 'user'}...`}
+   787→                              className="rounded-lg text-xs h-8"
+   788→                              onKeyDown={(e) => e.key === 'Enter' && submitReply(comment.id)}
+   789→                              maxLength={2000}
+   790→                            />
+   791→                            <Button
+   792→                              size="sm"
+   793→                              onClick={() => submitReply(comment.id)}
+   794→                              disabled={!replyText.trim()}
+   795→                              className="h-8 rounded-lg text-xs px-3 gap-1"
+   796→                            >
+   797→                              <Send className="size-3" />
+   798→                            </Button>
+   799→                          </motion.div>
+   800→                        )}
+   801→                      </div>
+   802→                    </motion.div>
+   803→                  ))}
+   804→                </AnimatePresence>
+   805→              </div>
+   806→            )}
+   807→          </div>
+   808→
+   809→          <Separator className="my-8" />
+   810→
+   811→          {/* Related Posts */}
+   812→          {relatedPosts.length > 0 && (
+   813→            <div className="mb-8">
+   814→              <div className="flex items-center gap-2 mb-4">
+   815→                <TrendingUp className="size-5 text-primary" />
+   816→                <h2 className="text-lg font-semibold">Related Posts</h2>
+   817→              </div>
+   818→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   819→                {relatedPosts.map((rp, i) => {
+   820→                  const rpTypeInfo = getPostTypeInfo(rp.type)
+   821→                  return (
+   822→                    <Link key={rp.id} href={`/community/${rp.id}`} className="group">
+   823→                      <div className="p-4 rounded-xl bg-card/60 border border-border/30 hover:border-primary/30 hover:bg-card/90 transition-all">
+   824→                        <div className="flex items-center gap-2 mb-2">
+   825→                          <Badge variant="outline" className={`${rpTypeInfo.bg} ${rpTypeInfo.text} text-[9px] gap-1 border`}>
+   826→                            <rpTypeInfo.icon className="size-2.5" />
+   827→                            {rpTypeInfo.label}
+   828→                          </Badge>
+   829→                          <span className="text-[10px] text-muted-foreground">{timeAgo(rp.createdAt)}</span>
+   830→                        </div>
+   831→                        <p className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors leading-snug mb-2">
+   832→                          {rp.title}
+   833→                        </p>
+   834→                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+   835→                          <span className="flex items-center gap-1"><Heart className="size-2.5" /> {rp.likes}</span>
+   836→                          <span className="flex items-center gap-1"><MessageCircle className="size-2.5" /> {rp.comments}</span>
+   837→                        </div>
+   838→                      </div>
+   839→                    </Link>
+   840→                  )
+   841→                })}
+   842→              </div>
+   843→            </div>
+   844→          )}
+   845→        </motion.div>
+   846→      </div>
+   847→
+   848→      {/* Share Dialog */}
+   849→      <Dialog open={shareOpen} onOpenChange={(open) => { setShareOpen(open); setCopiedLink(false) }}>
+   850→        <DialogContent className="sm:max-w-md">
+   851→          <DialogHeader>
+   852→            <DialogTitle className="flex items-center gap-2">
+   853→              <Share2 className="size-5 text-primary" />
+   854→              Share Post
+   855→            </DialogTitle>
+   856→            <DialogDescription className="text-sm text-muted-foreground line-clamp-2">
+   857→              {post.title.slice(0, 80)}
+   858→            </DialogDescription>
+   859→          </DialogHeader>
+   860→          <div className="space-y-3 py-2">
+   861→            <Button
+   862→              variant="outline"
+   863→              className="w-full justify-start gap-3 rounded-xl h-12"
+   864→              onClick={handleCopyLink}
+   865→            >
+   866→              {copiedLink ? (
+   867→                <Check className="size-4 text-emerald-500" />
+   868→              ) : (
+   869→                <Copy className="size-4" />
+   870→              )}
+   871→              {copiedLink ? 'Link copied!' : 'Copy link to clipboard'}
+   872→            </Button>
+   873→            <Separator />
+   874→            <div className="space-y-2">
+   875→              <label className="text-sm font-medium flex items-center gap-1.5">
+   876→                <Mail className="size-3.5" /> Share via email
+   877→              </label>
+   878→              <div className="flex gap-2">
+   879→                <Input
+   880→                  value={shareEmail}
+   881→                  onChange={(e) => setShareEmail(e.target.value)}
+   882→                  placeholder="colleague@example.com"
+   883→                  type="email"
+   884→                  className="flex-1 rounded-xl"
+   885→                  onKeyDown={(e) => e.key === 'Enter' && handleShareEmail()}
+   886→                />
+   887→                <Button
+   888→                  onClick={handleShareEmail}
+   889→                  disabled={!shareEmail.trim()}
+   890→                  size="sm"
+   891→                  className="rounded-xl gap-1.5"
+   892→                >
+   893→                  <Send className="size-3.5" />
+   894→                </Button>
+   895→              </div>
+   896→            </div>
+   897→            {post.sourceUrl && (
+   898→              <>
+   899→                <Separator />
+   900→                <a
+   901→                  href={post.sourceUrl}
+   902→                  target="_blank"
+   903→                  rel="noopener noreferrer"
+   904→                  className="flex items-center gap-3 p-3 rounded-xl border border-border/50 hover:bg-muted/50 transition-colors"
+   905→                >
+   906→                  <ExternalLink className="size-4 text-primary" />
+   907→                  <div className="flex-1 min-w-0">
+   908→                    <p className="text-sm font-medium truncate">{post.sourceName || 'Source'}</p>
+   909→                    <p className="text-xs text-muted-foreground truncate">{post.sourceUrl}</p>
+   910→                  </div>
+   911→                </a>
+   912→              </>
+   913→            )}
+   914→          </div>
+   915→        </DialogContent>
+   916→      </Dialog>
+   917→    </div>
+   918→  )
+   919→}
+   920→

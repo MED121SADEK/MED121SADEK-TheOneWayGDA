@@ -1,13 +1,34 @@
 /**
- * Reusable authentication guard for API routes.
+ * ═══════════════════════════════════════════════════════════════════
+ *  AUTH GUARD PATTERN
+ * ═══════════════════════════════════════════════════════════════════
  *
- * Usage in any route handler:
- *   import { requireAuth } from '@/lib/require-auth'
- *   export async function POST(request: NextRequest) {
- *     const user = await requireAuth(request)
- *     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
- *     // user.id, user.email, user.role, user.name are available
- *   }
+ *  This module provides two reusable guards for protecting API routes
+ *  that require session-token authentication (mechanism #1 — see
+ *  auth.ts for the full architecture overview).
+ *
+ *  ── How it works ──
+ *  1. Extract the Bearer token from the request headers
+ *     (Authorization header first, then x-auth-token for legacy support,
+ *      then ?token= query param for SSE/EventSource streams)
+ *  2. Call verifySession(token) which does a DB lookup on UserSession
+ *  3. Return the user object { userId, email, role, name } or null
+ *
+ *  ── Usage patterns ──
+ *
+ *  Pattern A — manual null check:
+ *    const user = await requireAuth(request)
+ *    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+ *
+ *  Pattern B — early return with requireAuthOrRespond:
+ *    const { user, response } = await requireAuthOrRespond(request)
+ *    if (response) return response
+ *
+ *  ── What this does NOT cover ──
+ *  - Admin cookie auth (handled by proxy.ts middleware for /admin/*)
+ *  - Visitor email auth (public, no session needed)
+ *  - Role-based authorization (check user.role yourself after auth)
+ * ═══════════════════════════════════════════════════════════════════
  */
 
 import { NextRequest, NextResponse } from 'next/server'

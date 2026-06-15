@@ -4,6 +4,8 @@ import { db as prisma } from '@/lib/db'
 import { requireAuth } from '@/lib/require-auth'
 import { BASE_SYSTEM_PROMPT } from '@/lib/prompts/copilot-base'
 import { getContextPrompt, type PageDataContext } from '@/lib/prompts/copilot-contexts'
+import { detectContextFromMessage } from '@/lib/prompts/context-detector'
+import { getAnalysisCacheKey, getCachedResponse, setCachedResponse } from '@/lib/analysis-cache'
 
 // ═══════════════════════════════════════════════════════════════
 // AI Copilot v4 — Deep-Context Expert with Live Data + Memory
@@ -197,6 +199,43 @@ function getAssembledBasePrompt(context: string, pageData?: PageDataContext): st
   return assembled
 }
 
+// ─── Response cache helpers ───
+// Extract assembled text content from accumulated SSE raw-byte chunks.
+// Handles both delta (streaming) and message (non-streaming fallback) formats.
+function extractTextFromSSEChunks(chunks: Uint8Array[]): string {
+  const combined = new TextDecoder().decode(
+    chunks.reduce((acc, chunk) => {
+      const merged = new Uint8Array(acc.length + chunk.length)
+      merged.set(acc)
+      merged.set(chunk, acc.length)
+      return merged
+    }, new Uint8Array(0))
+  )
+  let text = ''
+  for (const line of combined.split('\n')) {
+    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+      try {
+        const json = JSON.parse(line.slice(6))
+        const content = json.choices?.[0]?.delta?.content || json.choices?.[0]?.message?.content || ''
+        text += content
+      } catch { /* skip malformed lines */ }
+    }
+  }
+  return text
+}
+
+// Create a synthetic SSE stream from a cached text string.
+function createCachedStream(text: string): ReadableStream {
+  const encoder = new TextEncoder()
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`))
+      controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+      controller.close()
+    },
+  })
+}
+
 // Benchmark data changes only when models/scores update. Cache for 15 minutes.
 const _benchmarkCache = { data: '', fetchedAt: 0, TTL: 15 * 60 * 1000 }
 async function getCachedBenchmarkData(): Promise<string> {
@@ -237,11 +276,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { messages, context = 'general', pageData, stream = false } = body
+    const { messages, context: urlContext = 'general', pageData, stream = false } = body
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: 'Messages array is required' }, { status: 400 })
     }
+
+    // Detect context from message content, falling back to URL-based context
+    const lastUserMessage = messages.filter((m: { role: string }) => m.role === 'user').pop()?.content || ''
+    const context = detectContextFromMessage(lastUserMessage, urlContext)
 
     const zai = await ZAI.create()
     const sessionId = body.sessionId || `session_${Date.now()}`
@@ -272,11 +315,50 @@ export async function POST(request: NextRequest) {
       content: m.content,
     }))
 
+    // ─── Caching strategy ───
+    // We cache the final assembled AI response text to deduplicate identical
+    // requests within a 5-minute window. The cache key is based on the last user
+    // message + context, so rapid retries or duplicate questions are served from
+    // cache instead of hitting the LLM API again.
+    const cacheKey = getAnalysisCacheKey(messages, context)
+
     // ─── Streaming mode ───
     if (stream) {
+      // Check cache first — if we have a cached response, return it as a stream immediately
+      const cachedStreamText = getCachedResponse(cacheKey)
+      if (cachedStreamText) {
+        // Fire-and-forget audit log for cache hit
+        const lastUserMsg = messages[messages.length - 1]?.content || ''
+        ;(async () => {
+          try {
+            await prisma.aiAuditLog.create({
+              data: {
+                visitorId: visitorId || null,
+                action: 'ai_query',
+                details: JSON.stringify({ context, messageCount: messages.length, mode: 'stream', version: 'v4', cacheHit: true }),
+                inputData: JSON.stringify({ lastUserMessage: lastUserMsg.slice(0, 1000) }),
+                durationMs: Date.now() - startTime,
+                ipAddress,
+                userAgent,
+              },
+            })
+          } catch { /* silent */ }
+        })()
+
+        return new Response(createCachedStream(cachedStreamText), {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        })
+      }
+
       const encoder = new TextEncoder()
       const streamResponse = new ReadableStream({
         async start(controller) {
+          // Accumulate raw chunks so we can cache the assembled text after the stream completes
+          const rawChunks: Uint8Array[] = []
           try {
             const completion = await zai.chat.completions.create({
               messages: [
@@ -295,16 +377,25 @@ export async function POST(request: NextRequest) {
                 while (true) {
                   const { done, value } = await reader.read()
                   if (done) break
+                  rawChunks.push(value)
                   controller.enqueue(value)
                 }
               } else if (Array.isArray(streamable.choices)) {
                 const text = streamable.choices[0]?.message?.content || ''
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`))
+                const sseData = encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`)
+                rawChunks.push(sseData)
+                controller.enqueue(sseData)
               }
             }
 
             controller.enqueue(encoder.encode('data: [DONE]\n\n'))
             controller.close()
+
+            // Cache the fully assembled response text for future deduplication
+            try {
+              const fullText = extractTextFromSSEChunks(rawChunks)
+              if (fullText) setCachedResponse(cacheKey, fullText)
+            } catch { /* caching failure should not affect the response */ }
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Stream error'
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`))
@@ -341,6 +432,40 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Standard mode (deep response) ───
+    // Check cache first — return immediately if we have a cached response
+    const cachedStandardText = getCachedResponse(cacheKey)
+    if (cachedStandardText) {
+      const durationMs = Date.now() - startTime
+      // Audit log for cache hit
+      try {
+        await prisma.aiAuditLog.create({
+          data: {
+            visitorId: visitorId || null,
+            action: 'ai_query',
+            details: JSON.stringify({ context, messageCount: messages.length, mode: 'standard', version: 'v4', cacheHit: true }),
+            inputData: JSON.stringify({ lastUserMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
+            outputData: JSON.stringify({ responseLength: cachedStandardText.length, tokensUsed: 0 }),
+            tokensUsed: 0,
+            durationMs,
+            ipAddress,
+            userAgent,
+          },
+        })
+      } catch { /* silent */ }
+
+      return NextResponse.json({
+        message: cachedStandardText,
+        meta: {
+          tokensUsed: 0,
+          durationMs,
+          context,
+          version: 'v4',
+          cacheHit: true,
+          contextLayers: { liveData: !!liveData, memory: !!memoryContext, conversationHistory: !!conversationHistory },
+        },
+      })
+    }
+
     const completion = await zai.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
@@ -351,6 +476,11 @@ export async function POST(request: NextRequest) {
     })
 
     const aiMessage = completion.choices?.[0]?.message?.content || 'I apologize, I could not generate a response.'
+
+    // Cache the successful response for future deduplication
+    if (aiMessage && !aiMessage.startsWith('I apologize')) {
+      setCachedResponse(cacheKey, aiMessage)
+    }
     const tokensUsed = completion.usage?.total_tokens || 0
     const durationMs = Date.now() - startTime
 

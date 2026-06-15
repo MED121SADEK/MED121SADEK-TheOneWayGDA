@@ -12,6 +12,8 @@
  *   const res = await authFetch('/api/teams', { method: 'POST', body: ... })
  */
 
+import { toast } from 'sonner'
+
 function getToken(): string | null {
   if (typeof window === 'undefined') return null
   try {
@@ -58,10 +60,36 @@ export async function authFetch(
     return ''
   })
 
-  return fetch(cleanedUrl, {
+  const response = await fetch(cleanedUrl, {
     ...init,
     headers,
   })
+
+  // Handle 429 rate-limit responses with a toast notification
+  if (response.status === 429) {
+    let retrySeconds = 0
+    const retryAfterHeader = response.headers.get('Retry-After')
+    if (retryAfterHeader) {
+      const parsed = parseInt(retryAfterHeader, 10)
+      if (!isNaN(parsed)) retrySeconds = parsed
+    }
+    // Fallback: try to parse retryAfter from the JSON body
+    if (retrySeconds === 0) {
+      try {
+        const clone = response.clone()
+        const body = await clone.json()
+        if (typeof body?.retryAfter === 'number') {
+          retrySeconds = body.retryAfter
+        }
+      } catch {
+        // body not JSON — ignore
+      }
+    }
+    const suffix = retrySeconds > 0 ? ` Try again in ${retrySeconds} second${retrySeconds !== 1 ? 's' : ''}.` : ' Try again later.'
+    toast.warning(`Rate limit reached.${suffix}`)
+  }
+
+  return response
 }
 
 /**

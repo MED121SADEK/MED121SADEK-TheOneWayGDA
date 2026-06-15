@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useTranslation, localeNames, Locale } from '@/lib/i18n'
@@ -32,10 +32,56 @@ import {
   Upload, FolderOpen, ShieldCheck, Sparkles,
 } from 'lucide-react'
 import { UpdateBanner } from '@/components/update-banner'
+import { useAppStore } from '@/lib/store'
 
 export default function WorkspacePage() {
   const { t, locale, setLocale, dir } = useTranslation()
   const h = useWorkspaceHandlers()
+
+  // Auto-save initialization & indicator
+  const autoSaveStatus = useAppStore(s => s.autoSaveStatus)
+  const lastSaved = useAppStore(s => s.lastSaved)
+  const [saveVisible, setSaveVisible] = useState(false)
+
+  // Enable auto-save when user has an auth token
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem('oneway-auth-token')
+      useAppStore.getState().setAutoSaveEnabled(!!token)
+    } catch {}
+  }, [])
+
+  // Show "Saved ✓" for 3 seconds then fade out
+  useEffect(() => {
+    if (autoSaveStatus === 'saved' && lastSaved) {
+      setSaveVisible(true)
+      const timer = setTimeout(() => setSaveVisible(false), 3000)
+      return () => clearTimeout(timer)
+    } else if (autoSaveStatus === 'saving') {
+      setSaveVisible(true)
+    }
+  }, [autoSaveStatus, lastSaved])
+
+  // Undo/Redo keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod) return
+      // Don't capture when user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return
+
+      if (e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        h.store.undo()
+      } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+        e.preventDefault()
+        h.store.redo()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [h.store])
 
   // Build 8 panels with their content
   const panels: PanelDefinition[] = useMemo(() => [
@@ -394,6 +440,27 @@ export default function WorkspacePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ─── Auto-save indicator ─── */}
+      {saveVisible && (
+        <div className={`fixed bottom-4 right-4 z-50 text-xs px-2.5 py-1 rounded-full transition-opacity duration-500 ${
+          autoSaveStatus === 'saved'
+            ? 'bg-emerald-500/15 text-emerald-400'
+            : 'bg-muted text-muted-foreground'
+        }`}>
+          {autoSaveStatus === 'saving' ? (
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
+              Saving...
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <Check className="w-3 h-3" />
+              Saved
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

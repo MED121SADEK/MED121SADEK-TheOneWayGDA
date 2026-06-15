@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from '@/lib/i18n'
@@ -278,9 +279,18 @@ export default function CollectionDetailPage() {
                           <h3 className="text-sm font-semibold leading-snug group-hover:text-primary transition-colors mb-1.5">
                             {post.title}
                           </h3>
-                          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
+                          <div className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
+                          <ReactMarkdown
+                            components={{
+                              p: ({ children }) => <p className="m-0">{children}</p>,
+                              code: ({ children }) => <code className="bg-muted rounded px-1 py-0.5 text-xs font-mono">{children}</code>,
+                              a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{children}</a>,
+                              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                            }}
+                          >
                             {truncate(post.content, 200)}
-                          </p>
+                          </ReactMarkdown>
+                          </div>
                           <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
                             <span className="flex items-center gap-1"><Heart className="size-3" /> {post.likes}</span>
                             <span className="flex items-center gap-1"><MessageCircle className="size-3" /> {post.comments}</span>

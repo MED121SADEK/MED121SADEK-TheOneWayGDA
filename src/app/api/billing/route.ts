@@ -117,9 +117,9 @@ export async function GET(request: NextRequest) {
 
     // Storage used (approximation: count of projects + shared workflows)
     const projectCount = await db.project.count({
-      where: { /* owned by user — no direct userId field, estimate */ },
+      where: { userId: session.userId },
     })
-    // Since Project model doesn't have userId, estimate storage from user's related records
+    // Estimate storage from user's projects and shared workflows
     const sharedWorkflows = await db.sharedWorkflow.count({
       where: { author: session.user.email },
     })

@@ -23,8 +23,13 @@ model Project {
   outputs     String?
   shared      Boolean  @default(false)
   sharedWith  String?
+  userId      String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model CommunityPost {
@@ -38,6 +43,7 @@ model CommunityPost {
   sourceUrl         String?  // external news URL
   sourceName        String? // e.g. "TechCrunch"
   tags              String?  // JSON array of tag strings
+  contentHash       String?  // SHA-256 of title+content for idempotent creation
   likes             Int      @default(0)
   comments          Int      @default(0)
   reposts           Int      @default(0)
@@ -52,6 +58,7 @@ model CommunityPost {
   @@index([author])
   @@index([createdAt])
   @@index([featured])
+  @@unique([author, contentHash])
 
   postComments  PostComment[]
   interactions  PostInteraction[]
@@ -640,6 +647,7 @@ model User {
   usageRecords UsageRecord[]
   subscription Subscription?
   notifications Notification[]
+  projects     Project[]
 }
 
 model UserSession {

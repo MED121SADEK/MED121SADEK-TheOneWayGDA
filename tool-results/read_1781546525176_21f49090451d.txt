@@ -1,0 +1,710 @@
+    80→  variables: Variable[]
+    81→  outputs: OutputItem[]
+    82→  createdAt: string
+    83→  updatedAt: string
+    84→}
+    85→
+    86→interface AppState {
+    87→  view: 'landing' | 'workspace'
+    88→  workspaceTab: 'data' | 'variables' | 'output' | 'syntax'
+    89→  currentProject: Project | null
+    90→  projects: Project[]
+    91→  data: Record<string, any[]>
+    92→  variables: Variable[]
+    93→  selectedVariables: string[]
+    94→  outputs: OutputItem[]
+    95→  chatMessages: ChatMessage[]
+    96→  isAiTyping: boolean
+    97→  syntaxHistory: string[]
+    98→
+    99→  // Document AI - Scan
+   100→  scanState: 'idle' | 'uploading' | 'processing' | 'done' | 'error'
+   101→  scanResults: ScanResult | null
+   102→  scanHistory: ScanResult[]
+   103→
+   104→  // Document AI - Validation & Cleaning
+   105→  validationIssues: ValidationIssue[] | null
+   106→  cleaningStats: CleaningStats | null
+   107→
+   108→  // Document AI - Batch
+   109→  batchQueue: BatchItem[]
+   110→
+   111→  // AI Agent
+   112→  agentStatus: 'idle' | 'planning' | 'analyzing' | 'interpreting' | 'done' | 'error'
+   113→  agentResults: any[]
+   114→
+   115→  setView: (view: 'landing' | 'workspace') => void
+   116→  setWorkspaceTab: (tab: 'data' | 'variables' | 'output' | 'syntax') => void
+   117→  createProject: (name: string, description?: string) => void
+   118→  loadProject: (id: string) => void
+   119→  saveProject: () => void
+   120→  deleteProject: (id: string) => void
+   121→  renameProject: (id: string, name: string) => void
+   122→
+   123→  setData: (data: Record<string, any[]>) => void
+   124→  addVariable: (variable: Variable) => void
+   125→  updateVariable: (id: string, updates: Partial<Variable>) => void
+   126→  deleteVariable: (id: string) => void
+   127→  setCellValue: (varName: string, rowIndex: number, value: any) => void
+   128→  addRow: () => void
+   129→  deleteRow: (index: number) => void
+   130→
+   131→  toggleVariableSelection: (varName: string) => void
+   132→  setSelectedVariables: (names: string[]) => void
+   133→
+   134→  addOutput: (output: OutputItem) => void
+   135→  clearOutputs: () => void
+   136→
+   137→  addChatMessage: (message: ChatMessage) => void
+   138→  setAiTyping: (typing: boolean) => void
+   139→  clearChat: () => void
+   140→
+   141→  addSyntax: (syntax: string) => void
+   142→
+   143→  importCSV: (text: string) => void | Promise<void>
+   144→  importFile: (file: File) => void
+   145→  exportCSV: () => string
+   146→  exportJSON: () => string
+   147→
+   148→  loadProjectsFromStorage: () => void
+   149→
+   150→  // Document AI - Scan actions
+   151→  setScanState: (state: 'idle' | 'uploading' | 'processing' | 'done' | 'error') => void
+   152→  setScanResults: (results: ScanResult | null) => void
+   153→  clearScanHistory: () => void
+   154→
+   155→  // Document AI - Validation & Cleaning actions
+   156→  setValidationIssues: (issues: ValidationIssue[] | null) => void
+   157→  setCleaningStats: (stats: CleaningStats | null) => void
+   158→
+   159→  // Document AI - Batch actions
+   160→  addToBatchQueue: (item: BatchItem) => void
+   161→
+   162→  // AI Agent actions
+   163→  setAgentStatus: (status: 'idle' | 'planning' | 'analyzing' | 'interpreting' | 'done' | 'error') => void
+   164→  addAgentResults: (results: any[]) => void
+   165→  clearAgentResults: () => void
+   166→
+   167→  // Document AI - Import scan results into data
+   168→  importScanResults: (results: ScanResult) => void
+   169→}
+   170→
+   171→function uid(): string {
+   172→  return Date.now().toString(36) + Math.random().toString(36).slice(2)
+   173→}
+   174→
+   175→function rowCount(data: Record<string, any[]>): number {
+   176→  const keys = Object.keys(data)
+   177→  if (keys.length === 0) return 0
+   178→  return Math.max(...keys.map(k => data[k]?.length ?? 0))
+   179→}
+   180→
+   181→// ── localStorage size monitoring ──
+   182→const STORAGE_WARNING_THRESHOLD = 3 * 1024 * 1024 // 3MB — warn before 4MB hard limit
+   183→let _lastStorageWarning = 0
+   184→
+   185→export function getStorageUsage(): { usedBytes: number; usedMB: number; percentage: number } {
+   186→  if (typeof window === 'undefined') return { usedBytes: 0, usedMB: 0, percentage: 0 }
+   187→  let total = 0
+   188→  for (let i = 0; i < localStorage.length; i++) {
+   189→    const key = localStorage.key(i)
+   190→    if (key) total += (localStorage.getItem(key) || '').length
+   191→  }
+   192→  // Typical browser limit is 5-10MB; use 5MB as reference
+   193→  const limit = 5 * 1024 * 1024
+   194→  return { usedBytes: total, usedMB: Math.round(total / 1024 / 1024 * 100) / 100, percentage: Math.round(total / limit * 100) }
+   195→}
+   196→
+   197→function checkStorageSize() {
+   198→  if (typeof window === 'undefined') return
+   199→  const { usedBytes } = getStorageUsage()
+   200→  const now = Date.now()
+   201→  // Throttle warnings to once per 60 seconds
+   202→  if (usedBytes > STORAGE_WARNING_THRESHOLD && now - _lastStorageWarning > 60_000) {
+   203→    _lastStorageWarning = now
+   204→    const mb = (usedBytes / 1024 / 1024).toFixed(1)
+   205→    console.warn(`[STORE] localStorage usage at ${mb}MB — consider exporting old projects and clearing history`)
+   206→  }
+   207→}
+   208→
+   209→export const useAppStore = create<AppState>()(
+   210→  persist(
+   211→    (set, get) => ({
+   212→      view: 'landing',
+   213→      workspaceTab: 'data',
+   214→      currentProject: null,
+   215→      projects: [],
+   216→      data: {},
+   217→      variables: [],
+   218→      selectedVariables: [],
+   219→      outputs: [],
+   220→      chatMessages: [],
+   221→      isAiTyping: false,
+   222→      syntaxHistory: [],
+   223→
+   224→      // Document AI
+   225→      scanState: 'idle',
+   226→      scanResults: null,
+   227→      scanHistory: [],
+   228→      validationIssues: null,
+   229→      cleaningStats: null,
+   230→      batchQueue: [],
+   231→
+   232→      // AI Agent
+   233→      agentStatus: 'idle',
+   234→      agentResults: [],
+   235→
+   236→      setView: (view) => set({ view }),
+   237→      setWorkspaceTab: (tab) => set({ workspaceTab: tab }),
+   238→
+   239→      createProject: (name, description = '') => {
+   240→        const project: Project = {
+   241→          id: uid(),
+   242→          name,
+   243→          description,
+   244→          data: {},
+   245→          variables: [],
+   246→          outputs: [],
+   247→          createdAt: new Date().toISOString(),
+   248→          updatedAt: new Date().toISOString(),
+   249→        }
+   250→        set({
+   251→          currentProject: project,
+   252→          data: {},
+   253→          variables: [],
+   254→          outputs: [],
+   255→          selectedVariables: [],
+   256→          chatMessages: [],
+   257→          syntaxHistory: [],
+   258→          view: 'workspace',
+   259→          workspaceTab: 'data',
+   260→        })
+   261→        const existing = get().projects
+   262→        set({ projects: [project, ...existing] })
+   263→      },
+   264→
+   265→      loadProject: (id) => {
+   266→        const project = get().projects.find(p => p.id === id)
+   267→        if (!project) return
+   268→        set({
+   269→          currentProject: project,
+   270→          data: project.data,
+   271→          variables: project.variables,
+   272→          outputs: project.outputs || [],
+   273→          selectedVariables: [],
+   274→          chatMessages: [],
+   275→          syntaxHistory: [],
+   276→          view: 'workspace',
+   277→          workspaceTab: 'data',
+   278→        })
+   279→      },
+   280→
+   281→      saveProject: () => {
+   282→        const { currentProject, projects, data, variables, outputs } = get()
+   283→        if (!currentProject) return
+   284→        const updated: Project = {
+   285→          ...currentProject,
+   286→          data,
+   287→          variables,
+   288→          outputs,
+   289→          updatedAt: new Date().toISOString(),
+   290→        }
+   291→        set({
+   292→          currentProject: updated,
+   293→          projects: projects.map(p => p.id === updated.id ? updated : p),
+   294→        })
+   295→      },
+   296→
+   297→      deleteProject: (id) => {
+   298→        const { currentProject, projects } = get()
+   299→        set({
+   300→          projects: projects.filter(p => p.id !== id),
+   301→          currentProject: currentProject?.id === id ? null : currentProject,
+   302→          view: currentProject?.id === id ? 'landing' : get().view,
+   303→        })
+   304→      },
+   305→
+   306→      renameProject: (id, name) => {
+   307→        const { currentProject, projects } = get()
+   308→        const updated = projects.map(p =>
+   309→          p.id === id ? { ...p, name, updatedAt: new Date().toISOString() } : p
+   310→        )
+   311→        set({
+   312→          projects: updated,
+   313→          currentProject: currentProject?.id === id
+   314→            ? { ...currentProject, name, updatedAt: new Date().toISOString() }
+   315→            : currentProject,
+   316→        })
+   317→      },
+   318→
+   319→      setData: (data) => set({ data }),
+   320→      addVariable: (variable) => set(s => ({
+   321→        variables: [...s.variables, variable],
+   322→        data: { ...s.data, [variable.name]: [] },
+   323→      })),
+   324→      updateVariable: (id, updates) => set(s => {
+   325→        const old = s.variables.find(v => v.id === id)
+   326→        if (!old) return s
+   327→        const vars = s.variables.map(v => v.id === id ? { ...v, ...updates } : v)
+   328→        let data = { ...s.data }
+   329→        if (updates.name && updates.name !== old.name) {
+   330→          data[updates.name] = data[old.name]
+   331→          delete data[old.name]
+   332→        }
+   333→        return { variables: vars, data }
+   334→      }),
+   335→      deleteVariable: (id) => set(s => {
+   336→        const v = s.variables.find(x => x.id === id)
+   337→        if (!v) return s
+   338→        const data = { ...s.data }
+   339→        delete data[v.name]
+   340→        return {
+   341→          variables: s.variables.filter(x => x.id !== id),
+   342→          data,
+   343→          selectedVariables: s.selectedVariables.filter(n => n !== v.name),
+   344→        }
+   345→      }),
+   346→      setCellValue: (varName, rowIndex, value) => set(s => {
+   347→        const arr = [...(s.data[varName] || [])]
+   348→        while (arr.length <= rowIndex) arr.push(null)
+   349→        arr[rowIndex] = value
+   350→        return { data: { ...s.data, [varName]: arr } }
+   351→      }),
+   352→      addRow: () => set(s => {
+   353→        const data = { ...s.data }
+   354→        const n = rowCount(data)
+   355→        for (const key of Object.keys(data)) {
+   356→          data[key] = [...(data[key] || []), null]
+   357→        }
+   358→        return { data }
+   359→      }),
+   360→      deleteRow: (index) => set(s => {
+   361→        const data = { ...s.data }
+   362→        for (const key of Object.keys(data)) {
+   363→          data[key] = (data[key] || []).filter((_: any, i: number) => i !== index)
+   364→        }
+   365→        return { data }
+   366→      }),
+   367→
+   368→      toggleVariableSelection: (varName) => set(s => ({
+   369→        selectedVariables: s.selectedVariables.includes(varName)
+   370→          ? s.selectedVariables.filter(n => n !== varName)
+   371→          : [...s.selectedVariables, varName],
+   372→      })),
+   373→      setSelectedVariables: (names) => set({ selectedVariables: names }),
+   374→
+   375→      addOutput: (output) => set(s => ({ outputs: [...s.outputs, output] })),
+   376→      clearOutputs: () => set({ outputs: [] }),
+   377→
+   378→      addChatMessage: (message) => set(s => ({ chatMessages: [...s.chatMessages, message] })),
+   379→      setAiTyping: (typing) => set({ isAiTyping: typing }),
+   380→      clearChat: () => set({ chatMessages: [] }),
+   381→
+   382→      addSyntax: (syntax) => set(s => ({ syntaxHistory: [...s.syntaxHistory, syntax] })),
+   383→
+   384→      importCSV: async (text) => {
+   385→        // Dynamic import PapaParse to avoid bundling it in the initial chunk
+   386→        try {
+   387→          const Papa = (await import('papaparse')).default
+   388→          const result = Papa.parse(text.trim(), {
+   389→            header: true,
+   390→            skipEmptyLines: true,
+   391→            dynamicTyping: false, // We do our own typing
+   392→          })
+   393→
+   394→          if (result.data && result.data.length > 0 && result.meta.fields) {
+   395→            const headers = result.meta.fields.filter(Boolean)
+   396→            const data: Record<string, any[]> = {}
+   397→            const variables: Variable[] = []
+   398→
+   399→            headers.forEach(name => {
+   400→              data[name] = []
+   401→              variables.push({
+   402→                id: uid(), name, type: 'numeric', label: name, width: 8, decimals: 2, missing: '', values: {},
+   403→              })
+   404→            })
+   405→
+   406→            for (const row of result.data as Record<string, unknown>[]) {
+   407→              headers.forEach(h => {
+   408→                const raw = String(row[h] ?? '').trim()
+   409→                const num = parseFloat(raw)
+   410→                data[h].push(isNaN(num) || raw === '' ? raw : num)
+   411→              })
+   412→            }
+   413→
+   414→            variables.forEach(v => {
+   415→              const col = data[v.name]
+   416→              const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
+   417→              if (nonEmpty.length === 0) return
+   418→              if (nonEmpty.every(x => typeof x === 'number')) {
+   419→                v.type = 'numeric'
+   420→              } else if (nonEmpty.every(x => /^\d{4}[\/-]\d{1,2}[\/-]\d{1,2}$/.test(String(x)))) {
+   421→                v.type = 'date'
+   422→                v.decimals = 0
+   423→              } else if (nonEmpty.every(x => /^\$?\d+[,.]?\d*$/.test(String(x)))) {
+   424→                v.type = 'currency'
+   425→              } else {
+   426→                v.type = 'string'
+   427→                v.decimals = 0
+   428→              }
+   429→            })
+   430→
+   431→            set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+   432→            return
+   433→          }
+   434→        } catch (err) {
+   435→          console.warn('CSV PapaParse failed, using fallback:', err)
+   436→        }
+   437→
+   438→        // Manual CSV parsing fallback - quote-aware
+   439→        const lines = text.trim().split('\n')
+   440→        if (lines.length < 2) {
+   441→          console.error('CSV import: file has less than 2 lines')
+   442→          return
+   443→        }
+   444→
+   445→        function parseCsvLine(line: string): string[] {
+   446→          const result: string[] = []
+   447→          let current = ''
+   448→          let inQuotes = false
+   449→          for (let i = 0; i < line.length; i++) {
+   450→            const ch = line[i]
+   451→            if (inQuotes) {
+   452→              if (ch === '"' && i + 1 < line.length && line[i + 1] === '"') {
+   453→                current += '"'; i++ // escaped quote
+   454→              } else if (ch === '"') {
+   455→                inQuotes = false
+   456→              } else {
+   457→                current += ch
+   458→              }
+   459→            } else {
+   460→              if (ch === '"') {
+   461→                inQuotes = true
+   462→              } else if (ch === ',') {
+   463→                result.push(current.trim())
+   464→                current = ''
+   465→              } else {
+   466→                current += ch
+   467→              }
+   468→            }
+   469→          }
+   470→          result.push(current.trim())
+   471→          return result
+   472→        }
+   473→
+   474→        const headers = parseCsvLine(lines[0])
+   475→        const data: Record<string, any[]> = {}
+   476→        const variables: Variable[] = []
+   477→
+   478→        headers.forEach(name => {
+   479→          data[name] = []
+   480→          variables.push({
+   481→            id: uid(), name, type: 'numeric', label: name, width: 8, decimals: 2, missing: '', values: {},
+   482→          })
+   483→        })
+   484→
+   485→        for (let i = 1; i < lines.length; i++) {
+   486→          const line = lines[i].trim()
+   487→          if (!line) continue
+   488→          const vals = parseCsvLine(line)
+   489→          headers.forEach((h, j) => {
+   490→            const raw = vals[j] || ''
+   491→            const num = parseFloat(raw)
+   492→            data[h].push(isNaN(num) || raw === '' ? raw : num)
+   493→          })
+   494→        }
+   495→
+   496→        // Ensure all columns have same length
+   497→        const maxLen = Math.max(...Object.values(data).map(a => a.length), 0)
+   498→        for (const key of Object.keys(data)) {
+   499→          while (data[key].length < maxLen) data[key].push('')
+   500→        }
+   501→
+   502→        variables.forEach(v => {
+   503→          const col = data[v.name]
+   504→          const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
+   505→          if (nonEmpty.length === 0) return
+   506→          const allNumeric = nonEmpty.every(x => typeof x === 'number')
+   507→          if (allNumeric) {
+   508→            v.type = 'numeric'
+   509→          } else {
+   510→            v.type = 'string'
+   511→            v.decimals = 0
+   512→          }
+   513→        })
+   514→
+   515→        set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+   516→      },
+   517→
+   518→      importFile: (file) => {
+   519→        const ext = file.name.split('.').pop()?.toLowerCase()
+   520→
+   521→        if (ext === 'xlsx' || ext === 'xls') {
+   522→          const reader = new FileReader()
+   523→          reader.onerror = () => console.error('Failed to read Excel file')
+   524→          reader.onload = async (ev) => {
+   525→            try {
+   526→              // Dynamic import xlsx to avoid bundling it in the initial chunk (~1MB)
+   527→              const XLSX = (await import('xlsx')).default
+   528→              const wb = XLSX.read(ev.target!.result, { type: 'array' })
+   529→              if (!wb.SheetNames || wb.SheetNames.length === 0) {
+   530→                console.error('Excel file has no sheets')
+   531→                return
+   532→              }
+   533→              const sheetName = wb.SheetNames[0]
+   534→              const ws = wb.Sheets[sheetName]
+   535→              const jsonData = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, any>[]
+   536→
+   537→              if (jsonData.length === 0) {
+   538→                console.error('Excel sheet is empty')
+   539→                return
+   540→              }
+   541→
+   542→              const headers = Object.keys(jsonData[0])
+   543→              const data: Record<string, any[]> = {}
+   544→              const variables: Variable[] = []
+   545→
+   546→              headers.forEach(name => {
+   547→                data[name] = []
+   548→                variables.push({
+   549→                  id: uid(), name, type: 'numeric', label: name, width: 8, decimals: 2, missing: '', values: {},
+   550→                })
+   551→              })
+   552→
+   553→              for (const row of jsonData) {
+   554→                headers.forEach(h => {
+   555→                  const raw = String(row[h] ?? '').trim()
+   556→                  const num = parseFloat(raw)
+   557→                  data[h].push(isNaN(num) || raw === '' ? raw : num)
+   558→                })
+   559→              }
+   560→
+   561→              variables.forEach(v => {
+   562→                const col = data[v.name]
+   563→                const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
+   564→                if (nonEmpty.length === 0) return
+   565→                if (nonEmpty.every(x => typeof x === 'number')) {
+   566→                  v.type = 'numeric'
+   567→                } else if (nonEmpty.every(x => /^\d{4}[\/-]\d{1,2}[\/-]\d{1,2}$/.test(String(x)))) {
+   568→                  v.type = 'date'
+   569→                  v.decimals = 0
+   570→                } else {
+   571→                  v.type = 'string'
+   572→                  v.decimals = 0
+   573→                }
+   574→              })
+   575→
+   576→              set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+   577→            } catch (err) {
+   578→              console.error('Excel import error:', err)
+   579→            }
+   580→          }
+   581→          reader.readAsArrayBuffer(file)
+   582→        } else if (ext === 'json') {
+   583→          const reader = new FileReader()
+   584→          reader.onerror = () => console.error('Failed to read JSON file')
+   585→          reader.onload = (ev) => {
+   586→            try {
+   587→              const json = JSON.parse(ev.target?.result as string)
+   588→              const arr = Array.isArray(json) ? json : (json.data && Array.isArray(json.data) ? json.data : null)
+   589→              if (!arr || arr.length === 0) {
+   590→                console.error('JSON has no valid array data')
+   591→                return
+   592→              }
+   593→              const headers = Object.keys(arr[0])
+   594→              const data: Record<string, any[]> = {}
+   595→              const variables: Variable[] = []
+   596→              headers.forEach(name => {
+   597→                data[name] = []
+   598→                variables.push({ id: uid(), name, type: 'numeric', label: name, width: 8, decimals: 2, missing: '', values: {} })
+   599→              })
+   600→              for (const row of arr) {
+   601→                headers.forEach(h => {
+   602→                  const raw = String(row[h] ?? '').trim()
+   603→                  const num = parseFloat(raw)
+   604→                  data[h].push(isNaN(num) || raw === '' ? raw : num)
+   605→                })
+   606→              }
+   607→              variables.forEach(v => {
+   608→                const col = data[v.name]
+   609→                const nonEmpty = col.filter(x => x !== '' && x !== null && x !== undefined)
+   610→                if (nonEmpty.length === 0) return
+   611→                v.type = nonEmpty.every(x => typeof x === 'number') ? 'numeric' : 'string'
+   612→                if (v.type === 'string') v.decimals = 0
+   613→              })
+   614→              set({ data, variables, selectedVariables: [], outputs: [], view: 'workspace', workspaceTab: 'data' })
+   615→            } catch (err) {
+   616→              console.error('JSON import error:', err)
+   617→            }
+   618→          }
+   619→          reader.readAsText(file)
+   620→        } else {
+   621→          // CSV, TSV or text file
+   622→          const reader = new FileReader()
+   623→          reader.onerror = () => console.error('Failed to read CSV file')
+   624→          reader.onload = (ev) => {
+   625→            const text = ev.target?.result as string
+   626→            if (text) get().importCSV(text)
+   627→          }
+   628→          reader.readAsText(file)
+   629→        }
+   630→      },
+   631→
+   632→      exportCSV: () => {
+   633→        const { data, variables } = get()
+   634→        const names = variables.map(v => v.name)
+   635→        const n = rowCount(data)
+   636→        // Proper CSV escaping: wrap fields containing commas, quotes, or newlines
+   637→        const esc = (val: unknown): string => {
+   638→          const s = val === null || val === undefined ? '' : String(val)
+   639→          if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+   640→            return '"' + s.replace(/"/g, '""') + '"'
+   641→          }
+   642→          return s
+   643→        }
+   644→        let csv = names.map(esc).join(',') + '\n'
+   645→        for (let i = 0; i < n; i++) {
+   646→          csv += names.map(name => esc(data[name]?.[i])).join(',') + '\n'
+   647→        }
+   648→        return csv
+   649→      },
+   650→
+   651→      exportJSON: () => {
+   652→        const { currentProject, data, variables, outputs } = get()
+   653→        return JSON.stringify({ project: currentProject, data, variables, outputs }, null, 2)
+   654→      },
+   655→
+   656→      loadProjectsFromStorage: () => {},
+   657→
+   658→      // Document AI - Scan actions
+   659→      setScanState: (state) => set({ scanState: state }),
+   660→      setScanResults: (results) => set(s => ({
+   661→        scanResults: results,
+   662→        scanState: results ? 'done' : 'idle',
+   663→        scanHistory: results ? [results, ...s.scanHistory] : s.scanHistory,
+   664→      })),
+   665→      clearScanHistory: () => set({ scanHistory: [], scanResults: null, scanState: 'idle' }),
+   666→
+   667→      // Document AI - Validation & Cleaning actions
+   668→      setValidationIssues: (issues) => set({ validationIssues: issues }),
+   669→      setCleaningStats: (stats) => set({ cleaningStats: stats }),
+   670→
+   671→      // Document AI - Batch actions
+   672→      addToBatchQueue: (item) => set(s => ({
+   673→        batchQueue: [...s.batchQueue, item],
+   674→      })),
+   675→
+   676→      // AI Agent actions
+   677→      setAgentStatus: (status) => set({ agentStatus: status }),
+   678→      addAgentResults: (results) => set(s => ({ agentResults: [...s.agentResults, ...results] })),
+   679→      clearAgentResults: () => set({ agentResults: [], agentStatus: 'idle' }),
+   680→
+   681→      // Document AI - Import scan results into variables + data
+   682→      importScanResults: (results) => {
+   683→        const newVariables: Variable[] = []
+   684→        const newData: Record<string, any[]> = {}
+   685→
+   686→        // Create variables and data from extracted fields
+   687→        for (const field of results.fields) {
+   688→          const varName = field.label
+   689→            .toLowerCase()
+   690→            .replace(/[^a-z0-9]+/g, '_')
+   691→            .replace(/^_|_$/g, '')
+   692→            .slice(0, 50)
+   693→
+   694→          const existingVar = get().variables.find(v => v.name === varName)
+   695→          if (existingVar) continue
+   696→
+   697→          const detectedType: Variable['type'] =
+   698→            field.type === 'numeric' || field.type === 'currency' || field.type === 'percentage'
+   699→              ? 'numeric'
+   700→              : field.type === 'date'
+   701→              ? 'date'
+   702→              : 'string'
+   703→
+   704→          newVariables.push({
+   705→            id: uid(),
+   706→            name: varName,
+   707→            type: detectedType,
+   708→            label: field.label,
+   709→            width: Math.max(8, String(field.value).length),
+   710→            decimals: detectedType === 'numeric' ? 2 : 0,
+   711→            missing: '',
+   712→            values: {},
+   713→          })
+   714→          newData[varName] = [field.value]
+   715→        }
+   716→
+   717→        // Create variables and data from extracted tables
+   718→        for (const table of results.tables) {
+   719→          for (let colIdx = 0; colIdx < table.headers.length; colIdx++) {
+   720→            const header = table.headers[colIdx]
+   721→            const varName = header
+   722→              .toLowerCase()
+   723→              .replace(/[^a-z0-9]+/g, '_')
+   724→              .replace(/^_|_$/g, '')
+   725→              .slice(0, 50)
+   726→
+   727→            const existingVar = get().variables.find(v => v.name === varName)
+   728→            if (existingVar) continue
+   729→
+   730→            const colValues = table.rows.map(row => row[colIdx] ?? '')
+   731→            const allNumeric = colValues.every(v => v === '' || !isNaN(parseFloat(v)))
+   732→
+   733→            newVariables.push({
+   734→              id: uid(),
+   735→              name: varName,
+   736→              type: allNumeric ? 'numeric' : 'string',
+   737→              label: header,
+   738→              width: Math.max(8, ...colValues.map(v => String(v).length)),
+   739→              decimals: allNumeric ? 2 : 0,
+   740→              missing: '',
+   741→              values: {},
+   742→            })
+   743→            newData[varName] = colValues.map(v => {
+   744→              if (v === '') return ''
+   745→              const num = parseFloat(v)
+   746→              return allNumeric && !isNaN(num) ? num : v
+   747→            })
+   748→          }
+   749→        }
+   750→
+   751→        if (newVariables.length === 0) return
+   752→
+   753→        // Merge with existing data
+   754→        const currentData = { ...get().data, ...newData }
+   755→        const currentVariables = [...get().variables, ...newVariables]
+   756→
+   757→        set({
+   758→          data: currentData,
+   759→          variables: currentVariables,
+   760→          view: 'workspace',
+   761→          workspaceTab: 'data',
+   762→        })
+   763→      },
+   764→    }),
+   765→    {
+   766→      name: 'oneway-storage',
+   767→      partialize: (state) => {
+   768→        // Guard against localStorage quota overflow (5-10MB limit)
+   769→        const data = JSON.stringify({ projects: state.projects, currentProject: state.currentProject })
+   770→        const MAX_STORAGE_BYTES = 4 * 1024 * 1024 // 4MB safe limit
+   771→        if (data.length > MAX_STORAGE_BYTES) {
+   772→          // Keep only the most recent project to stay under limit
+   773→          const recent = state.projects.slice(0, 1)
+   774→          const trimmed = JSON.stringify({ projects: recent, currentProject: state.currentProject })
+   775→          if (trimmed.length > MAX_STORAGE_BYTES) {
+   776→            // Even one project is too large — don't persist data, only metadata
+   777→            console.warn('[STORE] Project data too large for localStorage, skipping persist')
+   778→            return { projects: state.projects.map(p => ({ ...p, data: {}, outputs: [] })), currentProject: state.currentProject ? { ...state.currentProject, data: {}, outputs: [] } : null }
+   779→          }
+   780→          console.warn('[STORE] Storage approaching limit, keeping only most recent project')
+   781→          return { projects: recent, currentProject: state.currentProject }
+   782→        }
+   783→        checkStorageSize()
+   784→        return { projects: state.projects, currentProject: state.currentProject }
+   785→      },
+   786→    }
+   787→  )
+   788→)
+   789→

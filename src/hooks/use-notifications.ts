@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { authFetch } from '@/lib/auth-fetch'
+import { authFetch, createAuthEventSource } from '@/lib/auth-fetch'
 
 export interface NotificationItem {
   id: string
@@ -25,8 +25,6 @@ interface UseNotificationsReturn {
   markAllAsRead: () => Promise<void>
 }
 
-
-
 function isUserLoggedIn(): boolean {
   if (typeof window === 'undefined') return false
   try {
@@ -37,12 +35,20 @@ function isUserLoggedIn(): boolean {
   }
 }
 
-export function useNotifications(pollInterval: number = 30000): UseNotificationsReturn {
+/**
+ * useNotifications — fetches notifications via REST and receives real-time
+ * updates via SSE (no polling).
+ *
+ * - Initial load fetches existing notifications from /api/notifications.
+ * - SSE stream from /api/notifications/stream pushes new ones in real-time.
+ * - The `pollInterval` param is accepted for backward compatibility but ignored.
+ */
+export function useNotifications(_pollInterval: number = 30000): UseNotificationsReturn {
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const mountedRef = useRef(true)
+  const eventSourceRef = useRef<EventSource | null>(null)
 
   const fetchNotifications = useCallback(async () => {
     if (!isUserLoggedIn()) {
@@ -53,7 +59,7 @@ export function useNotifications(pollInterval: number = 30000): UseNotifications
     }
 
     try {
-      const res = await authFetch('/api/notifications?limit=20&unread=true')
+      const res = await authFetch('/api/notifications?limit=20&unreadOnly=true')
       if (!res.ok) {
         setIsLoading(false)
         return
@@ -64,9 +70,45 @@ export function useNotifications(pollInterval: number = 30000): UseNotifications
         setUnreadCount(data.data.total)
       }
     } catch {
-      // Silent fail for polling
+      // Silent fail
     } finally {
       if (mountedRef.current) setIsLoading(false)
+    }
+  }, [])
+
+  // ── SSE connection for real-time notifications ──
+  useEffect(() => {
+    if (!isUserLoggedIn()) return
+
+    const es = createAuthEventSource('/api/notifications/stream')
+    if (!es) return
+    eventSourceRef.current = es
+
+    es.addEventListener('notification', (e) => {
+      if (!mountedRef.current) return
+      try {
+        const notif: NotificationItem = JSON.parse(e.data)
+        setNotifications(prev => {
+          // Deduplicate by id
+          if (prev.some(n => n.id === notif.id)) return prev
+          return [notif, ...prev].slice(0, 50)
+        })
+        if (!notif.isRead) {
+          setUnreadCount(prev => prev + 1)
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    })
+
+    es.onerror = () => {
+      // EventSource auto-reconnects
+      console.warn('[useNotifications] SSE connection lost, reconnecting...')
+    }
+
+    return () => {
+      es.close()
+      eventSourceRef.current = null
     }
   }, [])
 
@@ -110,7 +152,7 @@ export function useNotifications(pollInterval: number = 30000): UseNotifications
     }
   }, [])
 
-  // Initial fetch + polling
+  // Initial fetch
   useEffect(() => {
     mountedRef.current = true
 
@@ -121,20 +163,12 @@ export function useNotifications(pollInterval: number = 30000): UseNotifications
       return
     }
 
-    // Initial fetch
     fetchNotifications()
-
-    // Set up polling
-    intervalRef.current = setInterval(fetchNotifications, pollInterval)
 
     return () => {
       mountedRef.current = false
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
     }
-  }, [fetchNotifications, pollInterval])
+  }, [fetchNotifications])
 
   // Listen for login/logout changes
   useEffect(() => {
@@ -148,7 +182,6 @@ export function useNotifications(pollInterval: number = 30000): UseNotifications
     }
 
     window.addEventListener('storage', handleStorage)
-    // Also listen for custom auth event
     const handleAuthChange = () => {
       setTimeout(handleStorage, 100)
     }

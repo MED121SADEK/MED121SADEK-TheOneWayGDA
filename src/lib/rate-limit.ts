@@ -209,8 +209,11 @@ export async function rateLimit(
   customLimit?: number,
   windowMs: number = RATE_LIMIT_WINDOW_MS,
 ): Promise<RateLimitResult> {
-  const limit = customLimit ?? getRouteLimit(path)
-  const key = `rl:${identifier}:${path.substring(0, 80)}`
+  // Normalize /api/v1/* paths for rate limit matching
+  const normalizedPath = path.replace(/^\/api\/v1\//, '/api/')
+
+  const limit = customLimit ?? getRouteLimit(normalizedPath)
+  const key = `rl:${identifier}:${normalizedPath.substring(0, 80)}`
 
   const redis = await getRedis()
   if (redis) {

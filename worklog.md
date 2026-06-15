@@ -136,3 +136,41 @@ Stage Summary:
 - Files created: vitest.config.ts
 - Files modified: proxy.ts (Redis rate limiting), i18n.test.ts (missing key), package.json (scripts)
 - Files deleted: src/middleware.ts (migrated to proxy.ts)
+
+---
+Task ID: UX-13
+Agent: Main Agent + 13 subagents
+Task: Implement all 13 user-perspective improvements
+
+Work Log:
+Applied 13 improvements identified from a user-perspective audit:
+
+CRITICAL (3):
+- #13: Added userId to Project schema + User relation + index. Fixed projects API (GET filters by owner, POST sets userId, PUT/DELETE verify ownership). Fixed billing + auth/stats to scope project counts.
+- #12: Added contentHash + @@unique([author, contentHash]) to CommunityPost. Replaced create() with upsert() for idempotent post creation. SHA-256 of title+content.
+- #4: Added 429 interception to auth-fetch.ts (reads Retry-After header, shows Sonner toast). Mounted Sonner Toaster in layout.tsx. Added rate_limit categorization to error-tracker.
+
+HIGH (3):
+- #1: Created /auth/status page — pending users see live status with 15s auto-poll, countdown timer, and redirect to login on approval. Login page now redirects pending users to status page.
+- #8: Added auto-save to Zustand store — 3s debounced PUT to /api/projects on any data change. Floating "Saving..."/"Saved ✓" indicator in workspace. Tracks currentProjectId.
+- #9: Created analysis-cache.ts (5min TTL MemoryCache). Integrated into copilot + assistant routes — checks cache before AI call, caches response after. Supports both streaming and standard modes. Audit logs include cacheHit flag.
+
+MEDIUM (3):
+- #10: Created undo-store.ts (50-snapshot stack). Integrated into Zustand store — setData, setCellValue, addRow, deleteRow, deleteVariable all push snapshots. Added Ctrl+Z/Ctrl+Shift+Z keyboard shortcuts to workspace page.
+- #5: Added ReactMarkdown rendering to community posts in 4 files (post-card, [id] detail, profile, collections). Styled headings, code blocks, links, lists. No raw HTML rendering (security).
+- #7: Created context-detector.ts — detects AI context from message content (regex signals for community/leaderboard/workspace/modules). Falls back to URL-based context. Integrated into copilot route.
+
+LOW (4):
+- #11: Created /api/v1/[[...path]]/route.ts catch-all proxy. Rate limits normalized for /api/v1/* prefix. Added versioning docs to proxy.ts.
+- #3: Added comprehensive auth architecture documentation to auth.ts, require-auth.ts, visitor/route.ts, proxy.ts.
+- #6: Fixed SSE notification auth bug (EventSource can't set headers — added query param fallback). Replaced polling with SSE in use-notifications hook. Fixed notification-bell component (was silently failing).
+- #2: Rewrote landing DemoSection with full workspace browser-frame mockup (sidebar, data table, AI chat panel, scroll animations). Added i18n keys for 8 locales.
+
+Stage Summary:
+- Files created: 8 (auth/status/page, analysis-cache, undo-store, context-detector, v1 catch-all, useNotificationStream, DemoSection rewrite)
+- Files modified: 20+ across the codebase
+- `tsc --noEmit` — 0 errors
+- `vitest run` — 61/61 tests passing
+- `next build` — production build succeeds
+- Schema: Project.userId + User relation, CommunityPost.contentHash + unique constraint
+- NOTE: Schema changes need `prisma db push` when DB is accessible

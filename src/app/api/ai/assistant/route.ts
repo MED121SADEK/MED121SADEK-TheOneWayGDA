@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db as prisma } from '@/lib/db'
 import { requireAuth } from '@/lib/require-auth'
+import { getAnalysisCacheKey, getCachedResponse, setCachedResponse } from '@/lib/analysis-cache'
 
 // ═══════════════════════════════════════════════════════════════
 // Multi-Specialist AI Assistant System
@@ -362,11 +363,54 @@ export async function POST(request: NextRequest) {
 
     const zai = await ZAI.create()
 
+    // ─── Caching strategy ───
+    // Cache AI responses keyed by the last user message + specialist context.
+    // Deduplicates identical questions within a 5-minute window to avoid
+    // redundant LLM API calls for rapid retries.
+    const cacheContext = `assistant:${specialist.id}${context ? `:${context}` : ''}`
+    const cacheKey = getAnalysisCacheKey(messages, cacheContext)
+
     // ─── Streaming mode ───
     if (stream) {
+      // Check cache first — return cached response as a stream if available
+      const cachedStreamText = getCachedResponse(cacheKey)
+      if (cachedStreamText) {
+        const encoder = new TextEncoder()
+        // Async audit log for cache hit
+        ;(async () => {
+          try {
+            await prisma.aiAuditLog.create({
+              data: {
+                visitorId: user.userId,
+                action: 'ai_query',
+                details: JSON.stringify({ action: 'assistant_stream', specialist: specialist.id, mode: 'stream', cacheHit: true, userId: user.userId }),
+                inputData: JSON.stringify({ lastMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
+                durationMs: Date.now() - startTime,
+                ipAddress,
+                userAgent,
+              },
+            })
+          } catch { /* silent */ }
+        })()
+
+        const cachedStream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: cachedStreamText } }] })}\n\n`))
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+            controller.close()
+          },
+        })
+
+        return new Response(cachedStream, {
+          headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+        })
+      }
+
       const encoder = new TextEncoder()
       const streamResponse = new ReadableStream({
         async start(controller) {
+          // Accumulate raw chunks to cache the assembled text after stream completes
+          const rawChunks: Uint8Array[] = []
           try {
             const completion = await zai.chat.completions.create({
               messages: [
@@ -388,15 +432,40 @@ export async function POST(request: NextRequest) {
                 while (true) {
                   const { done, value } = await reader.read()
                   if (done) break
+                  rawChunks.push(value)
                   controller.enqueue(value)
                 }
               } else if (Array.isArray(streamable.choices)) {
                 const text = streamable.choices[0]?.message?.content || ''
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`))
+                const sseData = encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`)
+                rawChunks.push(sseData)
+                controller.enqueue(sseData)
               }
             }
             controller.enqueue(encoder.encode('data: [DONE]\n\n'))
             controller.close()
+
+            // Cache the fully assembled response text for future deduplication
+            try {
+              const combined = new TextDecoder().decode(
+                rawChunks.reduce((acc, chunk) => {
+                  const merged = new Uint8Array(acc.length + chunk.length)
+                  merged.set(acc)
+                  merged.set(chunk, acc.length)
+                  return merged
+                }, new Uint8Array(0))
+              )
+              let fullText = ''
+              for (const line of combined.split('\n')) {
+                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                  try {
+                    const json = JSON.parse(line.slice(6))
+                    fullText += json.choices?.[0]?.delta?.content || json.choices?.[0]?.message?.content || ''
+                  } catch { /* skip */ }
+                }
+              }
+              if (fullText) setCachedResponse(cacheKey, fullText)
+            } catch { /* caching failure should not affect the response */ }
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Stream error'
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`))
@@ -428,6 +497,40 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Standard mode ───
+    // Check cache first — return immediately if we have a cached response
+    const cachedStandardText = getCachedResponse(cacheKey)
+    if (cachedStandardText) {
+      const durationMs = Date.now() - startTime
+      // Audit log for cache hit
+      try {
+        await prisma.aiAuditLog.create({
+          data: {
+            visitorId: user.userId,
+            action: 'ai_query',
+            details: JSON.stringify({ action: 'assistant_response', specialist: specialist.id, specialistName: specialist.name, messageCount: messages.length, cacheHit: true, userId: user.userId }),
+            inputData: JSON.stringify({ lastMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
+            outputData: JSON.stringify({ responseLength: cachedStandardText.length, tokensUsed: 0 }),
+            tokensUsed: 0,
+            durationMs,
+            ipAddress,
+            userAgent,
+          },
+        })
+      } catch { /* silent */ }
+
+      return NextResponse.json({
+        message: cachedStandardText,
+        specialist: {
+          id: specialist.id,
+          name: specialist.name,
+          title: specialist.title,
+          icon: specialist.icon,
+          color: specialist.color,
+        },
+        meta: { tokensUsed: 0, durationMs, withMemory: !!memoryContext, cacheHit: true },
+      })
+    }
+
     const completion = await zai.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
@@ -441,6 +544,11 @@ export async function POST(request: NextRequest) {
     })
 
     const aiMessage = completion.choices?.[0]?.message?.content || 'I apologize, I could not generate a response.'
+
+    // Cache the successful response for future deduplication
+    if (aiMessage && !aiMessage.startsWith('I apologize')) {
+      setCachedResponse(cacheKey, aiMessage)
+    }
     const tokensUsed = completion.usage?.total_tokens || 0
     const durationMs = Date.now() - startTime
 
