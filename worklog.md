@@ -174,3 +174,27 @@ Stage Summary:
 - `next build` — production build succeeds
 - Schema: Project.userId + User relation, CommunityPost.contentHash + unique constraint
 - NOTE: Schema changes need `prisma db push` when DB is accessible
+
+---
+Task ID: tests-ux13
+Agent: Main Agent
+Task: Write comprehensive tests for all new UX-13 modules
+
+Work Log:
+- Created 7 new test files (166 new tests) covering all new modules from UX-13:
+  - analysis-cache.test.ts (14 tests) — cache key generation, context prefixing, 500-char truncation, TTL expiry, independent keys
+  - undo-store.test.ts (15 tests) — push/undo/redo, dedup suppression, redo branch pruning, MAX_HISTORY=50 eviction, clear, deep clone safety
+  - context-detector.test.ts (49 tests) — all 4 context categories (community/leaderboard/workspace/modules), URL fallback, priority ordering, case-insensitivity
+  - rate-limit.test.ts (23 tests) — getRouteLimit longest-prefix matching, in-memory fallback, IP independence, route bucketing, /api/v1/ normalization
+  - auth.test.ts (23 tests) — generateToken uniqueness/length, scrypt hashing format, password verify (scrypt + legacy SHA-256), special/unicode chars, getTokenFromRequest header parsing
+  - auth-fetch.test.ts (19 tests) — Authorization header injection, legacy token URL cleanup, 429 toast with Retry-After (header + body fallback), EventSource auth param
+  - cache.test.ts (23 tests) — MemoryCache get/set/del/has/clear/keys, per-key TTL, expiry behavior, stats reporting, type safety
+- Fixed a bug in context-detector.ts: "z-score" and "t-score" were matching leaderboard's "score" regex before reaching workspace check. Fixed with negative lookbehind `(?<!z-)(?<!t-)(?<!f-)\b(score|ranking)\b` and added `t-score`/`f-score` to workspace signals.
+- Deleted stale src/middleware.ts (was blocking Next.js 16 build — duplicate of proxy.ts)
+
+Stage Summary:
+- Test count: 61 → 227 (+166 new tests across 7 files)
+- All 227 tests passing, 11 test files
+- `tsc --noEmit` — 0 errors
+- `next build` — production build succeeds
+- Bug fix: context-detector.ts now correctly routes z-score/t-score/f-score to workspace instead of leaderboard

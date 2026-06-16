@@ -17,12 +17,13 @@ export function detectContextFromMessage(message: string, urlContext: string): s
   if (/\b(post|comment|discuss|thread|community|share|question)\b/.test(lower)) return 'community'
   if (/\b(news|article|trending|breaking|update)\b/.test(lower)) return 'community'
 
-  // Leaderboard/model signals
-  if (/\b(leaderboard|benchmark|model|ranking|score|evaluate|compare model)\b/.test(lower)) return 'leaderboard'
+  // Leaderboard/model signals (negative lookbehind to avoid matching "z-score" or "t-score")
+  if (/\b(leaderboard|benchmark|model|ranking|evaluate|compare model)\b/.test(lower)) return 'leaderboard'
   if (/\b(arena|vote|battle|vs\.? )\b/.test(lower)) return 'leaderboard'
+  if (/(?<!z-)(?<!t-)(?<!f-)\b(score|ranking)\b/.test(lower)) return 'leaderboard'
 
   // Workspace/data signals (strongest signal)
-  if (/\b(data|dataset|csv|import|column|row|variable|statistic|regression|correlation|p-value|anova|t-test|histogram|scatter|distribution|transform|clean|normalize|z-score|outlier)\b/.test(lower)) return 'workspace'
+  if (/\b(data|dataset|csv|import|column|row|variable|statistic|regression|correlation|p-value|anova|t-test|t-score|f-score|histogram|scatter|distribution|transform|clean|normalize|z-score|outlier)\b/.test(lower)) return 'workspace'
   if (/\b(analysis|analyze|chart|plot|graph|visualization|mean|median|std|variance|hypothesis)\b/.test(lower)) return 'workspace'
 
   // Module/assistant signals
