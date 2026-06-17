@@ -148,10 +148,10 @@ describe('GET /api/arena/[id]', () => {
     expect(res.status).toBe(200)
   })
 
-  it('should return demo data for unknown battle', async () => {
-    getMockDb().arenaBattle.findUnique.mockResolvedValueOnce(null)
-    const res = await arenaIdGet(makeRequest('/api/arena/unknown'), { params: Promise.resolve({ id: 'unknown' }) })
-    expect(res.status).toBe(200)
+  it('should return 404 for non-existent battle in DB', async () => {
+    getMockDb().arenaBattle.findUnique.mockResolvedValue(null)
+    const res = await arenaIdGet(makeRequest('/api/arena/nope'), { params: Promise.resolve({ id: 'nope' }) })
+    expect(res.status).toBe(404)
   })
 })
 
