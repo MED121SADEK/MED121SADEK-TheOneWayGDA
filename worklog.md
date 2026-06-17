@@ -260,3 +260,30 @@ Stage Summary:
 - Prisma: schema synced, 2 pending columns applied (`Project.userId`, `CommunityPost.contentHash`)
 - Prisma provider corrected: "postgresql" → "sqlite" to match actual DATABASE_URL
 - No code changes needed — all existing 227+ tests still valid
+
+---
+Task ID: 16
+Agent: Main Agent
+Task: Fix TS errors + write API integration tests for auth, community, and misc routes
+
+Work Log:
+- Fixed 5 TS errors in `src/app/api/search/route.ts`: removed `mode: 'insensitive'` (PostgreSQL-only Prisma feature), SQLite LIKE is already case-insensitive for ASCII
+- Wrote 142 new API integration tests across 4 test files:
+  - `auth-extended.test.ts` (26 tests): logout, [id] GET/PATCH, stats, activity, forgot-password, reset-password
+  - `community-posts.test.ts` (40 tests): posts CRUD, comments, upvote, answer mark, interact (like/save/repost), related posts
+  - `community-social.test.ts` (32 tests): follow/unfollow, topics, personalized feed, verified researchers, knowledge base CRUD
+  - `misc-routes.test.ts` (43 tests): search, saved searches, API keys, feedback, leaderboard, analytics, visitors (admin)
+- Fixed Next.js 16 dynamic route params pattern: `{ params: Promise.resolve({ id: '...' }) }` for all `[id]` routes
+- Fixed auth mock patterns: `sessionWithUser()` helper for routes using `include: { user: true }`, `getTokenFromRequest` spy for manual auth routes
+- Fixed visitors admin auth by hoisting `process.env.ADMIN_SECRET` in vi.hoisted (captured at module load time)
+- Added `vi.mock('@/lib/auth', ...)` for misc-routes (keys, visitors) to provide `getTokenFromRequest`
+- Added `apiRouteLogger` mock for keys and leaderboard routes
+- Added `$queryRaw` mock for visitors stats aggregation
+
+Stage Summary:
+- Test count: 261 → 403 (+142 API integration tests, 16 test files total)
+- All 403 tests passing (0 failures)
+- `tsc --noEmit` — 0 errors
+- `next build` — production build succeeds
+- Routes covered: auth (10 sub-routes), community (posts, comments, upvote, answer, interact, follow, topics, feed, verified, knowledge), search, saved searches, API keys, feedback, leaderboard, analytics, visitors
+- New files: 4 test files, 0 production code changes (except search route SQLite fix)

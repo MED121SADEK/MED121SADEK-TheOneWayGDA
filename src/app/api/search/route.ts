@@ -66,9 +66,9 @@ async function searchCommunityPosts(q: string, limit: number) {
     where: {
       type: 'community',
       OR: [
-        { title: { contains: q, mode: 'insensitive' } },
-        { content: { contains: q, mode: 'insensitive' } },
-        { tags: { contains: q, mode: 'insensitive' } },
+        { title: { contains: q } },
+        { content: { contains: q } },
+        { tags: { contains: q } },
       ],
     },
     select: {
@@ -96,9 +96,9 @@ async function searchNews(q: string, limit: number) {
     where: {
       type: 'news',
       OR: [
-        { title: { contains: q, mode: 'insensitive' } },
-        { content: { contains: q, mode: 'insensitive' } },
-        { sourceName: { contains: q, mode: 'insensitive' } },
+        { title: { contains: q } },
+        { content: { contains: q } },
+        { sourceName: { contains: q } },
       ],
     },
     select: {
@@ -125,9 +125,9 @@ async function searchLeaderboardModels(q: string, limit: number) {
     where: {
       isActive: true,
       OR: [
-        { name: { contains: q, mode: 'insensitive' } },
-        { provider: { contains: q, mode: 'insensitive' } },
-        { modelType: { contains: q, mode: 'insensitive' } },
+        { name: { contains: q } },
+        { provider: { contains: q } },
+        { modelType: { contains: q } },
       ],
     },
     select: { id: true, name: true, provider: true, modelType: true },
