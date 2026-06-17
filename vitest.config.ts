@@ -8,6 +8,11 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['src/**/*.test.{ts,tsx}'],
+    // API integration tests use node environment (no DOM needed)
+    env: {
+      'src/app/api/**/*.test.ts': 'node',
+      'src/app/api/**/*.test.tsx': 'node',
+    },
   },
   resolve: {
     alias: {
