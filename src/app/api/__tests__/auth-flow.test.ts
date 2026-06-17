@@ -11,96 +11,89 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 
 // ── Hoisted mocks (vi.hoisted runs before vi.mock factory) ──
 
-const { createMockDb, getMockDb, resetMockDb } = vi.hoisted(() => {
+const { setupMockDb, getMockDb } = vi.hoisted(() => {
   const mockUser = {
-    id: 'user-001',
-    email: 'test@example.com',
-    name: 'Test User',
-    password: 'scrypt$abc123$def456',
-    role: 'user',
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
-    lastSeen: null,
-    preferences: '{}',
-    avatarUrl: null,
-    bio: null,
-    location: null,
-    website: null,
-    github: null,
-    linkedin: null,
+    id: 'user-001', email: 'test@example.com', name: 'Test User',
+    password: 'scrypt$abc123$def456', role: 'user',
+    createdAt: new Date('2024-01-01'), updatedAt: new Date('2024-01-01'),
+    lastSeen: null, preferences: '{}', avatarUrl: null, bio: null,
+    location: null, website: null, github: null, linkedin: null,
   }
 
   const mockSession = {
-    id: 'session-001',
-    userId: 'user-001',
-    token: 'test-token-123',
-    ipAddress: '127.0.0.1',
-    userAgent: 'test',
+    id: 'session-001', userId: 'user-001', token: 'test-token-123',
+    ipAddress: '127.0.0.1', userAgent: 'test',
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     createdAt: new Date(),
   }
 
   const mockProject = {
-    id: 'proj-001',
-    name: 'Test Project',
-    description: '',
-    data: '{}',
-    variables: '[]',
-    outputs: '[]',
-    shared: false,
-    sharedWith: null,
-    userId: 'user-001',
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    id: 'proj-001', name: 'Test Project', description: '', data: '{}',
+    variables: '[]', outputs: '[]', shared: false, sharedWith: null,
+    userId: 'user-001', createdAt: new Date(), updatedAt: new Date(),
   }
 
-  let _db: Record<string, Record<string, Mock>>
+  // Single persistent object — never replaced. Methods are mutated in place.
+  const _db = {
+    user: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({ ...mockUser }),
+      update: vi.fn().mockResolvedValue(mockUser),
+    },
+    userSession: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue(mockSession),
+      delete: vi.fn().mockResolvedValue({}),
+    },
+    userActivity: {
+      create: vi.fn().mockResolvedValue({}),
+    },
+    visitor: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      count: vi.fn().mockResolvedValue(0),
+      upsert: vi.fn().mockResolvedValue({
+        email: 'test@test.com', status: 'pending',
+        createdAt: new Date(), lastSeen: new Date(),
+      }),
+      update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    project: {
+      findMany: vi.fn().mockResolvedValue([mockProject]),
+      findUnique: vi.fn().mockResolvedValue(mockProject),
+      create: vi.fn().mockResolvedValue(mockProject),
+      update: vi.fn().mockResolvedValue(mockProject),
+      delete: vi.fn().mockResolvedValue({}),
+    },
+  }
 
-  function createMockDb(overrides: Record<string, unknown> = {}) {
-    _db = {
-      user: {
-        findUnique: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockResolvedValue({ ...mockUser }),
-        update: vi.fn().mockResolvedValue(mockUser),
-        ...overrides.user,
-      },
-      userSession: {
-        findUnique: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockResolvedValue(mockSession),
-        delete: vi.fn().mockResolvedValue({}),
-        ...overrides.userSession,
-      },
-      userActivity: {
-        create: vi.fn().mockResolvedValue({}),
-        ...overrides.userActivity,
-      },
-      visitor: {
-        findUnique: vi.fn().mockResolvedValue(null),
-        count: vi.fn().mockResolvedValue(0),
-        upsert: vi.fn().mockResolvedValue({
-          email: 'test@test.com', status: 'pending',
-          createdAt: new Date(), lastSeen: new Date(),
-        }),
-        update: vi.fn().mockResolvedValue({}),
-        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-        ...overrides.visitor,
-      },
-      project: {
-        findMany: vi.fn().mockResolvedValue([mockProject]),
-        findUnique: vi.fn().mockResolvedValue(mockProject),
-        create: vi.fn().mockResolvedValue(mockProject),
-        update: vi.fn().mockResolvedValue(mockProject),
-        delete: vi.fn().mockResolvedValue({}),
-        ...overrides.project,
-      },
-    } as unknown as Record<string, Record<string, Mock>>
-    return _db
+  function setupMockDb() {
+    // Reset all mock implementations to defaults (mutates in place)
+    _db.user.findUnique.mockResolvedValue(null)
+    _db.user.create.mockResolvedValue({ ...mockUser })
+    _db.user.update.mockResolvedValue(mockUser)
+    _db.userSession.findUnique.mockResolvedValue(null)
+    _db.userSession.create.mockResolvedValue(mockSession)
+    _db.userSession.delete.mockResolvedValue({})
+    _db.userActivity.create.mockResolvedValue({})
+    _db.visitor.findUnique.mockResolvedValue(null)
+    _db.visitor.count.mockResolvedValue(0)
+    _db.visitor.upsert.mockResolvedValue({
+      email: 'test@test.com', status: 'pending',
+      createdAt: new Date(), lastSeen: new Date(),
+    })
+    _db.visitor.update.mockResolvedValue({})
+    _db.visitor.updateMany.mockResolvedValue({ count: 0 })
+    _db.project.findMany.mockResolvedValue([mockProject])
+    _db.project.findUnique.mockResolvedValue(mockProject)
+    _db.project.create.mockResolvedValue(mockProject)
+    _db.project.update.mockResolvedValue(mockProject)
+    _db.project.delete.mockResolvedValue({})
   }
 
   function getMockDb() { return _db }
-  function resetMockDb() { _db = createMockDb() }
 
-  return { createMockDb, getMockDb, resetMockDb, _mockUser: mockUser, _mockSession: mockSession, _mockProject: mockProject }
+  return { setupMockDb, getMockDb, _mockUser: mockUser, _mockSession: mockSession, _mockProject: mockProject }
 })
 
 // ── Module mocks (factories can use hoisted values) ─────────
@@ -173,8 +166,8 @@ function authedRequest(url: string, token: string, options: RequestInit = {}): N
 // ── Reset before each test ──────────────────────────────────
 
 beforeEach(() => {
-  createMockDb()
   vi.clearAllMocks()
+  setupMockDb()
 })
 
 // ═══════════════════════════════════════════════════════════════

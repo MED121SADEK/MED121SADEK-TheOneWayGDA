@@ -40,6 +40,8 @@
     "node_modules",
     "examples",
     "skills",
-    "**/__tests__/**"
+    "**/__tests__/**",
+    "e2e",
+    "playwright.config.ts"
   ]
 }

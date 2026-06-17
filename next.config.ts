@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -6,17 +7,6 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: true,
-  // Bundle analysis: enabled with ANALYZE=true bun run build
-  ...(process.env.ANALYZE === 'true' ? {
-    experimental: {
-      analyze: {
-        // @ts-expect-error — Next.js 16 analyze option
-        analyzerMode: 'static',
-        openAnalyzer: false,
-        reportFilename: '../analyze/bundle-stats.html',
-      },
-    },
-  } : {}),
   async headers() {
     return [
       {
@@ -39,4 +29,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Bundle analysis: ANALYZE=true bun run build
+export default process.env.ANALYZE === 'true'
+  ? withBundleAnalyzer({ enabled: true, openAnalyzer: false })(nextConfig)
+  : nextConfig;
