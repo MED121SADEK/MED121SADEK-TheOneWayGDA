@@ -9,8 +9,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model Project {
@@ -154,7 +155,7 @@ model AiModel {
 
   @@unique([name, provider])
   @@index([provider])
-  @@index([modelType])
+  @@index(odelType])
   @@index([isActive])
 
   benchmarkScores BenchmarkScore[]
@@ -165,7 +166,7 @@ model AiModel {
 model BenchmarkScore {
   id        String   @id @default(cuid())
   modelId   String
-  model     AiModel       @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  model     AiModel       @relation(fields: odelId], references: [id], onDelete: Cascade)
   benchmark String
   score     Float
   maxScore  Float    @default(100)
@@ -176,8 +177,8 @@ model BenchmarkScore {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([modelId, benchmark, version])
-  @@index([modelId])
+  @@unique(odelId, benchmark, version])
+  @@index(odelId])
   @@index([benchmark])
   @@index([score])
 }
@@ -185,7 +186,7 @@ model BenchmarkScore {
 model ModelPricing {
   id              String   @id @default(cuid())
   modelId         String
-  model           AiModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  model           AiModel @relation(fields: odelId], references: [id], onDelete: Cascade)
   provider        String
   inputPrice      Float
   outputPrice     Float
@@ -197,7 +198,7 @@ model ModelPricing {
   updatedAt       DateTime @updatedAt
   createdAt       DateTime @default(now())
 
-  @@index([modelId])
+  @@index(odelId])
   @@index([provider])
   @@index([isActive])
 }
@@ -205,7 +206,7 @@ model ModelPricing {
 model LiveMetric {
   id           String   @id @default(cuid())
   modelId      String
-  model        AiModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  model        AiModel @relation(fields: odelId], references: [id], onDelete: Cascade)
   prompt       String
   response     String?
   latencyMs    Int?
@@ -217,7 +218,7 @@ model LiveMetric {
   testedAt     DateTime @default(now())
   createdAt    DateTime @default(now())
 
-  @@index([modelId])
+  @@index(odelId])
   @@index([testedAt])
   @@index([status])
 }
@@ -987,7 +988,7 @@ model PortfolioHolding {
   lastUpdated  DateTime @updatedAt
 
   @@index([portfolioId])
-  @@index([modelId])
+  @@index(odelId])
   @@index([score])
 
   @@unique([portfolioId, modelId])
@@ -1005,7 +1006,7 @@ model PortfolioAlert {
   createdAt    DateTime @default(now())
 
   @@index([portfolioId])
-  @@index([modelId])
+  @@index(odelId])
   @@index([isRead])
   @@index([createdAt])
 }
@@ -1102,7 +1103,7 @@ model Certification {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@unique([modelId, category])
+  @@unique(odelId, category])
   @@index([provider])
   @@index([level])
   @@index([category])
@@ -1135,7 +1136,7 @@ model BenchmarkSubmission {
   updatedAt     DateTime @updatedAt
 
   @@index([submitterId])
-  @@index([modelId])
+  @@index(odelId])
   @@index([benchmark])
   @@index([status])
   @@index([isVerified])
