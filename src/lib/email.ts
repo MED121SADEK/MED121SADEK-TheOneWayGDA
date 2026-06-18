@@ -1,15 +1,39 @@
 import nodemailer from 'nodemailer'
 
-const ADMIN_EMAIL = 'msad41855@gmail.com'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'msad41855@gmail.com'
 
 function getTransporter() {
   const appPassword = process.env.ADMIN_EMAIL_APP_PASSWORD
+
+  // Custom SMTP takes priority if fully configured
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD) {
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_PORT === '465',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+    })
+  }
+
+  // Auto-detect provider from admin email domain
   if (appPassword) {
+    const domain = ADMIN_EMAIL.split('@')[1]?.toLowerCase()
+    if (domain && ['outlook.com', 'hotmail.com', 'live.com', 'msn.com'].includes(domain)) {
+      // Microsoft Outlook SMTP
+      return nodemailer.createTransport({
+        host: 'smtp-mail.outlook.com',
+        port: 587,
+        secure: false, // STARTTLS
+        auth: { user: ADMIN_EMAIL, pass: appPassword },
+      })
+    }
+    // Default: Gmail
     return nodemailer.createTransport({
       service: 'gmail',
       auth: { user: ADMIN_EMAIL, pass: appPassword },
     })
   }
+
   return nodemailer.createTransport({ jsonTransport: true })
 }
 

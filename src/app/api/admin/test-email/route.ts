@@ -1,62 +1,121 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 
-const ADMIN_EMAIL = 'msad41855@gmail.com'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'msad41855@gmail.com'
 
-// GET /api/admin/test-email — Check email configuration status (no auth needed for status check)
-export async function GET() {
+const MICROSOFT_DOMAINS = ['outlook.com', 'hotmail.com', 'live.com', 'msn.com']
+
+function detectProvider(): { name: string; configured: boolean } {
   const hasAppPassword = !!process.env.ADMIN_EMAIL_APP_PASSWORD
   const hasCustomSmtp = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD)
-  const isConfigured = hasAppPassword || hasCustomSmtp
+
+  if (hasCustomSmtp) return { name: 'smtp', configured: true }
+  if (hasAppPassword) {
+    const domain = ADMIN_EMAIL.split('@')[1]?.toLowerCase()
+    if (domain && MICROSOFT_DOMAINS.includes(domain)) return { name: 'outlook', configured: true }
+    return { name: 'gmail', configured: true }
+  }
+  return { name: 'none', configured: false }
+}
+
+function buildTransporter() {
+  const hasCustomSmtp = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD)
+  if (hasCustomSmtp) {
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_PORT === '465',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+    })
+  }
+
+  const appPassword = process.env.ADMIN_EMAIL_APP_PASSWORD
+  if (appPassword) {
+    const domain = ADMIN_EMAIL.split('@')[1]?.toLowerCase()
+    if (domain && MICROSOFT_DOMAINS.includes(domain)) {
+      return nodemailer.createTransport({
+        host: 'smtp-mail.outlook.com',
+        port: 587,
+        secure: false,
+        auth: { user: ADMIN_EMAIL, pass: appPassword },
+      })
+    }
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: ADMIN_EMAIL, pass: appPassword },
+    })
+  }
+
+  return null
+}
+
+// GET /api/admin/test-email — Check email configuration status
+export async function GET() {
+  const { name, configured } = detectProvider()
+
+  const providerLabels: Record<string, string> = {
+    outlook: 'Microsoft Outlook',
+    gmail: 'Gmail',
+    smtp: `Custom SMTP${process.env.SMTP_HOST ? ` (${process.env.SMTP_HOST})` : ''}`,
+    none: 'Not configured',
+  }
 
   return NextResponse.json({
-    configured: isConfigured,
-    provider: hasAppPassword ? 'gmail' : hasCustomSmtp ? 'smtp' : 'none',
+    configured,
+    provider: name,
+    providerLabel: providerLabels[name] || name,
     adminEmail: ADMIN_EMAIL,
-    mode: isConfigured ? 'live' : 'dev',
-    message: isConfigured
-      ? 'Email is configured. You will receive real email notifications.'
-      : 'Email is NOT configured. Notifications are logged to console only. Set ADMIN_EMAIL_APP_PASSWORD in your .env to enable.',
+    mode: configured ? 'live' : 'dev',
+    message: configured
+      ? `Email is configured via ${providerLabels[name]}. You will receive real email notifications.`
+      : 'Email is NOT configured. Set ADMIN_EMAIL and ADMIN_EMAIL_APP_PASSWORD in your .env to enable.',
   })
 }
 
 // POST /api/admin/test-email — Send a test email to verify configuration
 export async function POST(request: NextRequest) {
   try {
-    const hasAppPassword = !!process.env.ADMIN_EMAIL_APP_PASSWORD
-    const hasCustomSmtp = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD)
+    const { name, configured } = detectProvider()
 
-    if (!hasAppPassword && !hasCustomSmtp) {
+    if (!configured) {
+      const domain = ADMIN_EMAIL.split('@')[1]?.toLowerCase()
+      const isMicrosoft = domain && MICROSOFT_DOMAINS.includes(domain)
+
       return NextResponse.json({
         success: false,
         error: 'Email not configured',
-        message: 'Set ADMIN_EMAIL_APP_PASSWORD (for Gmail) or SMTP_HOST/SMTP_USER/SMTP_PASSWORD in your .env file first.',
-        setupGuide: [
+        message: 'Set ADMIN_EMAIL and ADMIN_EMAIL_APP_PASSWORD in your .env file first.',
+        setupGuide: isMicrosoft ? [
+          '1. Go to https://account.live.com/proofs/manage/additional',
+          '2. Under "App passwords", create a new app password for "TheOneWayGDA"',
+          '3. Add to your .env:',
+          '   ADMIN_EMAIL="your-email@outlook.com"',
+          '   ADMIN_EMAIL_APP_PASSWORD="the-app-password"',
+          '4. Restart your server',
+        ] : [
           '1. Go to https://myaccount.google.com/apppasswords',
           '2. Generate a new App Password for "TheOneWayGDA"',
-          '3. Add ADMIN_EMAIL_APP_PASSWORD="the-16-char-code" to your .env',
+          '3. Add to your .env:',
+          '   ADMIN_EMAIL="your-email@gmail.com"',
+          '   ADMIN_EMAIL_APP_PASSWORD="the-16-char-code"',
           '4. Restart your server',
         ],
       }, { status: 400 })
     }
 
-    let transporter
-    if (hasAppPassword) {
-      transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user: ADMIN_EMAIL, pass: process.env.ADMIN_EMAIL_APP_PASSWORD },
-      })
-    } else {
-      transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_PORT === '465',
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
-      })
+    const transporter = buildTransporter()
+    if (!transporter) {
+      return NextResponse.json({ success: false, error: 'Failed to create transporter' }, { status: 500 })
     }
 
     const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://theonewaygda.com'
     const now = new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris', dateStyle: 'full', timeStyle: 'short' })
+
+    const providerLabels: Record<string, string> = {
+      outlook: 'Microsoft Outlook',
+      gmail: 'Gmail',
+      smtp: `Custom SMTP (${process.env.SMTP_HOST})`,
+    }
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
@@ -72,7 +131,9 @@ export async function POST(request: NextRequest) {
 <tr><td style="color:#166534;font-size:13px;font-weight:600;">Status</td>
 <td style="color:#10b981;font-size:14px;font-weight:700;">Connected & Working</td></tr>
 <tr style="border-top:1px solid #bbf7d0;"><td style="color:#166534;font-size:13px;font-weight:600;">Provider</td>
-<td style="color:#1e293b;font-size:14px;">${hasAppPassword ? 'Gmail (App Password)' : `Custom SMTP (${process.env.SMTP_HOST})`}</td></tr>
+<td style="color:#1e293b;font-size:14px;">${providerLabels[name] || name}</td></tr>
+<tr style="border-top:1px solid #bbf7d0;"><td style="color:#166534;font-size:13px;font-weight:600;">Admin Email</td>
+<td style="color:#1e293b;font-size:14px;">${ADMIN_EMAIL}</td></tr>
 <tr style="border-top:1px solid #bbf7d0;"><td style="color:#166534;font-size:13px;font-weight:600;">Tested at</td>
 <td style="color:#1e293b;font-size:14px;">${now}</td></tr>
 </table>
@@ -101,16 +162,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: `Test email sent to ${ADMIN_EMAIL}. Check your inbox!`,
-      provider: hasAppPassword ? 'gmail' : 'smtp',
+      provider: name,
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to send test email'
     console.error('[Email] Test email failed:', message)
 
+    const isMicrosoft = MICROSOFT_DOMAINS.includes(ADMIN_EMAIL.split('@')[1]?.toLowerCase() || '')
+
     return NextResponse.json({
       success: false,
       error: message,
-      hint: 'If you see an authentication error, make sure your App Password is correct. If you see a connection error, check your network settings.',
+      hint: isMicrosoft
+        ? 'Microsoft tip: Make sure 2FA is enabled and the app password is correct. If using a work/school account, you may need to use OAuth2 or ask your IT admin to allow SMTP access.'
+        : 'If you see an authentication error, make sure your App Password is correct. If you see a connection error, check your network settings.',
     }, { status: 500 })
   }
 }

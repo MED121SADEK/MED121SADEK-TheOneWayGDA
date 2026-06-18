@@ -24,6 +24,7 @@ interface PendingUser {
 interface EmailStatus {
   configured: boolean
   provider: string
+  providerLabel?: string
   mode: string
   message: string
   adminEmail: string
@@ -216,15 +217,23 @@ export default function AdminApprovalsPage() {
                   <MailWarning className="size-5 text-amber-500 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-amber-200">Email notifications are not configured</p>
-                    <p className="text-xs text-muted-foreground mt-1 max-w-lg">You won't receive emails when users register. Set <code className="bg-amber-500/10 px-1.5 py-0.5 rounded text-amber-300 text-[11px] font-mono">ADMIN_EMAIL_APP_PASSWORD</code> in your <code className="bg-amber-500/10 px-1.5 py-0.5 rounded text-amber-300 text-[11px] font-mono">.env</code> file to enable one-click approve/reject via email.</p>
-                    <p className="text-xs text-muted-foreground mt-1.5">Get an App Password: <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">myaccount.google.com/apppasswords</a></p>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-lg">Set <code className="bg-amber-500/10 px-1.5 py-0.5 rounded text-amber-300 text-[11px] font-mono">ADMIN_EMAIL</code> + <code className="bg-amber-500/10 px-1.5 py-0.5 rounded text-amber-300 text-[11px] font-mono">ADMIN_EMAIL_APP_PASSWORD</code> in your <code className="bg-amber-500/10 px-1.5 py-0.5 rounded text-amber-300 text-[11px] font-mono">.env</code> to enable one-click approve/reject via email.</p>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      {emailStatus.adminEmail?.includes('outlook') || emailStatus.adminEmail?.includes('hotmail') || emailStatus.adminEmail?.includes('live.com')
+                        ? <>Microsoft App Password: <a href="https://account.live.com/proofs/manage/additional" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">account.live.com/proofs/manage</a></>
+                        : <>Gmail App Password: <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">myaccount.google.com/apppasswords</a></>
+                      }
+                    </p>
                   </div>
                 </div>
                 <Button
                   size="sm"
                   variant="outline"
                   className="border-amber-500/30 text-amber-300 hover:bg-amber-500/10 shrink-0"
-                  onClick={() => window.open('https://myaccount.google.com/apppasswords', '_blank')}
+                  onClick={() => {
+                    const isMs = emailStatus.adminEmail?.includes('outlook') || emailStatus.adminEmail?.includes('hotmail') || emailStatus.adminEmail?.includes('live.com')
+                    window.open(isMs ? 'https://account.live.com/proofs/manage/additional' : 'https://myaccount.google.com/apppasswords', '_blank')
+                  }}
                 >
                   <Settings className="size-3.5 mr-1.5" />
                   Setup Guide
@@ -238,7 +247,7 @@ export default function AdminApprovalsPage() {
             <div className="flex items-center gap-2.5">
               <MailCheck className="size-4 text-emerald-500" />
               <span className="text-xs text-emerald-300 font-medium">Email notifications active</span>
-              <span className="text-xs text-muted-foreground">({emailStatus.provider})</span>
+              <span className="text-xs text-muted-foreground">({emailStatus.providerLabel || emailStatus.provider})</span>
             </div>
             <Button
               size="sm"

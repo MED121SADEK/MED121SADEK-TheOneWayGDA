@@ -56,3 +56,22 @@ Stage Summary:
 - Added `src/app/api/admin/test-email/route.ts` — email status check + test email sender
 - Enhanced `src/app/(dashboard)/admin/approvals/page.tsx` — email status banner + test button
 - No Formspree needed: built-in system provides one-click approve/reject via email (better than Formspree)
+
+---
+Task ID: 4
+Agent: main
+Task: Switch email system from Gmail to Microsoft Outlook
+
+Work Log:
+- Updated `src/lib/email.ts`: ADMIN_EMAIL now reads from `process.env.ADMIN_EMAIL`, auto-detects Microsoft vs Gmail from email domain
+- Microsoft domains (outlook.com, hotmail.com, live.com, msn.com) → uses `smtp-mail.outlook.com:587` with STARTTLS
+- Gmail domain → uses `service: 'gmail'` (unchanged behavior)
+- Custom SMTP (`SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD`) takes priority over auto-detection
+- Rewrote `src/app/api/admin/test-email/route.ts`: same auto-detection logic, Microsoft-specific setup guide and error hints
+- Updated `src/app/(dashboard)/admin/approvals/page.tsx`: banner detects Microsoft vs Gmail and shows correct setup link
+- Updated `.env.example`: added `ADMIN_EMAIL` var, Microsoft app password link, commented out default SMTP
+
+Stage Summary:
+- Email system now supports Microsoft Outlook/Hotmail/Live natively via app password
+- Provider auto-detected from `ADMIN_EMAIL` domain — no extra config needed
+- To activate: set `ADMIN_EMAIL="you@outlook.com"` + `ADMIN_EMAIL_APP_PASSWORD="..."` in production .env
