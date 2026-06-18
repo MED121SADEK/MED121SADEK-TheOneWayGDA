@@ -219,7 +219,7 @@ export default function AdminApprovalsPage() {
                     <p className="text-sm font-medium text-amber-200">Email notifications are not configured</p>
                     <p className="text-xs text-muted-foreground mt-1 max-w-lg">Set <code className="bg-amber-500/10 px-1.5 py-0.5 rounded text-amber-300 text-[11px] font-mono">ADMIN_EMAIL</code> + <code className="bg-amber-500/10 px-1.5 py-0.5 rounded text-amber-300 text-[11px] font-mono">ADMIN_EMAIL_APP_PASSWORD</code> in your <code className="bg-amber-500/10 px-1.5 py-0.5 rounded text-amber-300 text-[11px] font-mono">.env</code> to enable one-click approve/reject via email.</p>
                     <p className="text-xs text-muted-foreground mt-1.5">
-                      {emailStatus.adminEmail?.includes('outlook') || emailStatus.adminEmail?.includes('hotmail') || emailStatus.adminEmail?.includes('live.com')
+                      {emailStatus.adminEmail?.includes('outlook') || emailStatus.adminEmail?.includes('hotmail') || emailStatus.adminEmail?.includes('live.')
                         ? <>Microsoft App Password: <a href="https://account.live.com/proofs/manage/additional" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">account.live.com/proofs/manage</a></>
                         : <>Gmail App Password: <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">myaccount.google.com/apppasswords</a></>
                       }
@@ -231,7 +231,7 @@ export default function AdminApprovalsPage() {
                   variant="outline"
                   className="border-amber-500/30 text-amber-300 hover:bg-amber-500/10 shrink-0"
                   onClick={() => {
-                    const isMs = emailStatus.adminEmail?.includes('outlook') || emailStatus.adminEmail?.includes('hotmail') || emailStatus.adminEmail?.includes('live.com')
+                    const isMs = emailStatus.adminEmail?.includes('outlook') || emailStatus.adminEmail?.includes('hotmail') || emailStatus.adminEmail?.includes('live.')
                     window.open(isMs ? 'https://account.live.com/proofs/manage/additional' : 'https://myaccount.google.com/apppasswords', '_blank')
                   }}
                 >

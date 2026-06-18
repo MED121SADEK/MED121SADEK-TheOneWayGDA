@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'msad41855@gmail.com'
 
-const MICROSOFT_DOMAINS = ['outlook.com', 'hotmail.com', 'live.com', 'msn.com']
+const MICROSOFT_DOMAINS = ['outlook.com', 'outlook.fr', 'hotmail.com', 'live.com', 'msn.com']
 
 function detectProvider(): { name: string; configured: boolean } {
   const hasAppPassword = !!process.env.ADMIN_EMAIL_APP_PASSWORD

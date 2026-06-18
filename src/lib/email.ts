@@ -18,7 +18,7 @@ function getTransporter() {
   // Auto-detect provider from admin email domain
   if (appPassword) {
     const domain = ADMIN_EMAIL.split('@')[1]?.toLowerCase()
-    if (domain && ['outlook.com', 'hotmail.com', 'live.com', 'msn.com'].includes(domain)) {
+    if (domain && ['outlook.com', 'outlook.fr', 'hotmail.com', 'live.com', 'msn.com'].includes(domain)) {
       // Microsoft Outlook SMTP
       return nodemailer.createTransport({
         host: 'smtp-mail.outlook.com',
