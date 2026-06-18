@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import {
   ArrowLeft, UserCheck, UserX, Clock, XCircle, Search,
   CheckCircle2, AlertTriangle, Users, Loader2, Mail, Calendar,
+  MailWarning, MailCheck, Send, Settings,
 } from 'lucide-react'
 
 interface PendingUser {
@@ -20,6 +21,14 @@ interface PendingUser {
   createdAt: string
 }
 
+interface EmailStatus {
+  configured: boolean
+  provider: string
+  mode: string
+  message: string
+  adminEmail: string
+}
+
 export default function AdminApprovalsPage() {
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([])
   const [rejectedUsers, setRejectedUsers] = useState<(PendingUser & { updatedAt: string })[]>([])
@@ -27,6 +36,8 @@ export default function AdminApprovalsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null)
+  const [testEmailLoading, setTestEmailLoading] = useState(false)
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -51,11 +62,32 @@ export default function AdminApprovalsPage() {
 
   useEffect(() => {
     fetchUsers()
+    fetch('/api/admin/test-email')
+      .then(res => res.json())
+      .then(data => setEmailStatus(data))
+      .catch(() => {})
   }, [fetchUsers])
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message })
     setTimeout(() => setToast(null), 4000)
+  }
+
+  const handleTestEmail = async () => {
+    setTestEmailLoading(true)
+    try {
+      const res = await fetch('/api/admin/test-email', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        showToast('success', data.message)
+      } else {
+        showToast('error', data.error || 'Test failed')
+      }
+    } catch {
+      showToast('error', 'Network error')
+    } finally {
+      setTestEmailLoading(false)
+    }
   }
 
   const handleApprove = async (userId: string, userName: string) => {
@@ -174,6 +206,52 @@ export default function AdminApprovalsPage() {
             </Badge>
           </div>
         </div>
+
+        {/* Email Configuration Banner */}
+        {emailStatus && !emailStatus.configured && (
+          <Card className="border-amber-500/30 bg-amber-500/5">
+            <CardContent className="py-4 px-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <MailWarning className="size-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-200">Email notifications are not configured</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-lg">You won't receive emails when users register. Set <code className="bg-amber-500/10 px-1.5 py-0.5 rounded text-amber-300 text-[11px] font-mono">ADMIN_EMAIL_APP_PASSWORD</code> in your <code className="bg-amber-500/10 px-1.5 py-0.5 rounded text-amber-300 text-[11px] font-mono">.env</code> file to enable one-click approve/reject via email.</p>
+                    <p className="text-xs text-muted-foreground mt-1.5">Get an App Password: <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">myaccount.google.com/apppasswords</a></p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-amber-500/30 text-amber-300 hover:bg-amber-500/10 shrink-0"
+                  onClick={() => window.open('https://myaccount.google.com/apppasswords', '_blank')}
+                >
+                  <Settings className="size-3.5 mr-1.5" />
+                  Setup Guide
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {emailStatus && emailStatus.configured && (
+          <div className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-3">
+            <div className="flex items-center gap-2.5">
+              <MailCheck className="size-4 text-emerald-500" />
+              <span className="text-xs text-emerald-300 font-medium">Email notifications active</span>
+              <span className="text-xs text-muted-foreground">({emailStatus.provider})</span>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={handleTestEmail}
+              disabled={testEmailLoading}
+            >
+              {testEmailLoading ? <Loader2 className="size-3 animate-spin mr-1" /> : <Send className="size-3 mr-1" />}
+              Send Test Email
+            </Button>
+          </div>
+        )}
 
         {/* Search */}
         <div className="relative max-w-sm">
