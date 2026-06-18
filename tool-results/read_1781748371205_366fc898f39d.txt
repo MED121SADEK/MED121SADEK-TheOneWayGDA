@@ -1,0 +1,611 @@
+     1→/**
+     2→ * API Integration Tests — Admin Routes & Studio Copilots
+     3→ *
+     4→ * @vitest-environment node
+     5→ */
+     6→
+     7→import { NextRequest } from 'next/server'
+     8→import { describe, it, expect, vi, beforeEach } from 'vitest'
+     9→
+    10→// ── Hoisted mocks ──
+    11→
+    12→vi.hoisted(() => { process.env.ADMIN_SECRET = 'admin-secret-token' })
+    13→
+    14→const { setupMockDb, getMockDb } = vi.hoisted(() => {
+    15→  const now = new Date('2024-06-15')
+    16→  const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    17→
+    18→  const baseUser = (overrides: Record<string, unknown> = {}) => ({
+    19→    id: 'user-001', email: 'test@example.com', name: 'Test User',
+    20→    password: 'hash', role: 'user',
+    21→    createdAt: now, updatedAt: now, lastSeen: now, preferences: '{}',
+    22→    bio: null, company: null, location: null, website: null,
+    23→    skills: null, isOnboarded: true,
+    24→    image: null, avatarUrl: null, github: null, linkedin: null,
+    25→    resetToken: null, resetTokenExpiry: null,
+    26→    ...overrides,
+    27→  })
+    28→
+    29→  const adminUser = baseUser({ id: 'admin-001', email: 'admin@test.com', name: 'Admin', role: 'admin' })
+    30→  const pendingUser = baseUser({ id: 'pending-001', email: 'pending@test.com', name: 'Pending', role: 'pending' })
+    31→  const rejectedUser = baseUser({ id: 'rejected-001', email: 'rejected@test.com', name: 'Rejected', role: 'rejected' })
+    32→
+    33→  const sessionWithUser = (userId: string, role: string, token = 'tok') => ({
+    34→    id: 's1', userId, token, ipAddress: '', userAgent: '',
+    35→    expiresAt: future, createdAt: now,
+    36→    user: { ...baseUser({ id: userId, role }), email: role === 'admin' ? 'admin@test.com' : 'test@example.com' },
+    37→  })
+    38→
+    39→  const _db = {
+    40→    user: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
+    41→    userSession: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
+    42→    userActivity: { create: vi.fn() },
+    43→    visitor: { findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn(), findMany: vi.fn(), count: vi.fn(), delete: vi.fn(), updateMany: vi.fn() },
+    44→    subscription: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    45→    communityPost: { findMany: vi.fn(), count: vi.fn(), findUnique: vi.fn(), update: vi.fn(), deleteMany: vi.fn(), delete: vi.fn(), $queryRaw: vi.fn() },
+    46→    postComment: { deleteMany: vi.fn() },
+    47→    postInteraction: { deleteMany: vi.fn() },
+    48→    cronJob: { findMany: vi.fn() },
+    49→    customCopilot: { count: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), groupBy: vi.fn(), aggregate: vi.fn() },
+    50→    copilotReview: { findMany: vi.fn(), upsert: vi.fn(), aggregate: vi.fn() },
+    51→    copilotInstall: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
+    52→  }
+    53→
+    54→  function setupMockDb() {
+    55→    _db.user.findUnique.mockResolvedValue(baseUser())
+    56→    _db.user.findFirst.mockResolvedValue(null)
+    57→    _db.user.findMany.mockResolvedValue([])
+    58→    _db.user.create.mockResolvedValue(baseUser())
+    59→    _db.user.update.mockResolvedValue(baseUser())
+    60→
+    61→    _db.userSession.findUnique.mockResolvedValue({
+    62→      id: 'session-001', userId: 'user-001', token: 'valid-token',
+    63→      ipAddress: '127.0.0.1', userAgent: 'test', expiresAt: future, createdAt: now,
+    64→      user: baseUser(),
+    65→    })
+    66→    _db.userSession.create.mockResolvedValue({ id: 's1' })
+    67→    _db.userSession.delete.mockResolvedValue({})
+    68→
+    69→    _db.userActivity.create.mockResolvedValue({})
+    70→    _db.visitor.findUnique.mockResolvedValue(null)
+    71→    _db.visitor.upsert.mockResolvedValue({})
+    72→    _db.visitor.update.mockResolvedValue({})
+    73→    _db.visitor.findMany.mockResolvedValue([])
+    74→    _db.visitor.count.mockResolvedValue(0)
+    75→    _db.visitor.delete.mockResolvedValue({})
+    76→    _db.visitor.updateMany.mockResolvedValue({ count: 0 })
+    77→
+    78→    _db.subscription.findMany.mockResolvedValue([])
+    79→    _db.subscription.findUnique.mockResolvedValue(null)
+    80→    _db.subscription.update.mockResolvedValue({})
+    81→
+    82→    _db.communityPost.findMany.mockResolvedValue([])
+    83→    _db.communityPost.count.mockResolvedValue(0)
+    84→    _db.communityPost.findUnique.mockResolvedValue(null)
+    85→    _db.communityPost.update.mockResolvedValue({})
+    86→    _db.communityPost.deleteMany.mockResolvedValue({ count: 0 })
+    87→    _db.communityPost.delete.mockResolvedValue({})
+    88→    _db.communityPost.$queryRaw.mockResolvedValue([])
+    89→
+    90→    _db.postComment.deleteMany.mockResolvedValue({ count: 0 })
+    91→    _db.postInteraction.deleteMany.mockResolvedValue({ count: 0 })
+    92→    _db.cronJob.findMany.mockResolvedValue([])
+    93→
+    94→    _db.customCopilot.count.mockResolvedValue(0)
+    95→    _db.customCopilot.findMany.mockResolvedValue([])
+    96→    _db.customCopilot.findUnique.mockResolvedValue(null)
+    97→    _db.customCopilot.create.mockResolvedValue({ id: 'cop-1' })
+    98→    _db.customCopilot.update.mockResolvedValue({})
+    99→    _db.customCopilot.delete.mockResolvedValue({})
+   100→    _db.customCopilot.groupBy.mockResolvedValue([])
+   101→    _db.customCopilot.aggregate.mockResolvedValue({ _avg: { rating: 4.5 }, _count: { rating: 10 } })
+   102→
+   103→    _db.copilotReview.findMany.mockResolvedValue([])
+   104→    _db.copilotReview.upsert.mockResolvedValue({ id: 'rev-1' })
+   105→    _db.copilotReview.aggregate.mockResolvedValue({ _avg: { rating: 4.5 }, _count: { rating: 10 } })
+   106→
+   107→    _db.copilotInstall.findUnique.mockResolvedValue(null)
+   108→    _db.copilotInstall.create.mockResolvedValue({})
+   109→    _db.copilotInstall.delete.mockResolvedValue({})
+   110→  }
+   111→
+   112→  function getMockDb() { return _db }
+   113→  return { setupMockDb, getMockDb, baseUser, adminUser, pendingUser, rejectedUser, sessionWithUser }
+   114→})
+   115→
+   116→vi.mock('@/lib/db', () => ({ get db() { return getMockDb() } }))
+   117→vi.mock('@/lib/auth', () => ({
+   118→  getTokenFromRequest: vi.fn().mockImplementation((req: Request) => req.headers.get('authorization')?.replace('Bearer ', '') || null),
+   119→  hashPassword: vi.fn().mockResolvedValue('new-hash'),
+   120→}))
+   121→vi.mock('@/lib/email', () => ({
+   122→  sendUserApprovalEmail: vi.fn().mockResolvedValue(undefined),
+   123→  sendUserRejectionEmail: vi.fn().mockResolvedValue(undefined),
+   124→  sendUserSubscriptionApprovedEmail: vi.fn().mockResolvedValue(undefined),
+   125→  sendUserSubscriptionRejectedEmail: vi.fn().mockResolvedValue(undefined),
+   126→  verifyActionToken: vi.fn(),
+   127→}))
+   128→vi.mock('@/lib/rate-limit', () => ({
+   129→  simpleRateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 5, resetAt: Date.now() + 60000 }),
+   130→  rateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 5, resetAt: Date.now() + 60000 }),
+   131→}))
+   132→
+   133→// ── Helpers ──
+   134→
+   135→function makeRequest(url: string, options: RequestInit = {}): NextRequest {
+   136→  return new NextRequest(new URL(url, 'http://localhost:3000'), options)
+   137→}
+   138→function makeJsonRequest(url: string, body: unknown, options: RequestInit = {}): NextRequest {
+   139→  return new NextRequest(new URL(url, 'http://localhost:3000'), {
+   140→    ...options, method: 'POST',
+   141→    headers: { 'Content-Type': 'application/json', ...options.headers },
+   142→    body: JSON.stringify(body),
+   143→  })
+   144→}
+   145→function authedRequest(url: string, token = 'tok', options: RequestInit = {}) {
+   146→  return makeRequest(url, { ...options, headers: { Authorization: `Bearer ${token}`, ...options.headers } })
+   147→}
+   148→
+   149→beforeEach(() => { vi.clearAllMocks(); setupMockDb() })
+   150→
+   151→// ═══════════════════════════════════════════════════════════════
+   152→//  ADMIN: USERS PENDING
+   153→// ═══════════════════════════════════════════════════════════════
+   154→
+   155→describe('GET /api/admin/users/pending', () => {
+   156→  it('should return 401 when not authenticated', async () => {
+   157→    const res = await (await import('../admin/users/pending/route')).GET(makeRequest('/api/admin/users/pending'))
+   158→    expect(res.status).toBe(401)
+   159→  })
+   160→
+   161→  it('should return 403 for non-admin user', async () => {
+   162→    const db = getMockDb()
+   163→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('user-001', 'user'))
+   164→    const res = await (await import('../admin/users/pending/route')).GET(makeRequest('/api/admin/users/pending'))
+   165→    expect(res.status).toBe(403)
+   166→  })
+   167→
+   168→  it('should return pending and rejected users for admin', async () => {
+   169→    const db = getMockDb()
+   170→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
+   171→    db.user.findMany.mockResolvedValueOnce([pendingUser]).mockResolvedValueOnce([rejectedUser])
+   172→    const res = await (await import('../admin/users/pending/route')).GET(makeRequest('/api/admin/users/pending'))
+   173→    expect(res.status).toBe(200)
+   174→    const data = await res.json()
+   175→    expect(data.pending).toHaveLength(1)
+   176→    expect(data.rejected).toHaveLength(1)
+   177→  })
+   178→})
+   179→
+   180→// ═══════════════════════════════════════════════════════════════
+   181→//  ADMIN: APPROVE USER
+   182→// ═══════════════════════════════════════════════════════════════
+   183→
+   184→describe('POST /api/admin/users/[id]/approve', () => {
+   185→  it('should return 401 when not authenticated', async () => {
+   186→    const res = await (await import('../admin/users/[id]/approve/route')).POST(
+   187→      makeRequest('/api/admin/users/pending-001', { method: 'POST' }),
+   188→      { params: Promise.resolve({ id: 'pending-001' }) },
+   189→    )
+   190→    expect(res.status).toBe(401)
+   191→  })
+   192→
+   193→  it('should return 403 for non-admin', async () => {
+   194→    const db = getMockDb()
+   195→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('user-001', 'user'))
+   196→    const res = await (await import('../admin/users/[id]/approve/route')).POST(
+   197→      makeRequest('/api/admin/users/pending-001', { method: 'POST' }),
+   198→      { params: Promise.resolve({ id: 'pending-001' }) },
+   199→    )
+   200→    expect(res.status).toBe(403)
+   201→  })
+   202→
+   203→  it('should approve a pending user', async () => {
+   204→    const db = getMockDb()
+   205→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
+   206→    db.user.findUnique.mockResolvedValueOnce(pendingUser)
+   207→    const res = await (await import('../admin/users/[id]/approve/route')).POST(
+   208→      makeRequest('/api/admin/users/pending-001', { method: 'POST' }),
+   209→      { params: Promise.resolve({ id: 'pending-001' }) },
+   210→    )
+   211→    expect(res.status).toBe(200)
+   212→    expect((await res.json()).success).toBe(true)
+   213→    expect(db.user.update).toHaveBeenCalledWith(
+   214→      expect.objectContaining({ where: { id: 'pending-001' }, data: expect.objectContaining({ role: 'user' }) })
+   215→    )
+   216→    expect(db.userActivity.create).toHaveBeenCalled()
+   217→    expect(db.visitor.upsert).toHaveBeenCalled()
+   218→  })
+   219→
+   220→  it('should return 400 if user is not pending or rejected', async () => {
+   221→    const db = getMockDb()
+   222→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
+   223→    db.user.findUnique.mockResolvedValueOnce(baseUser()) // role is 'user'
+   224→    const res = await (await import('../admin/users/[id]/approve/route')).POST(
+   225→      makeRequest('/api/admin/users/user-001', { method: 'POST' }),
+   226→      { params: Promise.resolve({ id: 'user-001' }) },
+   227→    )
+   228→    expect(res.status).toBe(400)
+   229→  })
+   230→
+   231→  it('should return 404 for non-existent user', async () => {
+   232→    const db = getMockDb()
+   233→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
+   234→    db.user.findUnique.mockResolvedValueOnce(null)
+   235→    const res = await (await import('../admin/users/[id]/approve/route')).POST(
+   236→      makeRequest('/api/admin/users/nonexistent', { method: 'POST' }),
+   237→      { params: Promise.resolve({ id: 'nonexistent' }) },
+   238→    )
+   239→    expect(res.status).toBe(404)
+   240→  })
+   241→})
+   242→
+   243→// ═══════════════════════════════════════════════════════════════
+   244→//  ADMIN: REJECT USER
+   245→// ═══════════════════════════════════════════════════════════════
+   246→
+   247→describe('POST /api/admin/users/[id]/reject', () => {
+   248→  it('should reject a pending user', async () => {
+   249→    const db = getMockDb()
+   250→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
+   251→    db.user.findUnique.mockResolvedValueOnce(pendingUser)
+   252→    const res = await (await import('../admin/users/[id]/reject/route')).POST(
+   253→      makeJsonRequest('/api/admin/users/pending-001', { reason: 'Not qualified' }, { method: 'POST' }),
+   254→      { params: Promise.resolve({ id: 'pending-001' }) },
+   255→    )
+   256→    expect(res.status).toBe(200)
+   257→    expect((await res.json()).success).toBe(true)
+   258→    expect(db.user.update).toHaveBeenCalledWith(
+   259→      expect.objectContaining({ data: expect.objectContaining({ role: 'rejected' }) })
+   260→    )
+   261→    expect(db.userActivity.create).toHaveBeenCalled()
+   262→  })
+   263→
+   264→  it('should return 400 if user is not pending', async () => {
+   265→    const db = getMockDb()
+   266→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
+   267→    db.user.findUnique.mockResolvedValueOnce(baseUser())
+   268→    const res = await (await import('../admin/users/[id]/reject/route')).POST(
+   269→      makeJsonRequest('/api/admin/users/user-001', {}, { method: 'POST' }),
+   270→      { params: Promise.resolve({ id: 'user-001' }) },
+   271→    )
+   272→    expect(res.status).toBe(400)
+   273→  })
+   274→})
+   275→
+   276→// ═══════════════════════════════════════════════════════════════
+   277→//  ADMIN: SUBSCRIPTIONS PENDING
+   278→// ═══════════════════════════════════════════════════════════════
+   279→
+   280→describe('GET /api/admin/subscriptions/pending', () => {
+   281→  it('should return 403 for non-admin', async () => {
+   282→    const db = getMockDb()
+   283→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('user-001', 'user'))
+   284→    const res = await (await import('../admin/subscriptions/pending/route')).GET(makeRequest('/api/admin/subscriptions/pending'))
+   285→    expect(res.status).toBe(403)
+   286→  })
+   287→
+   288→  it('should return pending subscriptions for admin', async () => {
+   289→    const db = getMockDb()
+   290→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
+   291→    db.subscription.findMany.mockResolvedValue([{ id: 'sub-1', status: 'pending_approval', userId: 'u1' }])
+   292→    const res = await (await import('../admin/subscriptions/pending/route')).GET(makeRequest('/api/admin/subscriptions/pending'))
+   293→    expect(res.status).toBe(200)
+   294→    expect((await res.json()).pending).toHaveLength(1)
+   295→  })
+   296→})
+   297→
+   298→// ═══════════════════════════════════════════════════════════════
+   299→//  ADMIN: APPROVE SUBSCRIPTION
+   300→// ═══════════════════════════════════════════════════════════════
+   301→
+   302→describe('POST /api/admin/subscriptions/[id]/approve', () => {
+   303→  it('should approve a pending subscription', async () => {
+   304→    const db = getMockDb()
+   305→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
+   306→    db.subscription.findUnique.mockResolvedValueOnce({
+   307→      id: 'sub-1', userId: 'u1', plan: 'pro', status: 'pending_approval',
+   308→      user: { email: 'u@test.com', name: 'User' },
+   309→    })
+   310→    const res = await (await import('../admin/subscriptions/[id]/approve/route')).POST(
+   311→      makeRequest('/api/admin/subscriptions/sub-1', { method: 'POST' }),
+   312→      { params: Promise.resolve({ id: 'sub-1' }) },
+   313→    )
+   314→    expect(res.status).toBe(200)
+   315→    expect((await res.json()).success).toBe(true)
+   316→    expect(db.subscription.update).toHaveBeenCalledWith(
+   317→      expect.objectContaining({ where: { id: 'sub-1' }, data: { status: 'active' } })
+   318→    )
+   319→    expect(db.user.update).toHaveBeenCalled() // role upgrade for pro plan
+   320→  })
+   321→
+   322→  it('should return 400 if subscription not pending_approval', async () => {
+   323→    const db = getMockDb()
+   324→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
+   325→    db.subscription.findUnique.mockResolvedValueOnce({
+   326→      id: 'sub-1', userId: 'u1', plan: 'pro', status: 'active',
+   327→      user: { email: 'u@test.com', name: 'User' },
+   328→    })
+   329→    const res = await (await import('../admin/subscriptions/[id]/approve/route')).POST(
+   330→      makeRequest('/api/admin/subscriptions/sub-1', { method: 'POST' }),
+   331→      { params: Promise.resolve({ id: 'sub-1' }) },
+   332→    )
+   333→    expect(res.status).toBe(400)
+   334→  })
+   335→
+   336→  it('should return 404 for non-existent subscription', async () => {
+   337→    const db = getMockDb()
+   338→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
+   339→    db.subscription.findUnique.mockResolvedValueOnce(null)
+   340→    const res = await (await import('../admin/subscriptions/[id]/approve/route')).POST(
+   341→      makeRequest('/api/admin/subscriptions/nope', { method: 'POST' }),
+   342→      { params: Promise.resolve({ id: 'nope' }) },
+   343→    )
+   344→    expect(res.status).toBe(404)
+   345→  })
+   346→})
+   347→
+   348→// ═══════════════════════════════════════════════════════════════
+   349→//  ADMIN: REJECT SUBSCRIPTION
+   350→// ═══════════════════════════════════════════════════════════════
+   351→
+   352→describe('POST /api/admin/subscriptions/[id]/reject', () => {
+   353→  it('should reject a pending subscription', async () => {
+   354→    const db = getMockDb()
+   355→    db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
+   356→    db.subscription.findUnique.mockResolvedValueOnce({
+   357→      id: 'sub-1', userId: 'u1', plan: 'pro', status: 'pending_approval', stripeSubscriptionId: 'sub_stripe_123',
+   358→      user: { email: 'u@test.com', name: 'User' },
+   359→    })
+   360→    const res = await (await import('../admin/subscriptions/[id]/reject/route')).POST(
+   361→      makeRequest('/api/admin/subscriptions/sub-1', { method: 'POST' }),
+   362→      { params: Promise.resolve({ id: 'sub-1' }) },
+   363→    )
+   364→    expect(res.status).toBe(200)
+   365→    expect((await res.json()).success).toBe(true)
+   366→    expect(db.subscription.update).toHaveBeenCalledWith(
+   367→      expect.objectContaining({ where: { id: 'sub-1' }, data: { status: 'canceled' } })
+   368→    )
+   369→  })
+   370→})
+   371→
+   372→// ═══════════════════════════════════════════════════════════════
+   373→//  STUDIO: COPILOTS
+   374→// ═══════════════════════════════════════════════════════════════
+   375→
+   376→describe('GET /api/studio/copilots', () => {
+   377→  it('should return copilots list with stats', async () => {
+   378→    const db = getMockDb()
+   379→    db.customCopilot.count.mockResolvedValue(5)
+   380→    db.customCopilot.findMany.mockResolvedValue([
+   381→      { id: 'c1', name: 'BioData Analyst', category: 'data_analyst', rating: 4.8, installCount: 100, isPublished: true, isFeatured: true },
+   382→    ])
+   383→    db.customCopilot.aggregate.mockResolvedValue({ _sum: { installCount: 500 } })
+   384→    db.customCopilot.groupBy.mockResolvedValue([{ category: 'data_analyst', _count: 1 }])
+   385→    const res = await (await import('../studio/copilots/route')).GET(makeRequest('/api/studio/copilots'))
+   386→    expect(res.status).toBe(200)
+   387→    const data = await res.json()
+   388→    expect(data.copilots).toBeDefined()
+   389→    expect(data.stats).toBeDefined()
+   390→    expect(data.stats.total).toBe(5)
+   391→  })
+   392→
+   393→  it('should filter by category', async () => {
+   394→    getMockDb().customCopilot.count.mockResolvedValue(10)
+   395→    await (await import('../studio/copilots/route')).GET(makeRequest('/api/studio/copilots?category=statistician'))
+   396→    expect(getMockDb().customCopilot.findMany).toHaveBeenCalledWith(
+   397→      expect.objectContaining({ where: expect.objectContaining({ category: 'statistician' }) })
+   398→    )
+   399→  })
+   400→
+   401→  it('should seed sample data when DB is empty', async () => {
+   402→    getMockDb().customCopilot.count.mockResolvedValue(0)
+   403→    await (await import('../studio/copilots/route')).GET(makeRequest('/api/studio/copilots'))
+   404→    expect(getMockDb().customCopilot.createMany).toHaveBeenCalled()
+   405→  })
+   406→})
+   407→
+   408→describe('POST /api/studio/copilots', () => {
+   409→  it('should create a copilot with valid input', async () => {
+   410→    const res = await (await import('../studio/copilots/route')).POST(
+   411→      makeJsonRequest('/api/studio/copilots', {
+   412→        name: 'Test Copilot', description: 'A test copilot', category: 'data_analyst',
+   413→        systemPrompt: 'You are a data analyst.', authorId: 'a@b.com',
+   414→      }),
+   415→    )
+   416→    expect(res.status).toBe(201)
+   417→    expect(getMockDb().customCopilot.create).toHaveBeenCalled()
+   418→  })
+   419→
+   420→  it('should return 400 for missing required fields', async () => {
+   421→    const res = await (await import('../studio/copilots/route')).POST(
+   422→      makeJsonRequest('/api/studio/copilots', { name: 'Test' }),
+   423→    )
+   424→    expect(res.status).toBe(400)
+   425→  })
+   426→})
+   427→
+   428→describe('GET /api/studio/copilots/[id]', () => {
+   429→  it('should return copilot with reviews', async () => {
+   430→    const db = getMockDb()
+   431→    db.customCopilot.findUnique.mockResolvedValue({
+   432→      id: 'c1', name: 'Test', reviews: [], _count: { reviews: 0, installs: 0 },
+   433→    })
+   434→    const res = await (await import('../studio/copilots/[id]/route')).GET(
+   435→      makeRequest('/api/studio/copilots/c1'),
+   436→      { params: Promise.resolve({ id: 'c1' }) },
+   437→    )
+   438→    expect(res.status).toBe(200)
+   439→    expect((await res.json()).copilot.id).toBe('c1')
+   440→  })
+   441→
+   442→  it('should return 404 for non-existent copilot', async () => {
+   443→    getMockDb().customCopilot.findUnique.mockResolvedValue(null)
+   444→    expect((await (await import('../studio/copilots/[id]/route')).GET(
+   445→      makeRequest('/api/studio/copilots/nope'),
+   446→      { params: Promise.resolve({ id: 'nope' }) },
+   447→    )).status).toBe(404)
+   448→  })
+   449→})
+   450→
+   451→describe('PATCH /api/studio/copilots/[id]', () => {
+   452→  it('should update copilot fields', async () => {
+   453→    const db = getMockDb()
+   454→    db.customCopilot.findUnique.mockResolvedValue({ id: 'c1' })
+   455→    const res = await (await import('../studio/copilots/[id]/route')).PATCH(
+   456→      makeJsonRequest('/api/studio/copilots/c1', { name: 'Updated Name' }),
+   457→      { params: Promise.resolve({ id: 'c1' }) },
+   458→    )
+   459→    expect(res.status).toBe(200)
+   460→    expect(db.customCopilot.update).toHaveBeenCalledWith(
+   461→      expect.objectContaining({ where: { id: 'c1' }, data: expect.objectContaining({ name: 'Updated Name' }) })
+   462→    )
+   463→  })
+   464→
+   465→  it('should return 404 for non-existent', async () => {
+   466→    getMockDb().customCopilot.findUnique.mockResolvedValue(null)
+   467→    expect((await (await import('../studio/copilots/[id]/route')).PATCH(
+   468→      makeJsonRequest('/api/studio/copilots/nope', { name: 'X' }),
+   469→      { params: Promise.resolve({ id: 'nope' }) },
+   470→    )).status).toBe(404)
+   471→  })
+   472→})
+   473→
+   474→describe('DELETE /api/studio/copilots/[id]', () => {
+   475→  it('should delete a copilot', async () => {
+   476→    const db = getMockDb()
+   477→    db.customCopilot.findUnique.mockResolvedValue({ id: 'c1' })
+   478→    const res = await (await import('../studio/copilots/[id]/route')).DELETE(
+   479→      makeRequest('/api/studio/copilots/c1', { method: 'DELETE' }),
+   480→      { params: Promise.resolve({ id: 'c1' }) },
+   481→    )
+   482→    expect(res.status).toBe(200)
+   483→    expect(db.customCopilot.delete).toHaveBeenCalledWith({ where: { id: 'c1' } })
+   484→  })
+   485→
+   486→  it('should return 404 for non-existent', async () => {
+   487→    getMockDb().customCopilot.findUnique.mockResolvedValue(null)
+   488→    expect((await (await import('../studio/copilots/[id]/route')).DELETE(
+   489→      makeRequest('/api/studio/copilots/nope', { method: 'DELETE' }),
+   490→      { params: Promise.resolve({ id: 'nope' }) },
+   491→    )).status).toBe(404)
+   492→  })
+   493→})
+   494→
+   495→// ═══════════════════════════════════════════════════════════════
+   496→//  STUDIO: COPILOTS INSTALL
+   497→// ═══════════════════════════════════════════════════════════════
+   498→
+   499→describe('POST /api/studio/copilots/[id]/install', () => {
+   500→  it('should install a copilot', async () => {
+   501→    const db = getMockDb()
+   502→    db.customCopilot.findUnique.mockResolvedValue({ id: 'c1' })
+   503→    db.copilotInstall.findUnique.mockResolvedValue(null)
+   504→    const res = await (await import('../studio/copilots/[id]/install/route')).POST(
+   505→      makeJsonRequest('/api/studio/copilots/c1/install', { userId: 'a@b.com', action: 'install' }),
+   506→      { params: Promise.resolve({ id: 'c1' }) },
+   507→    )
+   508→    expect(res.status).toBe(201)
+   509→    expect((await res.json()).installed).toBe(true)
+   510→    expect(db.copilotInstall.create).toHaveBeenCalled()
+   511→    expect(db.customCopilot.update).toHaveBeenCalledWith(
+   512→      expect.objectContaining({ data: { installCount: { increment: 1 } } })
+   513→    )
+   514→  })
+   515→
+   516→  it('should return 200 if already installed', async () => {
+   517→    const db = getMockDb()
+   518→    db.customCopilot.findUnique.mockResolvedValue({ id: 'c1' })
+   519→    db.copilotInstall.findUnique.mockResolvedValue({ id: 'ci-1' })
+   520→    const res = await (await import('../studio/copilots/[id]/install/route')).POST(
+   521→      makeJsonRequest('/api/studio/copilots/c1/install', { userId: 'a@b.com', action: 'install' }),
+   522→      { params: Promise.resolve({ id: 'c1' }) },
+   523→    )
+   524→    expect(res.status).toBe(200)
+   525→    expect((await res.json()).installed).toBe(true)
+   526→  })
+   527→
+   528→  it('should uninstall a copilot', async () => {
+   529→    const db = getMockDb()
+   530→    db.customCopilot.findUnique.mockResolvedValue({ id: 'c1' })
+   531→    db.copilotInstall.findUnique.mockResolvedValue({ id: 'ci-1' })
+   532→    const res = await (await import('../studio/copilots/[id]/install/route')).POST(
+   533→      makeJsonRequest('/api/studio/copilots/c1/install', { userId: 'a@b.com', action: 'uninstall' }),
+   534→      { params: Promise.resolve({ id: 'c1' }) },
+   535→    )
+   536→    expect(res.status).toBe(200)
+   537→    expect((await res.json()).installed).toBe(false)
+   538→    expect(db.copilotInstall.delete).toHaveBeenCalled()
+   539→  })
+   540→
+   541→  it('should return 400 for missing fields', async () => {
+   542→    const res = await (await import('../studio/copilots/[id]/install/route')).POST(
+   543→      makeJsonRequest('/api/studio/copilots/c1/install', { action: 'install' }),
+   544→      { params: Promise.resolve({ id: 'c1' }) },
+   545→    )
+   546→    expect(res.status).toBe(400)
+   547→  })
+   548→
+   549→  it('should return 400 for invalid action', async () => {
+   550→    const res = await (await import('../studio/copilots/[id]/install/route')).POST(
+   551→      makeJsonRequest('/api/studio/copilots/c1/install', { userId: 'a@b.com', action: 'destroy' }),
+   552→      { params: Promise.resolve({ id: 'c1' }) },
+   553→    )
+   554→    expect(res.status).toBe(400)
+   555→  })
+   556→
+   557→  it('should return 404 for non-existent copilot', async () => {
+   558→    getMockDb().customCopilot.findUnique.mockResolvedValue(null)
+   559→    const res = await (await import('../studio/copilots/[id]/install/route')).POST(
+   560→      makeJsonRequest('/api/studio/copilots/nope/install', { userId: 'a@b.com', action: 'install' }),
+   561→      { params: Promise.resolve({ id: 'nope' }) },
+   562→    )
+   563→    expect(res.status).toBe(404)
+   564→  })
+   565→})
+   566→
+   567→// ═══════════════════════════════════════════════════════════════
+   568→//  STUDIO: COPILOTS REVIEW
+   569→// ═══════════════════════════════════════════════════════════════
+   570→
+   571→describe('POST /api/studio/copilots/[id]/review', () => {
+   572→  it('should add a review', async () => {
+   573→    const db = getMockDb()
+   574→    db.customCopilot.findUnique.mockResolvedValue({ id: 'c1' })
+   575→    const res = await (await import('../studio/copilots/[id]/review/route')).POST(
+   576→      makeJsonRequest('/api/studio/copilots/c1/review', {
+   577→        reviewerId: 'a@b.com', rating: 5, comment: 'Excellent!',
+   578→      }),
+   579→      { params: Promise.resolve({ id: 'c1' }) },
+   580→    )
+   581→    expect(res.status).toBe(201)
+   582→    expect((await res.json()).review).toBeDefined()
+   583→    expect(db.copilotReview.upsert).toHaveBeenCalled()
+   584→    expect(db.customCopilot.update).toHaveBeenCalled()
+   585→  })
+   586→
+   587→  it('should return 400 for missing required fields', async () => {
+   588→    const res = await (await import('../studio/copilots/[id]/review/route')).POST(
+   589→      makeJsonRequest('/api/studio/copilots/c1/review', { reviewerId: 'a@b.com' }),
+   590→      { params: Promise.resolve({ id: 'c1' }) },
+   591→    )
+   592→    expect(res.status).toBe(400)
+   593→  })
+   594→
+   595→  it('should return 400 for invalid rating', async () => {
+   596→    const res = await (await import('../studio/copilots/[id]/review/route')).POST(
+   597→      makeJsonRequest('/api/studio/copilots/c1/review', { reviewerId: 'a@b.com', rating: 6 }),
+   598→      { params: Promise.resolve({ id: 'c1' }) },
+   599→    )
+   600→    expect(res.status).toBe(400)
+   601→  })
+   602→
+   603→  it('should return 404 for non-existent copilot', async () => {
+   604→    getMockDb().customCopilot.findUnique.mockResolvedValue(null)
+   605→    const res = await (await import('../studio/copilots/[id]/review/route')).POST(
+   606→      makeJsonRequest('/api/studio/copilots/nope/review', { reviewerId: 'a@b.com', rating: 5 }),
+   607→      { params: Promise.resolve({ id: 'nope' }) },
+   608→    )
+   609→    expect(res.status).toBe(404)
+   610→  })
+   611→})

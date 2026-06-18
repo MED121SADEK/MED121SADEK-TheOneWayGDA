@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.hoisted(() => { process.env.ADMIN_SECRET = 'admin-secret-token' })
 
-const { setupMockDb, getMockDb } = vi.hoisted(() => {
+const { setupMockDb, getMockDb, baseUser, adminUser, pendingUser, rejectedUser, sessionWithUser } = vi.hoisted(() => {
   const now = new Date('2024-06-15')
   const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 
@@ -46,7 +46,7 @@ const { setupMockDb, getMockDb } = vi.hoisted(() => {
     postComment: { deleteMany: vi.fn() },
     postInteraction: { deleteMany: vi.fn() },
     cronJob: { findMany: vi.fn() },
-    customCopilot: { count: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), groupBy: vi.fn(), aggregate: vi.fn() },
+    customCopilot: { count: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), createMany: vi.fn(), update: vi.fn(), delete: vi.fn(), groupBy: vi.fn(), aggregate: vi.fn() },
     copilotReview: { findMany: vi.fn(), upsert: vi.fn(), aggregate: vi.fn() },
     copilotInstall: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
   }
@@ -95,6 +95,7 @@ const { setupMockDb, getMockDb } = vi.hoisted(() => {
     _db.customCopilot.findMany.mockResolvedValue([])
     _db.customCopilot.findUnique.mockResolvedValue(null)
     _db.customCopilot.create.mockResolvedValue({ id: 'cop-1' })
+    _db.customCopilot.createMany.mockResolvedValue({})
     _db.customCopilot.update.mockResolvedValue({})
     _db.customCopilot.delete.mockResolvedValue({})
     _db.customCopilot.groupBy.mockResolvedValue([])
@@ -161,7 +162,7 @@ describe('GET /api/admin/users/pending', () => {
   it('should return 403 for non-admin user', async () => {
     const db = getMockDb()
     db.userSession.findUnique.mockResolvedValue(sessionWithUser('user-001', 'user'))
-    const res = await (await import('../admin/users/pending/route')).GET(makeRequest('/api/admin/users/pending'))
+    const res = await (await import('../admin/users/pending/route')).GET(authedRequest('/api/admin/users/pending', 'tok'))
     expect(res.status).toBe(403)
   })
 
@@ -169,7 +170,7 @@ describe('GET /api/admin/users/pending', () => {
     const db = getMockDb()
     db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
     db.user.findMany.mockResolvedValueOnce([pendingUser]).mockResolvedValueOnce([rejectedUser])
-    const res = await (await import('../admin/users/pending/route')).GET(makeRequest('/api/admin/users/pending'))
+    const res = await (await import('../admin/users/pending/route')).GET(authedRequest('/api/admin/users/pending', 'atok'))
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.pending).toHaveLength(1)
@@ -194,7 +195,7 @@ describe('POST /api/admin/users/[id]/approve', () => {
     const db = getMockDb()
     db.userSession.findUnique.mockResolvedValue(sessionWithUser('user-001', 'user'))
     const res = await (await import('../admin/users/[id]/approve/route')).POST(
-      makeRequest('/api/admin/users/pending-001', { method: 'POST' }),
+      authedRequest('/api/admin/users/pending-001', 'tok', { method: 'POST' }),
       { params: Promise.resolve({ id: 'pending-001' }) },
     )
     expect(res.status).toBe(403)
@@ -205,7 +206,7 @@ describe('POST /api/admin/users/[id]/approve', () => {
     db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
     db.user.findUnique.mockResolvedValueOnce(pendingUser)
     const res = await (await import('../admin/users/[id]/approve/route')).POST(
-      makeRequest('/api/admin/users/pending-001', { method: 'POST' }),
+      authedRequest('/api/admin/users/pending-001', 'atok', { method: 'POST' }),
       { params: Promise.resolve({ id: 'pending-001' }) },
     )
     expect(res.status).toBe(200)
@@ -222,7 +223,7 @@ describe('POST /api/admin/users/[id]/approve', () => {
     db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
     db.user.findUnique.mockResolvedValueOnce(baseUser()) // role is 'user'
     const res = await (await import('../admin/users/[id]/approve/route')).POST(
-      makeRequest('/api/admin/users/user-001', { method: 'POST' }),
+      authedRequest('/api/admin/users/user-001', 'atok', { method: 'POST' }),
       { params: Promise.resolve({ id: 'user-001' }) },
     )
     expect(res.status).toBe(400)
@@ -233,7 +234,7 @@ describe('POST /api/admin/users/[id]/approve', () => {
     db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
     db.user.findUnique.mockResolvedValueOnce(null)
     const res = await (await import('../admin/users/[id]/approve/route')).POST(
-      makeRequest('/api/admin/users/nonexistent', { method: 'POST' }),
+      authedRequest('/api/admin/users/nonexistent', 'atok', { method: 'POST' }),
       { params: Promise.resolve({ id: 'nonexistent' }) },
     )
     expect(res.status).toBe(404)
@@ -250,7 +251,7 @@ describe('POST /api/admin/users/[id]/reject', () => {
     db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
     db.user.findUnique.mockResolvedValueOnce(pendingUser)
     const res = await (await import('../admin/users/[id]/reject/route')).POST(
-      makeJsonRequest('/api/admin/users/pending-001', { reason: 'Not qualified' }, { method: 'POST' }),
+      makeJsonRequest('/api/admin/users/pending-001', { reason: 'Not qualified' }, { method: 'POST', headers: { Authorization: 'Bearer atok' } }),
       { params: Promise.resolve({ id: 'pending-001' }) },
     )
     expect(res.status).toBe(200)
@@ -266,7 +267,7 @@ describe('POST /api/admin/users/[id]/reject', () => {
     db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
     db.user.findUnique.mockResolvedValueOnce(baseUser())
     const res = await (await import('../admin/users/[id]/reject/route')).POST(
-      makeJsonRequest('/api/admin/users/user-001', {}, { method: 'POST' }),
+      makeJsonRequest('/api/admin/users/user-001', {}, { method: 'POST', headers: { Authorization: 'Bearer atok' } }),
       { params: Promise.resolve({ id: 'user-001' }) },
     )
     expect(res.status).toBe(400)
@@ -281,7 +282,7 @@ describe('GET /api/admin/subscriptions/pending', () => {
   it('should return 403 for non-admin', async () => {
     const db = getMockDb()
     db.userSession.findUnique.mockResolvedValue(sessionWithUser('user-001', 'user'))
-    const res = await (await import('../admin/subscriptions/pending/route')).GET(makeRequest('/api/admin/subscriptions/pending'))
+    const res = await (await import('../admin/subscriptions/pending/route')).GET(authedRequest('/api/admin/subscriptions/pending', 'tok'))
     expect(res.status).toBe(403)
   })
 
@@ -289,7 +290,7 @@ describe('GET /api/admin/subscriptions/pending', () => {
     const db = getMockDb()
     db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
     db.subscription.findMany.mockResolvedValue([{ id: 'sub-1', status: 'pending_approval', userId: 'u1' }])
-    const res = await (await import('../admin/subscriptions/pending/route')).GET(makeRequest('/api/admin/subscriptions/pending'))
+    const res = await (await import('../admin/subscriptions/pending/route')).GET(authedRequest('/api/admin/subscriptions/pending', 'atok'))
     expect(res.status).toBe(200)
     expect((await res.json()).pending).toHaveLength(1)
   })
@@ -308,7 +309,7 @@ describe('POST /api/admin/subscriptions/[id]/approve', () => {
       user: { email: 'u@test.com', name: 'User' },
     })
     const res = await (await import('../admin/subscriptions/[id]/approve/route')).POST(
-      makeRequest('/api/admin/subscriptions/sub-1', { method: 'POST' }),
+      authedRequest('/api/admin/subscriptions/sub-1', 'atok', { method: 'POST' }),
       { params: Promise.resolve({ id: 'sub-1' }) },
     )
     expect(res.status).toBe(200)
@@ -327,7 +328,7 @@ describe('POST /api/admin/subscriptions/[id]/approve', () => {
       user: { email: 'u@test.com', name: 'User' },
     })
     const res = await (await import('../admin/subscriptions/[id]/approve/route')).POST(
-      makeRequest('/api/admin/subscriptions/sub-1', { method: 'POST' }),
+      authedRequest('/api/admin/subscriptions/sub-1', 'atok', { method: 'POST' }),
       { params: Promise.resolve({ id: 'sub-1' }) },
     )
     expect(res.status).toBe(400)
@@ -338,7 +339,7 @@ describe('POST /api/admin/subscriptions/[id]/approve', () => {
     db.userSession.findUnique.mockResolvedValue(sessionWithUser('admin-001', 'admin', 'atok'))
     db.subscription.findUnique.mockResolvedValueOnce(null)
     const res = await (await import('../admin/subscriptions/[id]/approve/route')).POST(
-      makeRequest('/api/admin/subscriptions/nope', { method: 'POST' }),
+      authedRequest('/api/admin/subscriptions/nope', 'atok', { method: 'POST' }),
       { params: Promise.resolve({ id: 'nope' }) },
     )
     expect(res.status).toBe(404)
@@ -358,7 +359,7 @@ describe('POST /api/admin/subscriptions/[id]/reject', () => {
       user: { email: 'u@test.com', name: 'User' },
     })
     const res = await (await import('../admin/subscriptions/[id]/reject/route')).POST(
-      makeRequest('/api/admin/subscriptions/sub-1', { method: 'POST' }),
+      authedRequest('/api/admin/subscriptions/sub-1', 'atok', { method: 'POST' }),
       { params: Promise.resolve({ id: 'sub-1' }) },
     )
     expect(res.status).toBe(200)
@@ -547,6 +548,7 @@ describe('POST /api/studio/copilots/[id]/install', () => {
   })
 
   it('should return 400 for invalid action', async () => {
+    getMockDb().customCopilot.findUnique.mockResolvedValue({ id: 'c1' })
     const res = await (await import('../studio/copilots/[id]/install/route')).POST(
       makeJsonRequest('/api/studio/copilots/c1/install', { userId: 'a@b.com', action: 'destroy' }),
       { params: Promise.resolve({ id: 'c1' }) },

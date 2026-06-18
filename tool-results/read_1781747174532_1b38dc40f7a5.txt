@@ -1,0 +1,841 @@
+     1→===FILE:src/app/api/admin/action/route.ts===
+     2→8:export async function GET(request: NextRequest) {
+     3→26:    const user = await db.user.findUnique({ where: { id: verified.userId } })
+     4→48:      await db.user.update({
+     5→53:      await db.userActivity.create({
+     6→61:      await db.visitor.upsert({
+     7→---
+     8→===FILE:src/app/api/admin/community/route.ts===
+     9→15:export async function GET(request: NextRequest) {
+    10→58:    db.communityPost.count(),
+    11→59:    db.communityPost.count({ where: { createdAt: { gte: oneHourAgo } } }),
+    12→60:    db.communityPost.count({ where: { createdAt: { gte: twentyFourHoursAgo } } }),
+    13→61:    db.communityPost.count({ where: { author: 'THEONEWAYGDA_AI', createdAt: { gte: twentyFourHoursAgo } } }),
+    14→62:    db.communityPost.count({ where: { author: { not: 'THEONEWAYGDA_AI' }, createdAt: { gte: twentyFourHoursAgo } } }),
+    15→63:    db.communityPost.count({ where: { tags: { contains: 'Flagged' } } }),
+    16→64:    db.communityPost.count({ where: { tags: { contains: 'Hidden' } } }),
+    17→65:    db.communityPost.count({ where: { featured: true } }),
+    18→66:    db.cronJob.findMany({ orderBy: { lastRun: 'desc' }, take: 20 }),
+    19→67:    db.communityPost.findMany({ orderBy: { createdAt: 'desc' }, take: 10 }),
+    20→69:    db.$queryRaw<Array<{ author: string; count: bigint }>>`
+    21→77:    db.$queryRaw<Array<{ count: bigint }>>`
+    22→---
+    23→===FILE:src/app/api/admin/subscriptions/[id]/approve/route.ts===
+    24→3:import { getTokenFromRequest } from '@/lib/auth'
+    25→7:export async function POST(
+    26→14:    const token = getTokenFromRequest(request)
+    27→19:    const session = await db.userSession.findUnique({
+    28→32:    const subscription = await db.subscription.findUnique({
+    29→49:    await db.subscription.update({
+    30→55:    await db.user.update({
+    31→61:    await db.userActivity.create({
+    32→---
+    33→===FILE:src/app/api/admin/subscriptions/[id]/reject/route.ts===
+    34→3:import { getTokenFromRequest } from '@/lib/auth'
+    35→8:export async function POST(
+    36→15:    const token = getTokenFromRequest(request)
+    37→20:    const session = await db.userSession.findUnique({
+    38→33:    const subscription = await db.subscription.findUnique({
+    39→60:    await db.subscription.update({
+    40→66:    await db.userActivity.create({
+    41→---
+    42→===FILE:src/app/api/admin/subscriptions/pending/route.ts===
+    43→3:import { getTokenFromRequest } from '@/lib/auth'
+    44→6:export async function GET(request: NextRequest) {
+    45→8:    const token = getTokenFromRequest(request)
+    46→13:    const session = await db.userSession.findUnique({
+    47→26:    const pendingSubscriptions = await db.subscription.findMany({
+    48→---
+    49→===FILE:src/app/api/admin/users/[id]/approve/route.ts===
+    50→3:import { getTokenFromRequest } from '@/lib/auth'
+    51→7:export async function POST(
+    52→14:    const token = getTokenFromRequest(request)
+    53→19:    const session = await db.userSession.findUnique({
+    54→32:    const user = await db.user.findUnique({ where: { id } })
+    55→41:    const updatedUser = await db.user.update({
+    56→46:    await db.userActivity.create({
+    57→55:    await db.visitor.upsert({
+    58→---
+    59→===FILE:src/app/api/admin/users/[id]/reject/route.ts===
+    60→3:import { getTokenFromRequest } from '@/lib/auth'
+    61→7:export async function POST(
+    62→16:    const token = getTokenFromRequest(request)
+    63→21:    const session = await db.userSession.findUnique({
+    64→34:    const user = await db.user.findUnique({ where: { id } })
+    65→43:    const updatedUser = await db.user.update({
+    66→48:    await db.userActivity.create({
+    67→---
+    68→===FILE:src/app/api/admin/users/pending/route.ts===
+    69→3:import { getTokenFromRequest } from '@/lib/auth'
+    70→6:export async function GET(request: NextRequest) {
+    71→8:    const token = getTokenFromRequest(request)
+    72→13:    const session = await db.userSession.findUnique({
+    73→26:    const pendingUsers = await db.user.findMany({
+    74→37:    const rejectedUsers = await db.user.findMany({
+    75→---
+    76→===FILE:src/app/api/admin/visitor-action/route.ts===
+    77→8:export async function GET(request: NextRequest) {
+    78→29:    const visitor = await db.visitor.findUnique({ where: { email: visitorEmail } })
+    79→51:      await db.visitor.update({
+    80→58:        const user = await db.user.findUnique({ where: { email: visitorEmail } })
+    81→60:          await db.user.update({
+    82→64:          await db.userActivity.create({
+    83→---
+    84→===FILE:src/app/api/ai/agent/route.ts===
+    85→3:import { getTokenFromRequest } from '@/lib/auth'
+    86→---
+    87→===FILE:src/app/api/ai/assistant/route.ts===
+    88→4:import { requireAuth } from '@/lib/require-auth'
+    89→---
+    90→===FILE:src/app/api/ai/audit/route.ts===
+    91→4:export async function GET(request: NextRequest) {
+    92→15:      prisma.aiAuditLog.findMany({
+    93→21:      prisma.aiAuditLog.count({ where }),
+    94→28:      prisma.aiAuditLog.count({ where: { createdAt: { gte: today } } }),
+    95→29:      prisma.aiAuditLog.count({ where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } }),
+    96→30:      prisma.aiAuditLog.count(),
+    97→33:    const avgDuration = await prisma.aiAuditLog.aggregate({
+    98→---
+    99→===FILE:src/app/api/ai/automations/[id]/route.ts===
+   100→34:export async function PUT(
+   101→61:export async function DELETE(
+   102→---
+   103→===FILE:src/app/api/ai/automations/[id]/run/route.ts===
+   104→4:export async function POST(
+   105→---
+   106→===FILE:src/app/api/ai/automations/batch/route.ts===
+   107→36:    await prisma.aiAuditLog.create({
+   108→71:    const log = await prisma.automationLog.create({
+   109→---
+   110→===FILE:src/app/api/ai/automations/chain/route.ts===
+   111→---
+   112→===FILE:src/app/api/ai/automations/generate/route.ts===
+   113→---
+   114→===FILE:src/app/api/ai/automations/optimize/route.ts===
+   115→---
+   116→===FILE:src/app/api/ai/automations/route.ts===
+   117→---
+   118→===FILE:src/app/api/ai/automations/validate/route.ts===
+   119→---
+   120→===FILE:src/app/api/ai/copilot/memory/route.ts===
+   121→3:import { requireAuth } from '@/lib/require-auth'
+   122→7:export async function GET(request: NextRequest) {
+   123→8:  const user = await requireAuth(request)
+   124→62:    const decisions = await prisma.decisionRecord.findMany({
+   125→---
+   126→===FILE:src/app/api/ai/copilot/route.ts===
+   127→4:import { requireAuth } from '@/lib/require-auth'
+   128→24:    const models = await prisma.aiModel.findMany({
+   129→---
+   130→===FILE:src/app/api/ai/copilot/suggest-automation/route.ts===
+   131→4:import { requireAuth } from '@/lib/require-auth'
+   132→---
+   133→===FILE:src/app/api/ai/decisions/route.ts===
+   134→4:export async function POST(request: NextRequest) {
+   135→54:    const record = await prisma.decisionRecord.create({
+   136→71:      await prisma.aiAuditLog.create({
+   137→---
+   138→===FILE:src/app/api/ai/extensions/[id]/route.ts===
+   139→---
+   140→===FILE:src/app/api/ai/extensions/hooks/route.ts===
+   141→---
+   142→===FILE:src/app/api/ai/extensions/registry/route.ts===
+   143→---
+   144→===FILE:src/app/api/ai/extensions/route.ts===
+   145→---
+   146→===FILE:src/app/api/ai/extensions/webhooks/route.ts===
+   147→---
+   148→===FILE:src/app/api/ai/governance/compliance/route.ts===
+   149→42:export async function GET() {
+   150→---
+   151→===FILE:src/app/api/ai/governance/usage-tags/route.ts===
+   152→---
+   153→===FILE:src/app/api/ai/mlops/route.ts===
+   154→---
+   155→===FILE:src/app/api/ai/policies/[id]/route.ts===
+   156→8:export async function PUT(
+   157→47:export async function DELETE(
+   158→---
+   159→===FILE:src/app/api/ai/policies/route.ts===
+   160→32:export function getPolicies(): AiPolicy[] {
+   161→---
+   162→===FILE:src/app/api/ai/route.ts===
+   163→7:export async function POST(request: NextRequest) {
+   164→---
+   165→===FILE:src/app/api/ai/sdk/route.ts===
+   166→4:export async function GET() {
+   167→---
+   168→===FILE:src/app/api/ai/templates/route.ts===
+   169→---
+   170→===FILE:src/app/api/ai/workflow/[id]/execute/route.ts===
+   171→4:import { requireAuth } from '@/lib/require-auth'
+   172→78:export async function POST(
+   173→---
+   174→===FILE:src/app/api/ai/workflow/[id]/route.ts===
+   175→4:import { requireAuth } from '@/lib/require-auth'
+   176→39:export async function GET(
+   177→43:  const user = await requireAuth(_request)
+   178→49:    const pipeline = await prisma.workflowPipeline.findUnique({
+   179→---
+   180→===FILE:src/app/api/ai/workflow/route.ts===
+   181→4:import { requireAuth } from '@/lib/require-auth'
+   182→59:export async function POST(request: NextRequest) {
+   183→60:  const user = await requireAuth(request)
+   184→---
+   185→===FILE:src/app/api/analytics/route.ts===
+   186→3:import { getTokenFromRequest } from '@/lib/auth'
+   187→6:export async function POST(request: NextRequest) {
+   188→8:    const token = getTokenFromRequest(request)
+   189→9:    const session = token ? await db.userSession.findUnique({ where: { token } }) : null
+   190→24:    const analysis = await db.analysisRun.create({
+   191→48:export async function GET(request: NextRequest) {
+   192→50:    const token = getTokenFromRequest(request)
+   193→51:    const session = token ? await db.userSession.findUnique({ where: { token } }) : null
+   194→59:    const analyses = await db.analysisRun.findMany({
+   195→---
+   196→===FILE:src/app/api/arena/[id]/route.ts===
+   197→5:export async function GET(
+   198→16:      const dbBattle = await db.arenaBattle.findUnique({
+   199→---
+   200→===FILE:src/app/api/arena/[id]/vote/route.ts===
+   201→8:export async function POST(
+   202→29:      const battle = await db.arenaBattle.findUnique({ where: { id } });
+   203→39:      const existingVote = await db.arenaVote.findUnique({
+   204→47:      const vote = await db.$transaction(async (tx) => {
+   205→---
+   206→===FILE:src/app/api/arena/route.ts===
+   207→---
+   208→===FILE:src/app/api/auth/[id]/route.ts===
+   209→3:import { getTokenFromRequest } from '@/lib/auth'
+   210→5:export async function GET(
+   211→13:    const token = getTokenFromRequest(request)
+   212→18:    const session = await db.userSession.findUnique({
+   213→31:    const user = await db.user.findUnique({
+   214→61:export async function PATCH(
+   215→67:    const token = getTokenFromRequest(request)
+   216→73:    const session = await db.userSession.findUnique({
+   217→---
+   218→===FILE:src/app/api/auth/activity/route.ts===
+   219→3:import { getTokenFromRequest } from '@/lib/auth'
+   220→5:export async function GET(request: NextRequest) {
+   221→7:    const token = getTokenFromRequest(request)
+   222→12:    const session = await db.userSession.findUnique({ where: { token } })
+   223→26:      db.userActivity.findMany({
+   224→32:      db.userActivity.count({ where }),
+   225→---
+   226→===FILE:src/app/api/auth/forgot-password/route.ts===
+   227→6:export async function POST(request: NextRequest) {
+   228→17:    const user = await db.user.findUnique({ where: { email: normalizedEmail } })
+   229→36:    await db.user.update({
+   230→---
+   231→===FILE:src/app/api/auth/login/route.ts===
+   232→5:export async function POST(request: NextRequest) {
+   233→15:    const user = await db.user.findUnique({ where: { email: normalizedEmail } })
+   234→27:      await db.user.update({ where: { id: user.id }, data: { password: newHash } })
+   235→53:    await db.userSession.create({
+   236→63:    await db.user.update({ where: { id: user.id }, data: { lastSeen: new Date() } })
+   237→65:    await db.userActivity.create({
+   238→---
+   239→===FILE:src/app/api/auth/logout/route.ts===
+   240→2:import { getTokenFromRequest } from '@/lib/auth'
+   241→5:export async function POST(request: NextRequest) {
+   242→7:    const token = getTokenFromRequest(request)
+   243→11:    await db.userSession.delete({ where: { token } })
+   244→---
+   245→===FILE:src/app/api/auth/me/route.ts===
+   246→2:import { getTokenFromRequest } from '@/lib/auth'
+   247→7:export async function GET(request: NextRequest) {
+   248→9:    const token = getTokenFromRequest(request)
+   249→---
+   250→===FILE:src/app/api/auth/register/route.ts===
+   251→6:export async function POST(request: NextRequest) {
+   252→20:    const existing = await db.user.findUnique({ where: { email: normalizedEmail } })
+   253→40:    const user = await db.user.create({
+   254→50:    await db.userActivity.create({
+   255→59:    await db.visitor.upsert({
+   256→---
+   257→===FILE:src/app/api/auth/reset-password/route.ts===
+   258→5:export async function POST(request: NextRequest) {
+   259→18:    const user = await db.user.findFirst({
+   260→31:    await db.user.update({
+   261→---
+   262→===FILE:src/app/api/auth/stats/route.ts===
+   263→3:import { getTokenFromRequest } from '@/lib/auth'
+   264→5:export async function GET(request: NextRequest) {
+   265→7:    const token = getTokenFromRequest(request)
+   266→12:    const session = await db.userSession.findUnique({
+   267→33:      db.userActivity.count({ where: { userId } }),
+   268→34:      db.userActivity.count({ where: { userId, type: 'login' } }),
+   269→35:      db.userActivity.count({ where: { userId, type: 'analysis_run' } }),
+   270→36:      db.project.count({ where: { userId } }),
+   271→37:      db.workflowPipeline.count({ where: { visitorId: session.user.email } }),
+   272→38:      db.automationRule.count({ where: { visitorId: session.user.email } }),
+   273→39:      db.userActivity.count({ where: { userId, type: 'report_generated' } }),
+   274→41:      db.userActivity.groupBy({
+   275→---
+   276→===FILE:src/app/api/billing/route.ts===
+   277→3:import { getTokenFromRequest } from '@/lib/auth'
+   278→10:  const token = getTokenFromRequest(request)
+   279→13:  const session = await db.userSession.findUnique({
+   280→19:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   281→62:export async function GET(request: NextRequest) {
+   282→72:    let subscription = await db.subscription.findUnique({
+   283→77:      subscription = await db.subscription.create({
+   284→---
+   285→===FILE:src/app/api/certifications/route.ts===
+   286→6:  const count = await db.certification.count();
+   287→---
+   288→===FILE:src/app/api/checkout/route.ts===
+   289→3:import { getTokenFromRequest } from '@/lib/auth'
+   290→11:  const token = getTokenFromRequest(request)
+   291→14:  const session = await db.userSession.findUnique({
+   292→20:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   293→30:  const subscription = await db.subscription.findUnique({
+   294→47:    await db.subscription.update({
+   295→52:    await db.subscription.create({
+   296→67:export async function POST(request: NextRequest) {
+   297→---
+   298→===FILE:src/app/api/clean/route.ts===
+   299→---
+   300→===FILE:src/app/api/community/analysis-templates/route.ts===
+   301→37:export async function GET(request: NextRequest) {
+   302→---
+   303→===FILE:src/app/api/community/benchmark-configs/route.ts===
+   304→33:export async function GET(request: NextRequest) {
+   305→---
+   306→===FILE:src/app/api/community/chatbot/route.ts===
+   307→36:export async function POST(req: NextRequest) {
+   308→69:        const pref = await prisma.userPreference.findUnique({ where: { visitorId } })
+   309→79:      const recentPosts = await prisma.communityPost.findMany({
+   310→---
+   311→===FILE:src/app/api/community/collections/[slug]/route.ts===
+   312→12:export async function GET(
+   313→20:    const collection = await db.thematicCollection.findUnique({
+   314→42:        const allPosts = await db.communityPost.findMany({
+   315→71:        posts = await db.communityPost.findMany({
+   316→---
+   317→===FILE:src/app/api/community/collections/route.ts===
+   318→13:export async function GET(request: NextRequest) {
+   319→20:    const collections = await db.thematicCollection.findMany({
+   320→38:            const allPosts = await db.communityPost.findMany({
+   321→77:export async function POST(request: NextRequest) {
+   322→---
+   323→===FILE:src/app/api/community/engagement/route.ts===
+   324→21:  const topPosts = await db.communityPost.findMany({
+   325→40:  const existingHighlights = await db.communityPost.findFirst({
+   326→69:  const post = await db.communityPost.create({
+   327→---
+   328→===FILE:src/app/api/community/feed/personalized/route.ts===
+   329→15:export async function GET(request: NextRequest) {
+   330→24:      ? await db.userFollow.findMany({
+   331→34:      ? await db.topicFollow.findMany({
+   332→43:    const verifiedResearchers = await db.verifiedResearcher.findMany({
+   333→51:    const posts = await db.communityPost.findMany({
+   334→---
+   335→===FILE:src/app/api/community/follow/route.ts===
+   336→10:export async function GET(request: Request) {
+   337→19:      db.userFollow.findMany({ where: { followerId: visitorId }, select: { followingId: true, createdAt: true } }),
+   338→20:      db.userFollow.findMany({ where: { followingId: visitorId }, select: { followerId: true, createdAt: true } }),
+   339→35:export async function POST(request: Request) {
+   340→50:      await db.userFollow.create({
+   341→54:      await db.userFollow.deleteMany({
+   342→59:    const counts = await db.userFollow.groupBy({
+   343→---
+   344→===FILE:src/app/api/community/knowledge/[id]/route.ts===
+   345→9:export async function GET(
+   346→16:    const item = await db.knowledgeItem.findUnique({
+   347→37:export async function PATCH(
+   348→46:    const existing = await db.knowledgeItem.findUnique({ where: { id } })
+   349→52:      const updated = await db.knowledgeItem.update({
+   350→69:    const updated = await db.knowledgeItem.update({
+   351→---
+   352→===FILE:src/app/api/community/knowledge/route.ts===
+   353→11:export async function GET(request: NextRequest) {
+   354→34:    const items = await db.knowledgeItem.findMany({
+   355→54:export async function POST(request: NextRequest) {
+   356→75:    const item = await db.knowledgeItem.create({
+   357→---
+   358→===FILE:src/app/api/community/monitor/route.ts===
+   359→---
+   360→===FILE:src/app/api/community/news/route.ts===
+   361→---
+   362→===FILE:src/app/api/community/posts/[id]/comments/[commentId]/answer/route.ts===
+   363→5:export async function POST(
+   364→20:      db.communityPost.findUnique({ where: { id: postId } }),
+   365→21:      db.postComment.findUnique({ where: { id: commentId } }),
+   366→38:      const previousAnswer = await db.postComment.findFirst({
+   367→43:        await db.postComment.update({
+   368→50:      await db.postComment.update({
+   369→56:      await db.communityPost.update({
+   370→62:      const researcher = await db.verifiedResearcher.findUnique({
+   371→66:        await db.verifiedResearcher.update({
+   372→75:          const user = await db.user.findUnique({ where: { email: comment.author.toLowerCase() } })
+   373→77:            await db.notification.create({
+   374→---
+   375→===FILE:src/app/api/community/posts/[id]/comments/[commentId]/upvote/route.ts===
+   376→5:export async function POST(
+   377→22:    const comment = await db.postComment.findUnique({ where: { id: commentId } })
+   378→28:    const existing = await db.postInteraction.findUnique({
+   379→35:        db.postInteraction.delete({ where: { id: existing.id } }),
+   380→36:        db.postComment.update({ where: { id: commentId }, data: { upvotes: { decrement: 1 } } }),
+   381→42:        db.postInteraction.create({
+   382→45:        db.postComment.update({ where: { id: commentId }, data: { upvotes: { increment: 1 } } }),
+   383→---
+   384→===FILE:src/app/api/community/posts/[id]/comments/route.ts===
+   385→5:export async function GET(
+   386→11:    const comments = await db.postComment.findMany({
+   387→23:export async function POST(
+   388→40:    const post = await db.communityPost.findUnique({ where: { id } })
+   389→45:    const comment = await db.postComment.create({
+   390→55:    await db.communityPost.update({
+   391→---
+   392→===FILE:src/app/api/community/posts/[id]/interact/route.ts===
+   393→5:export async function POST(
+   394→18:    const post = await db.communityPost.findUnique({ where: { id } })
+   395→27:      const existing = await db.postInteraction.findUnique({
+   396→32:          db.postInteraction.create({
+   397→35:          db.communityPost.update({ where: { id }, data: { likes: { increment: 1 } } }),
+   398→41:      const existing = await db.postInteraction.findUnique({
+   399→46:          db.postInteraction.delete({ where: { id: existing.id } }),
+   400→47:          db.communityPost.update({ where: { id }, data: { likes: { decrement: 1 } } }),
+   401→53:      const existing = await db.postInteraction.findUnique({
+   402→58:          db.postInteraction.create({
+   403→61:          db.communityPost.update({ where: { id }, data: { saves: { increment: 1 } } }),
+   404→67:      const existing = await db.postInteraction.findUnique({
+   405→72:          db.postInteraction.delete({ where: { id: existing.id } }),
+   406→73:          db.communityPost.update({ where: { id }, data: { saves: { decrement: 1 } } }),
+   407→80:      const existingRepost = await db.postInteraction.findUnique({
+   408→---
+   409→===FILE:src/app/api/community/posts/[id]/related/route.ts===
+   410→14:export async function GET(
+   411→22:    const currentPost = await db.communityPost.findUnique({ where: { id } })
+   412→35:    const candidates = await db.communityPost.findMany({
+   413→---
+   414→===FILE:src/app/api/community/posts/[id]/route.ts===
+   415→5:export async function GET(
+   416→11:    const post = await db.communityPost.findUnique({ where: { id } })
+   417→22:export async function DELETE(
+   418→31:    const post = await db.communityPost.findUnique({ where: { id } })
+   419→41:      db.postComment.deleteMany({ where: { postId: id } }),
+   420→42:      db.postInteraction.deleteMany({ where: { postId: id } }),
+   421→43:      db.communityPost.delete({ where: { id } }),
+   422→---
+   423→===FILE:src/app/api/community/posts/route.ts===
+   424→6:export async function GET(request: NextRequest) {
+   425→43:      db.communityPost.findMany({
+   426→49:      db.communityPost.count({ where }),
+   427→68:export async function POST(request: NextRequest) {
+   428→---
+   429→===FILE:src/app/api/community/profile/[id]/answers/route.ts===
+   430→5:export async function GET(
+   431→14:    const totalAnswers = await db.postComment.count({
+   432→19:    const recentAnswers = await db.postComment.findMany({
+   433→---
+   434→===FILE:src/app/api/community/publish/route.ts===
+   435→---
+   436→===FILE:src/app/api/community/related/route.ts===
+   437→5:export async function GET(request: NextRequest) {
+   438→15:    const post = await db.communityPost.findUnique({ where: { id: postId } })
+   439→29:      const fallback = await db.communityPost.findMany({
+   440→37:    const related = await db.communityPost.findMany({
+   441→60:      const more = await db.communityPost.findMany({
+   442→---
+   443→===FILE:src/app/api/community/reputation/compute/route.ts===
+   444→18:export async function POST() {
+   445→21:    const researchers = await db.verifiedResearcher.findMany({
+   446→36:      const totalPosts = await db.communityPost.count({
+   447→41:      const totalAnswers = await db.postComment.count({
+   448→49:      const researcherPosts = await db.communityPost.findMany({
+   449→58:        totalCitations = await db.postInteraction.count({
+   450→70:      await db.verifiedResearcher.update({
+   451→---
+   452→===FILE:src/app/api/community/seed/route.ts===
+   453→---
+   454→===FILE:src/app/api/community/shared-workflows/route.ts===
+   455→31:export async function GET(request: NextRequest) {
+   456→---
+   457→===FILE:src/app/api/community/topics/route.ts===
+   458→18:export async function GET(request: Request) {
+   459→26:    const follows = await db.topicFollow.findMany({
+   460→42:export async function POST(request: Request) {
+   461→57:      await db.topicFollow.create({
+   462→61:      await db.topicFollow.deleteMany({
+   463→66:    const follows = await db.topicFollow.findMany({
+   464→---
+   465→===FILE:src/app/api/community/verified/route.ts===
+   466→7:export async function GET(request: NextRequest) {
+   467→14:      const researcher = await db.verifiedResearcher.findUnique({
+   468→21:    const researchers = await db.verifiedResearcher.findMany({
+   469→43:export async function POST(request: NextRequest) {
+   470→52:    const researcher = await db.verifiedResearcher.upsert({
+   471→---
+   472→===FILE:src/app/api/devops/deploys/route.ts===
+   473→11:export async function GET() {
+   474→14:      prisma.deployLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
+   475→15:      prisma.deployLog.groupBy({ by: ['status'], _count: true }),
+   476→27:export async function POST(request: Request) {
+   477→30:    const deploy = await prisma.deployLog.create({
+   478→---
+   479→===FILE:src/app/api/devops/errors/route.ts===
+   480→13:export async function GET(request: Request) {
+   481→33:      prisma.appErrorLog.findMany({
+   482→39:      prisma.appErrorLog.count({ where }),
+   483→53:export async function POST(request: Request) {
+   484→56:    const error = await prisma.appErrorLog.create({
+   485→---
+   486→===FILE:src/app/api/errors/route.ts===
+   487→7:export async function GET() {
+   488→19:export async function POST(request: NextRequest) {
+   489→---
+   490→===FILE:src/app/api/feedback/route.ts===
+   491→49:export async function POST(request: NextRequest) {
+   492→---
+   493→===FILE:src/app/api/health/deep/route.ts===
+   494→42:export async function GET() {
+   495→53:      await prisma.$queryRaw`SELECT 1 as ok`
+   496→56:      const modelCount = await prisma.aiModel.count()
+   497→57:      const auditCount = await prisma.aiAuditLog.count()
+   498→---
+   499→===FILE:src/app/api/health/route.ts===
+   500→10:export async function GET() {
+   501→---
+   502→===FILE:src/app/api/keys/route.ts===
+   503→3:import { getTokenFromRequest } from '@/lib/auth'
+   504→11:  const token = getTokenFromRequest(request)
+   505→14:  const session = await db.userSession.findUnique({
+   506→20:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   507→28:export async function GET(request: NextRequest) {
+   508→37:    const keys = await db.apiKey.findMany({
+   509→69:export async function POST(request: NextRequest) {
+   510→---
+   511→===FILE:src/app/api/leaderboard/benchmarks/route.ts===
+   512→6:export async function GET(request: Request) {
+   513→15:    if ((await prisma.aiModel.count()) === 0) await seedLeaderboardData();
+   514→18:      const scores = await prisma.benchmarkScore.findMany({ where: { modelId, version: 'latest' }, orderBy: { score: 'desc' } });
+   515→19:      const model = await prisma.aiModel.findUnique({ where: { id: modelId } });
+   516→24:      prisma.benchmarkScore.findMany({
+   517→28:      prisma.aiModel.findMany({ select: { id: true, name: true, provider: true } }),
+   518→---
+   519→===FILE:src/app/api/leaderboard/cron/route.ts===
+   520→35:export async function GET() {
+   521→37:  const jobs = await prisma.cronJob.findMany({ orderBy: { name: 'asc' } });
+   522→45:export async function POST(request: Request) {
+   523→---
+   524→===FILE:src/app/api/leaderboard/external/route.ts===
+   525→---
+   526→===FILE:src/app/api/leaderboard/metrics/route.ts===
+   527→38:export async function GET(request: Request) {
+   528→50:      const metrics = await prisma.liveMetric.findMany({ where: { modelId, testedAt: { gte: since } }, orderBy: { testedAt: 'desc' } });
+   529→54:    const models = await prisma.aiModel.findMany({ where: { isActive: true }, select: { id: true, name: true, provider: true } });
+   530→58:      const metrics = await prisma.liveMetric.findMany({ where: { modelId: model.id, status: 'success', testedAt: { gte: since } }, orderBy: { testedAt: 'desc' } });
+   531→---
+   532→===FILE:src/app/api/leaderboard/models/[id]/route.ts===
+   533→4:export async function GET(
+   534→10:    const model = await prisma.aiModel.findUnique({ where: { id } });
+   535→14:      prisma.benchmarkScore.findMany({ where: { modelId: id, version: 'latest' }, orderBy: { score: 'desc' } }),
+   536→15:      prisma.modelPricing.findMany({ where: { modelId: id, isActive: true }, orderBy: { updatedAt: 'desc' }, take: 1 }),
+   537→16:      prisma.liveMetric.findMany({ where: { modelId: id }, orderBy: { testedAt: 'desc' }, take: 30 }),
+   538→---
+   539→===FILE:src/app/api/leaderboard/pricing/route.ts===
+   540→5:export async function GET(request: Request) {
+   541→19:      prisma.modelPricing.findMany({ where, orderBy: { updatedAt: 'desc' } }),
+   542→20:      prisma.aiModel.findMany({ select: { id: true, name: true, provider: true, modelType: true, contextWindow: true, parameters: true } }),
+   543→---
+   544→===FILE:src/app/api/leaderboard/route.ts===
+   545→6:export async function GET(request: Request) {
+   546→21:    if ((await prisma.aiModel.count()) === 0) await seedLeaderboardData();
+   547→29:      prisma.aiModel.findMany({ where: modelWhere }),
+   548→30:      prisma.benchmarkScore.findMany({ where: { benchmark, version: 'latest' } }),
+   549→31:      prisma.modelPricing.findMany({ where: { isActive: true }, orderBy: { updatedAt: 'desc' } }),
+   550→32:      prisma.liveMetric.findMany({ where: { status: 'success' }, orderBy: { testedAt: 'desc' } }),
+   551→---
+   552→===FILE:src/app/api/metrics/route.ts===
+   553→16:export async function GET() {
+   554→45:        prisma.aiAuditLog.count({ where: { createdAt: { gte: oneHourAgo }, action: 'ai_query' } }),
+   555→46:        prisma.aiAuditLog.count({ where: { createdAt: { gte: oneDayAgo }, action: 'ai_query' } }),
+   556→47:        prisma.appErrorLog.count({ where: { createdAt: { gte: oneHourAgo } } }),
+   557→48:        prisma.appErrorLog.count({ where: { resolved: false } }),
+   558→49:        prisma.deployLog.count({ where: { status: 'success' } }),
+   559→50:        prisma.deployLog.count({ where: { status: 'failed' } }),
+   560→51:        prisma.automationLog.count({ where: { status: 'success' } }),
+   561→52:        prisma.workflowPipeline.count(),
+   562→---
+   563→===FILE:src/app/api/modules/route.ts===
+   564→---
+   565→===FILE:src/app/api/news/cron/route.ts===
+   566→13:export async function GET(request: Request) {
+   567→34:        const existing = await db.communityPost.findFirst({
+   568→43:        await db.communityPost.create({
+   569→65:      const totalCount = await db.communityPost.count({ where: { type: 'news' } })
+   570→67:        const oldNews = await db.communityPost.findMany({
+   571→75:          await db.communityPost.deleteMany({ where: { id: { in: ids } } })
+   572→---
+   573→===FILE:src/app/api/notifications/route.ts===
+   574→3:import { getTokenFromRequest } from '@/lib/auth'
+   575→10:  const token = getTokenFromRequest(request)
+   576→13:  const session = await db.userSession.findUnique({
+   577→19:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   578→27:export async function GET(request: NextRequest) {
+   579→47:      db.notification.findMany({
+   580→65:      db.notification.count({ where }),
+   581→---
+   582→===FILE:src/app/api/notifications/stream/route.ts===
+   583→3:import { getTokenFromRequest } from '@/lib/auth'
+   584→23:  const headerToken = getTokenFromRequest(request)
+   585→33:export async function GET(request: NextRequest) {
+   586→40:  const session = await db.userSession.findUnique({
+   587→46:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   588→78:          const newNotifs = await db.notification.findMany({
+   589→---
+   590→===FILE:src/app/api/og/route.ts===
+   591→46:export async function GET(request: NextRequest) {
+   592→---
+   593→===FILE:src/app/api/og/route.tsx===
+   594→47:export async function GET(request: NextRequest) {
+   595→---
+   596→===FILE:src/app/api/portfolio/[id]/alerts/route.ts===
+   597→---
+   598→===FILE:src/app/api/portfolio/[id]/holdings/route.ts===
+   599→---
+   600→===FILE:src/app/api/portfolio/[id]/route.ts===
+   601→5:export async function GET(
+   602→11:    const portfolio = await db.modelPortfolio.findUnique({
+   603→37:export async function PATCH(
+   604→46:    const portfolio = await db.modelPortfolio.update({
+   605→68:export async function DELETE(
+   606→74:    await db.modelPortfolio.delete({ where: { id } })
+   607→---
+   608→===FILE:src/app/api/portfolio/route.ts===
+   609→45:export async function GET() {
+   610→47:    const portfolios = await db.modelPortfolio.findMany({
+   611→66:export async function POST(request: NextRequest) {
+   612→78:    const portfolio = await db.modelPortfolio.create({
+   613→---
+   614→===FILE:src/app/api/projects/route.ts===
+   615→3:import { requireAuth } from '@/lib/require-auth'
+   616→5:export async function GET(request: NextRequest) {
+   617→6:  const user = await requireAuth(request)
+   618→10:    const projects = await db.project.findMany({
+   619→20:export async function POST(request: NextRequest) {
+   620→21:  const user = await requireAuth(request)
+   621→26:    const project = await db.project.create({
+   622→44:export async function PUT(request: NextRequest) {
+   623→45:  const user = await requireAuth(request)
+   624→54:    const existing = await db.project.findUnique({ where: { id } })
+   625→59:    const project = await db.project.update({
+   626→69:export async function DELETE(request: NextRequest) {
+   627→70:  const user = await requireAuth(request)
+   628→79:    const existing = await db.project.findUnique({ where: { id } })
+   629→---
+   630→===FILE:src/app/api/protocol/route.ts===
+   631→6:  const submissionCount = await db.benchmarkSubmission.count();
+   632→9:  const protocol = await db.protocolVersion.findFirst({ where: { version: '1.0' } });
+   633→11:    await db.protocolVersion.create({
+   634→---
+   635→===FILE:src/app/api/protocol/submit/route.ts===
+   636→4:export async function POST(request: Request) {
+   637→27:    const activeProtocol = await db.protocolVersion.findFirst({
+   638→45:    const submission = await db.benchmarkSubmission.create({
+   639→---
+   640→===FILE:src/app/api/recommendations/route.ts===
+   641→24:export async function POST(request: NextRequest) {
+   642→54:export async function GET(request: NextRequest) {
+   643→---
+   644→===FILE:src/app/api/route.ts===
+   645→3:export async function GET() {
+   646→---
+   647→===FILE:src/app/api/scan/route.ts===
+   648→4:export async function POST(request: NextRequest) {
+   649→---
+   650→===FILE:src/app/api/search/route.ts===
+   651→11:export async function GET(request: NextRequest) {
+   652→65:  const posts = await db.communityPost.findMany({
+   653→---
+   654→===FILE:src/app/api/search/saved/route.ts===
+   655→5:export async function GET(request: NextRequest) {
+   656→14:    const saved = await db.savedSearch.findMany({
+   657→28:export async function POST(request: NextRequest) {
+   658→44:    const existingCount = await db.savedSearch.count({
+   659→51:    const saved = await db.savedSearch.create({
+   660→68:export async function DELETE(request: NextRequest) {
+   661→78:    await db.savedSearch.deleteMany({
+   662→---
+   663→===FILE:src/app/api/stripe/portal/route.ts===
+   664→3:import { getTokenFromRequest } from '@/lib/auth'
+   665→11:  const token = getTokenFromRequest(request)
+   666→14:  const session = await db.userSession.findUnique({
+   667→20:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   668→35:export async function POST(request: NextRequest) {
+   669→45:    const subscription = await db.subscription.findUnique({
+   670→---
+   671→===FILE:src/app/api/stripe/webhook/route.ts===
+   672→53:  await db.subscription.upsert({
+   673→79:  await db.userActivity.create({
+   674→---
+   675→===FILE:src/app/api/studio/copilots/[id]/install/route.ts===
+   676→7:export async function POST(
+   677→23:    const copilot = await db.customCopilot.findUnique({ where: { id } })
+   678→30:      const existing = await db.copilotInstall.findUnique({
+   679→39:      await db.copilotInstall.create({
+   680→43:      await db.customCopilot.update({
+   681→52:      const existing = await db.copilotInstall.findUnique({
+   682→60:      await db.copilotInstall.delete({
+   683→64:      await db.customCopilot.update({
+   684→---
+   685→===FILE:src/app/api/studio/copilots/[id]/review/route.ts===
+   686→7:export async function POST(
+   687→23:    const copilot = await db.customCopilot.findUnique({ where: { id } })
+   688→29:    const review = await db.copilotReview.upsert({
+   689→47:    const agg = await db.copilotReview.aggregate({
+   690→53:    await db.customCopilot.update({
+   691→---
+   692→===FILE:src/app/api/studio/copilots/[id]/route.ts===
+   693→7:export async function GET(
+   694→13:    const copilot = await db.customCopilot.findUnique({
+   695→40:export async function PATCH(
+   696→48:    const existing = await db.customCopilot.findUnique({ where: { id } })
+   697→---
+   698→===FILE:src/app/api/studio/copilots/route.ts===
+   699→7:export async function GET(request: NextRequest) {
+   700→16:    const count = await db.customCopilot.count()
+   701→18:      await db.customCopilot.createMany({
+   702→---
+   703→===FILE:src/app/api/teams/[id]/activity/route.ts===
+   704→3:import { getTokenFromRequest } from '@/lib/auth'
+   705→10:  const token = getTokenFromRequest(request)
+   706→13:  const session = await db.userSession.findUnique({
+   707→19:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   708→28:  return db.teamMember.findUnique({
+   709→36:export async function GET(
+   710→61:    const activities = await db.teamActivity.findMany({
+   711→68:    const total = await db.teamActivity.count({ where: { teamId: id } })
+   712→---
+   713→===FILE:src/app/api/teams/[id]/comments/route.ts===
+   714→3:import { getTokenFromRequest } from '@/lib/auth'
+   715→10:  const token = getTokenFromRequest(request)
+   716→13:  const session = await db.userSession.findUnique({
+   717→19:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   718→28:  return db.teamMember.findUnique({
+   719→36:export async function GET(
+   720→65:    const comments = await db.teamComment.findMany({
+   721→80:export async function POST(
+   722→---
+   723→===FILE:src/app/api/teams/[id]/invites/route.ts===
+   724→3:import { getTokenFromRequest } from '@/lib/auth'
+   725→10:  const token = getTokenFromRequest(request)
+   726→13:  const session = await db.userSession.findUnique({
+   727→19:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   728→28:  return db.teamMember.findUnique({
+   729→41:export async function GET(
+   730→62:    const invites = await db.teamInvite.findMany({
+   731→76:export async function POST(
+   732→---
+   733→===FILE:src/app/api/teams/[id]/members/route.ts===
+   734→3:import { getTokenFromRequest } from '@/lib/auth'
+   735→10:  const token = getTokenFromRequest(request)
+   736→13:  const session = await db.userSession.findUnique({
+   737→19:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   738→28:  return db.teamMember.findUnique({
+   739→43:export async function GET(
+   740→64:    const members = await db.teamMember.findMany({
+   741→---
+   742→===FILE:src/app/api/teams/[id]/route.ts===
+   743→3:import { getTokenFromRequest } from '@/lib/auth'
+   744→10:  const token = getTokenFromRequest(request)
+   745→13:  const session = await db.userSession.findUnique({
+   746→19:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   747→28:  return db.teamMember.findUnique({
+   748→41:export async function GET(
+   749→62:    const team = await db.team.findUnique({
+   750→---
+   751→===FILE:src/app/api/teams/[id]/shares/route.ts===
+   752→3:import { getTokenFromRequest } from '@/lib/auth'
+   753→10:  const token = getTokenFromRequest(request)
+   754→13:  const session = await db.userSession.findUnique({
+   755→19:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   756→28:  return db.teamMember.findUnique({
+   757→38:export async function GET(
+   758→71:    const shares = await db.teamShare.findMany({
+   759→---
+   760→===FILE:src/app/api/teams/join/route.ts===
+   761→3:import { getTokenFromRequest } from '@/lib/auth'
+   762→10:  const token = getTokenFromRequest(request)
+   763→13:  const session = await db.userSession.findUnique({
+   764→19:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   765→27:export async function POST(request: NextRequest) {
+   766→45:    const team = await db.team.findUnique({
+   767→55:    const existingMember = await db.teamMember.findUnique({
+   768→67:    const currentCount = await db.teamMember.count({ where: { teamId: team.id } })
+   769→---
+   770→===FILE:src/app/api/teams/route.ts===
+   771→3:import { getTokenFromRequest } from '@/lib/auth'
+   772→11:  const token = getTokenFromRequest(request)
+   773→14:  const session = await db.userSession.findUnique({
+   774→20:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   775→39:  while (await db.team.findUnique({ where: { slug } })) {
+   776→47:export async function GET(request: NextRequest) {
+   777→60:    const memberships = await db.teamMember.findMany({
+   778→79:    const teams = await db.team.findMany({
+   779→---
+   780→===FILE:src/app/api/updates/route.ts===
+   781→16:export async function GET(request: NextRequest) {
+   782→---
+   783→===FILE:src/app/api/usage/route.ts===
+   784→3:import { getTokenFromRequest } from '@/lib/auth'
+   785→10:  const token = getTokenFromRequest(request)
+   786→13:  const session = await db.userSession.findUnique({
+   787→19:    if (session) await db.userSession.delete({ where: { id: session.id } })
+   788→51:export async function GET(request: NextRequest) {
+   789→73:    const records = await db.usageRecord.findMany({
+   790→---
+   791→===FILE:src/app/api/v1/[[...path]]/route.ts===
+   792→38:export async function GET(request: NextRequest, ctx: Ctx) { return proxyToUnversioned(request, ctx) }
+   793→39:export async function POST(request: NextRequest, ctx: Ctx) { return proxyToUnversioned(request, ctx) }
+   794→40:export async function PUT(request: NextRequest, ctx: Ctx) { return proxyToUnversioned(request, ctx) }
+   795→41:export async function DELETE(request: NextRequest, ctx: Ctx) { return proxyToUnversioned(request, ctx) }
+   796→42:export async function PATCH(request: NextRequest, ctx: Ctx) { return proxyToUnversioned(request, ctx) }
+   797→---
+   798→===FILE:src/app/api/validate/route.ts===
+   799→34:export async function POST(request: NextRequest) {
+   800→---
+   801→===FILE:src/app/api/visitor/route.ts===
+   802→53:export async function POST(request: NextRequest) {
+   803→75:    const result = await db.visitor.upsert({
+   804→---
+   805→===FILE:src/app/api/visitors/route.ts===
+   806→16:export async function GET(request: NextRequest) {
+   807→37:      db.visitor.findMany({ where, orderBy, skip: (page - 1) * limit, take: limit }),
+   808→38:      db.visitor.count({ where }),
+   809→39:      db.$queryRaw<Array<{ status: string; visitorType: string; count: number }>>`SELECT status, visitorType, COUNT(*) as count FROM Visitor GROUP BY status, visitorType`,
+   810→56:export async function PATCH(request: NextRequest) {
+   811→65:      const visitorsBefore = await db.visitor.findMany({ where: { id: { in: bulkIds } }, select: { id: true, email: true, name: true, status: true } })
+   812→66:      const result = await db.visitor.updateMany({ where: { id: { in: bulkIds } }, data: { status: bulkStatus } })
+   813→---
+   814→===FILE:src/app/api/workflow/flagship/automate/route.ts===
+   815→7:export async function POST(request: NextRequest) {
+   816→24:    const pipeline = await prisma.workflowPipeline.findUnique({ where: { id: pipelineId } })
+   817→64:    const automation = await prisma.automationRule.create({
+   818→80:    await prisma.aiAuditLog.create({
+   819→---
+   820→===FILE:src/app/api/workflow/flagship/execute/route.ts===
+   821→48:export async function POST(request: NextRequest) {
+   822→63:    const pipeline = await prisma.workflowPipeline.findUnique({ where: { id: pipelineId } })
+   823→---
+   824→===FILE:src/app/api/workflow/flagship/plan/route.ts===
+   825→62:export async function POST(request: NextRequest) {
+   826→---
+   827→===FILE:src/app/api/workflow/flagship/publish/route.ts===
+   828→7:export async function POST(request: NextRequest) {
+   829→27:    const pipeline = await prisma.workflowPipeline.findUnique({ where: { id: pipelineId } })
+   830→34:    const sharedWorkflow = await prisma.sharedWorkflow.create({
+   831→52:    const template = await prisma.communityAnalysisTemplate.create({
+   832→71:    await prisma.aiAuditLog.create({
+   833→---
+   834→===FILE:src/app/api/workflow/flagship/report/route.ts===
+   835→60:export async function POST(request: NextRequest) {
+   836→78:    const pipeline = await prisma.workflowPipeline.findUnique({ where: { id: pipelineId } })
+   837→---
+   838→===FILE:src/app/api/workflow/flagship/route.ts===
+   839→7:export async function GET(request: NextRequest) {
+   840→17:    const pipelines = await prisma.workflowPipeline.findMany({
+   841→---

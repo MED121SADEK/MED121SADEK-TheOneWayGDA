@@ -1,0 +1,1173 @@
+     1→/**
+     2→ * API Integration Tests — Misc Routes:
+     3→ *   feedback, errors, analytics, clean, validate, notifications, usage,
+     4→ *   keys, search/saved, scan, protocol, recommendations, updates,
+     5→ *   health, health/deep, metrics, modules, visitors, devops, billing,
+     6→ *   checkout, certifications, arena vote, og, stripe, v1 proxy
+     7→ *
+     8→ * @vitest-environment node
+     9→ */
+    10→
+    11→import { NextRequest } from 'next/server'
+    12→import { describe, it, expect, vi, beforeEach } from 'vitest'
+    13→
+    14→// ── Hoisted mocks ──
+    15→
+    16→vi.hoisted(() => { process.env.ADMIN_SECRET = 'admin-secret-token' })
+    17→
+    18→const { setupMockDb, getMockDb } = vi.hoisted(() => {
+    19→  const now = new Date('2024-06-15')
+    20→  const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    21→
+    22→  const baseUser = (overrides: Record<string, unknown> = {}) => ({
+    23→    id: 'user-001', email: 'test@example.com', name: 'Test User',
+    24→    password: 'hash', role: 'user',
+    25→    createdAt: now, updatedAt: now, lastSeen: now, preferences: '{}',
+    26→    bio: null, company: null, location: null, website: null,
+    27→    skills: null, isOnboarded: true, image: null,
+    28→    resetToken: null, resetTokenExpiry: null,
+    29→    avatarUrl: null, github: null, linkedin: null,
+    30→    ...overrides,
+    31→  })
+    32→
+    33→  const _db = {
+    34→    user: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
+    35→    userSession: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
+    36→    userActivity: { create: vi.fn() },
+    37→    apiKey: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), delete: vi.fn(), count: vi.fn() },
+    38→    usageRecord: { findMany: vi.fn(), create: vi.fn() },
+    39→    notification: { findMany: vi.fn(), count: vi.fn(), create: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    40→    subscription: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+    41→    teamMember: { count: vi.fn() },
+    42→    project: { count: vi.fn() },
+    43→    sharedWorkflow: { count: vi.fn() },
+    44→    analysisRun: { findMany: vi.fn(), create: vi.fn() },
+    45→    appErrorLog: { findMany: vi.fn(), count: vi.fn(), create: vi.fn(), groupBy: vi.fn() },
+    46→    deployLog: { findMany: vi.fn(), groupBy: vi.fn(), create: vi.fn() },
+    47→    automationLog: { count: vi.fn() },
+    48→    workflowPipeline: { count: vi.fn() },
+    49→    aiAuditLog: { count: vi.fn() },
+    50→    aiModel: { count: vi.fn() },
+    51→    savedSearch: { findMany: vi.fn(), count: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
+    52→  }
+    53→
+    54→  function setupMockDb() {
+    55→    _db.user.findUnique.mockResolvedValue(baseUser())
+    56→    _db.user.findMany.mockResolvedValue([])
+    57→    _db.user.create.mockResolvedValue(baseUser())
+    58→    _db.user.update.mockResolvedValue(baseUser())
+    59→
+    60→    _db.userSession.findUnique.mockResolvedValue({
+    61→      id: 's1', userId: 'user-001', token: 'tok',
+    62→      ipAddress: '', userAgent: '', expiresAt: future, createdAt: now,
+    63→    })
+    64→    _db.userSession.create.mockResolvedValue({ id: 's1' })
+    65→    _db.userSession.delete.mockResolvedValue({})
+    66→
+    67→    _db.userActivity.create.mockResolvedValue({})
+    68→    _db.apiKey.findMany.mockResolvedValue([])
+    69→    _db.apiKey.findUnique.mockResolvedValue(null)
+    70→    _db.apiKey.create.mockResolvedValue({ id: 'key-1', prefix: 'onw_abc12345' })
+    71→    _db.apiKey.count.mockResolvedValue(0)
+    72→    _db.apiKey.delete.mockResolvedValue({})
+    73→
+    74→    _db.usageRecord.findMany.mockResolvedValue([])
+    75→    _db.usageRecord.create.mockResolvedValue({ id: 'ur-1' })
+    76→
+    77→    _db.notification.findMany.mockResolvedValue([])
+    78→    _db.notification.count.mockResolvedValue(0)
+    79→    _db.notification.create.mockResolvedValue({ id: 'n-1' })
+    80→    _db.notification.findUnique.mockResolvedValue(null)
+    81→    _db.notification.updateMany.mockResolvedValue({ count: 0 })
+    82→    _db.notification.update.mockResolvedValue({})
+    83→    _db.notification.delete.mockResolvedValue({})
+    84→
+    85→    _db.subscription.findUnique.mockResolvedValue(null)
+    86→
+    87→    _db.teamMember.count.mockResolvedValue(0)
+    88→    _db.project.count.mockResolvedValue(0)
+    89→    _db.sharedWorkflow.count.mockResolvedValue(0)
+    90→
+    91→    _db.analysisRun.findMany.mockResolvedValue([])
+    92→    _db.analysisRun.create.mockResolvedValue({ id: 'ar-1' })
+    93→
+    94→    _db.appErrorLog.findMany.mockResolvedValue([])
+    95→    _db.appErrorLog.count.mockResolvedValue(0)
+    96→    _db.appErrorLog.create.mockResolvedValue({ id: 'err-1' })
+    97→    _db.appErrorLog.groupBy.mockResolvedValue([])
+    98→
+    99→    _db.deployLog.findMany.mockResolvedValue([])
+   100→    _db.deployLog.groupBy.mockResolvedValue([])
+   101→
+   102→    _db.automationLog.count.mockResolvedValue(0)
+   103→    _db.workflowPipeline.count.mockResolvedValue(0)
+   104→    _db.aiAuditLog.count.mockResolvedValue(0)
+   105→    _db.aiModel.count.mockResolvedValue(0)
+   106→
+   107→    _db.savedSearch.findMany.mockResolvedValue([])
+   108→    _db.savedSearch.count.mockResolvedValue(3)
+   109→    _db.savedSearch.create.mockResolvedValue({ id: 'ss-1' })
+   110→    _db.savedSearch.deleteMany.mockResolvedValue({ count: 1 })
+   111→  }
+   112→
+   113→  function getMockDb() { return _db }
+   114→  return { setupMockDb, getMockDb, baseUser }
+   115→})
+   116→
+   117→vi.mock('@/lib/db', () => ({ get db() { return getMockDb() } }))
+   118→vi.mock('@/lib/auth', () => ({
+   119→  getTokenFromRequest: vi.fn().mockImplementation((req: Request) => req.headers.get('authorization')?.replace('Bearer ', '') || null),
+   120→  hashPassword: vi.fn().mockResolvedValue('new-hash'),
+   121→}))
+   122→vi.mock('@/lib/rate-limit', () => ({
+   123→  simpleRateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 5, resetAt: Date.now() + 60000 }),
+   124→  rateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 5, resetAt: Date.now() + 60000 }),
+   125→}))
+   126→
+   127→// ── Helpers ──
+   128→
+   129→function makeRequest(url: string, options: RequestInit = {}): NextRequest {
+   130→  return new NextRequest(new URL(url, 'http://localhost:3000'), options)
+   131→}
+   132→function makeJsonRequest(url: string, body: unknown, options: RequestInit = {}): NextRequest {
+   133→  return new NextRequest(new URL(url, 'http://localhost:3000'), {
+   134→    ...options, method: 'POST',
+   135→    headers: { 'Content-Type': 'application/json', ...options.headers },
+   136→    body: JSON.stringify(body),
+   137→  })
+   138→}
+   139→function authedRequest(url: string, token = 'tok', options: RequestInit = {}) {
+   140→  return makeRequest(url, { ...options, headers: { Authorization: `Bearer ${token}`, ...options.headers } })
+   141→}
+   142→
+   143→beforeEach(() => { vi.clearAllMocks(); setupMockDb() })
+   144→
+   145→// ═════════════════════════════════════════════════════════════
+   146→//  FEEDBACK
+   147→// ═════════════════════════════════════════════════════════════
+   148→
+   149→describe('POST /api/feedback', () => {
+   150→  it('should submit valid feedback', async () => {
+   151→    const res = await (await import('../feedback/route')).POST(
+   152→      makeJsonRequest('/api/feedback', {
+   153→        rating: 5, category: 'feature', message: 'Great product!',
+   154→        page: '/workspace', userAgent: 'test',
+   155→      }),
+   156→    )
+   157→    expect(res.status).toBe(200)
+   158→    const data = await res.json()
+   159→    expect(data.status).toBe('ok')
+   160→    expect(data.id).toBeDefined()
+   161→  })
+   162→
+   163→  it('should return 400 for invalid rating', async () => {
+   164→    expect((await (await import('../feedback/route')).POST(
+   165→      makeJsonRequest('/api/feedback', { rating: 0, category: 'feature', message: 'X' }),
+   166→    )).status).toBe(400)
+   167→    expect((await (await import('../feedback/route')).POST(
+   168→      makeJsonRequest('/api/feedback', { rating: 6, category: 'feature', message: 'X' }),
+   169→    )).status).toBe(400)
+   170→  })
+   171→
+   172→  it('should return 400 for invalid category', async () => {
+   173→    expect((await (await import('../feedback/route')).POST(
+   174→      makeJsonRequest('/api/feedback', { rating: 4, category: 'invalid', message: 'X' }),
+   175→    )).status).toBe(400)
+   176→  })
+   177→
+   178→  it('should return 400 for empty message', async () => {
+   179→    expect((await (await import('../feedback/route')).POST(
+   180→      makeJsonRequest('/api/feedback', { rating: 4, category: 'bug', message: '   ' }),
+   181→    )).status).toBe(400)
+   182→  })
+   183→
+   184→  it('should return 400 for message over 10k chars', async () => {
+   185→    expect((await (await import('../feedback/route')).POST(
+   186→      makeJsonRequest('/api/feedback', { rating: 4, category: 'bug', message: 'X'.repeat(10001) }),
+   187→    )).status).toBe(400)
+   188→  })
+   189→})
+   190→
+   191→describe('GET /api/feedback', () => {
+   192→  it('should return feedback entries', async () => {
+   193→    const res = await (await import('../feedback/route')).GET(makeRequest('/api/feedback'))
+   194→    expect(res.status).toBe(200)
+   195→    const data = await res.json()
+   196→    expect(data.status).toBe('ok')
+   197→    expect(data.count).toBeDefined()
+   198→  })
+   199→})
+   200→
+   201→// ═══════════════════════════════════════════════════════════════
+   202→//  ERRORS
+   203→// ═════════════════════════════════════════════════════════════
+   204→
+   205→describe('GET /api/errors', () => {
+   206→  it('should return ok status', async () => {
+   207→    const res = await (await import('../errors/route')).GET(makeRequest('/api/errors'))
+   208→    expect(res.status).toBe(200)
+   209→    expect((await res.json()).status).toBe('ok')
+   210→  })
+   211→})
+   212→
+   213→describe('POST /api/errors', () => {
+   214→  it('should accept error reports array', async () => {
+   215→    const res = await (await import('../errors/route')).POST(
+   216→      makeJsonRequest('/api/errors', { errors: [{ msg: 'fail', stack: 'at line 1' }] }),
+   217→    )
+   218→    expect(res.status).toBe(200)
+   219→    expect((await res.json()).received).toBe(1)
+   220→  })
+   221→
+   222→  it('should return 400 for non-array errors', async () => {
+   223→    expect((await (await import('../errors/route')).POST(
+   224→      makeJsonRequest('/api/errors', { errors: 'not-array' }),
+   225→    )).status).toBe(400)
+   226→  })
+   227→})
+   228→
+   229→// ═════════════════════════════════════════════════════════════
+   230→//  ANALYTICS
+   231→// ═════════════════════════════════════════════════════════════
+   232→
+   233→describe('GET /api/analytics', () => {
+   234→  it('should return analytics list', async () => {
+   235→    _db.analysisRun.findMany.mockResolvedValue([])
+   236→    const res = await (await import('../analytics/route')).GET(makeRequest('/api/analytics'))
+   237→    expect(res.status).toBe(200)
+   238→    const data = await res.json()
+   239→    expect(data.analytics).toBeDefined()
+   240→  })
+   241→})
+   242→
+   243→describe('POST /api/analytics', () => {
+   244→  it('should return 400 for missing name', async () => {
+   245→    expect((await (await import('../analytics/route')).POST(
+   246→      makeJsonRequest('/api/analytics', { type: 'descriptive', variables: [] }),
+   247→    )).status).toBe(400)
+   248→  })
+   249→
+   250→  it('should return 400 for missing type', async () => {
+   251→    expect((await (await import('../analytics/route')).POST(
+   252→      makeJsonRequest('/api/analytics', { name: 'Test', variables: [] }),
+   253→    )).status).toBe(400)
+   254→  })
+   255→
+   256→  it('should create an analysis run with valid input', async () => {
+   257→    const res = await (await import('../analytics/route')).POST(
+   258→      makeJsonRequest('/api/analytics', {
+   259→        name: 'Descriptive Stats', type: 'descriptive', variables: [{ name: 'x', type: 'numeric' }],
+   260→      }),
+   261→    )
+   262→    expect(res.status).toBe(200)
+   263→    expect(_db.analysisRun.create).toHaveBeenCalled()
+   264→  })
+   265→})
+   266→
+   267→// ═════════════════════════════════════════════════════════════
+   268→//  VALIDATE
+   269→// ═════════════════════════════════════════════════════════════
+   270→
+   271→describe('POST /api/validate', () => {
+   272→  it('should return 400 for no columns', async () => {
+   273→    expect((await (await import('../validate/route')).POST(
+   274→      makeJsonRequest('/api/validate', { data: {}, variables: [] }),
+   275→    )).status).toBe(400)
+   276→  })
+   277→
+   278→  it('should return validation report for valid input', async () => {
+   279→    const res = await (await import('../validate/route')).POST(
+   280→      makeJsonRequest('/api/validate', {
+   281→        data: { x: [1, 2, 3], y: [4, 5, 6] },
+   282→        variables: [{ name: 'x', type: 'numeric' }, { name: 'y', type: 'numeric' }],
+   283→      }),
+   284→    )
+   285→    expect(res.status).toBe(200)
+   286→    const data = await res.json()
+   287→    expect(data.valid).toBeDefined()
+   288→  })
+   289→})
+   290→
+   291→// ═════════════════════════════════════════════════════════════════
+   292→//  NOTIFICATIONS
+   293→// ═════════════════════════════════════════════════════════════
+   294→
+   295→describe('GET /api/notifications', () => {
+   296→  it('should return 401 when no auth', async () => {
+   297→    const res = await (await import('../notifications/route')).GET(makeRequest('/api/notifications'))
+   298→    expect(res.status).toBe(401)
+   299→  })
+   300→
+   301→  it('should return notifications for authed user', async () => {
+   302→    _db.userSession.findUnique.mockResolvedValue({
+   303→      id: 's1', userId: 'user-001', token: 'tok',
+   304→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   305→    })
+   306→    _db.notification.findMany.mockResolvedValue([{ id: 'n-1' }])
+   307→    _db.notification.count.mockResolvedValue(1)
+   308→    const res = await (await import('../notifications/route')).GET(authedRequest('/api/notifications', 'tok'))
+   309→    expect(res.status).toBe(200)
+   310→    const data = await res.json()
+   311→    expect(data.notifications).toHaveLength(1)
+   312→    expect(data.unreadCount).toBe(1)
+   313→  })
+   314→})
+   315→
+   316→describe('POST /api/notifications', () => {
+   317→  it('should return 401 when no auth', async () => {
+   318→    expect((await (await import('../notifications/route')).POST(
+   319→      makeJsonRequest('/api/notifications', { type: 'system', title: 'T', message: 'M' }),
+   320→    )).status).toBe(401)
+   321→  })
+   322→
+   323→  it('should return 400 for missing fields', async () => {
+   324→    _db.userSession.findUnique.mockResolvedValue({
+   325→      id: 's1', userId: 'user-001', token: 'tok',
+   326→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   327→    })
+   328→    expect((await (await import('../notifications/route')).POST(
+   329→      makeJsonRequest('/api/notifications', { title: 'T', message: 'M' }),
+   330→    )).status).toBe(400)
+   331→  })
+   332→
+   333→  it('should return 400 for invalid type', async () => {
+   334→    _db.userSession.findUnique.mockResolvedValue({
+   335→      id: 's1', userId: 'user-001', token: 'tok',
+   336→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   337→    })
+   338→    expect((await (await import('../notifications/route')).POST(
+   339→      makeJsonRequest('/api/notifications', { type: 'invalid', title: 'T', message: 'M' }),
+   340→    )).status).toBe(400)
+   341→  })
+   342→
+   343→  it('should create a notification for self', async () => {
+   344→    _db.userSession.findUnique.mockResolvedValue({
+   345→      id: 's1', userId: 'user-001', token: 'tok',
+   346→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   347→    })
+   348→    const res = await (await import('../notifications/route')).POST(
+   349→      makeJsonRequest('/api/notifications', { type: 'system', title: 'Alert', message: 'Low credits' }),
+   350→    )
+   351→    expect(res.status).toBe(201)
+   352→    expect(_db.notification.create).toHaveBeenCalled()
+   353→  })
+   354→})
+   355→
+   356→// ═══════════════════════════════════════════════════════════════
+   357→//  USAGE
+   358→// ═════════════════════════════════════════════════════════════
+   359→
+   360→describe('GET /api/usage', () => {
+   361→  it('should return 401 when no auth', async () => {
+   362→    expect((await (await import('../usage/route')).GET(makeRequest('/api/usage'))).status).toBe(401)
+   363→  })
+   364→
+   365→  it('should return usage records', async () => {
+   366→    _db.userSession.findUnique.mockResolvedValue({
+   367→      id: 's1', userId: 'user-001', token: 'tok',
+   368→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   369→    })
+   370→    _db.usageRecord.findMany.mockResolvedValue([])
+   371→    const res = await (await import('../usage/route')).GET(authedRequest('/api/usage', 'tok'))
+   372→    expect(res.status).toBe(200)
+   373→    const data = await res.json()
+   374→    expect(data.records).toBeDefined()
+   375→  })
+   376→})
+   377→
+   378→describe('POST /api/usage', () => {
+   379→  it('should return 401 when no auth', async () => {
+   380→    expect((await (await import('../usage/route')).POST(
+   381→      makeJsonRequest('/api/usage', { category: 'ai_query', tokensUsed: 100 }),
+   382→    )).status).toBe(401)
+   383→  })
+   384→
+   385→  it('should return 400 for invalid category', async () => {
+   386→    _db.userSession.findUnique.mockResolvedValue({
+   387→      id: 's1', userId: 'user-001', token: 'tok',
+   388→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   389→    })
+   390→    expect((await (await import('../usage/route')).POST(
+   391→      makeJsonRequest('/api/usage', { category: 'invalid', tokensUsed: 100 }),
+   392→    )).status).toBe(400)
+   393→  })
+   394→
+   395→  it('should create a usage record', async () => {
+   396→    _db.userSession.findUnique.mockResolvedValue({
+   397→      id: 's1', userId: 'user-001', token: 'tok',
+   398→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   399→    })
+   400→    const res = await (await import('../usage/route')).POST(
+   401→      makeJsonRequest('/api/usage', { category: 'ai_query', tokensUsed: 100 }),
+   402→    )
+   403→    expect(res.status).toBe(201)
+   404→    expect(_db.usageRecord.create).toHaveBeenCalled()
+   405→  })
+   406→})
+   407→
+   408→// ═════════════════════════════════════════════════════════════
+   409→//  SEARCH / SAVED
+   410→// ═════════════════════════════════════════════════════════════
+   411→
+   412→describe('GET /api/search/saved', () => {
+   413→  it('should return 400 without visitorId', async () => {
+   414→    expect((await (await import('../search/saved/route')).GET(makeRequest('/api/search/saved'))).status).toBe(400)
+   415→  })
+   416→
+   417→  it('should return saved searches', async () => {
+   418→    _db.savedSearch.findMany.mockResolvedValue([{ id: 'ss-1', name: 'Test Search' }])
+   419→    const res = await (await import('../search/saved/route')).GET(
+   420→      makeRequest('/api/search/saved?visitorId=a@b.com'),
+   421→    )
+   422→    expect(res.status).toBe(200)
+   423→    expect((await res.json()).saved).toHaveLength(1)
+   424→  })
+   425→})
+   426→
+   427→describe('POST /api/search/saved', () => {
+   428→  it('should return 400 without visitorId', async () => {
+   429→    expect((await (await import('../search/saved/route')).POST(
+   430→      makeJsonRequest('/api/search/saved', { name: 'S', filters: {} }),
+   431→    )).status).toBe(400)
+   432→  })
+   433→
+   434→  it('should return 400 without name', async () => {
+   435→    expect((await (await import('../search/saved/route')).POST(
+   436→      makeJsonRequest('/api/search/saved', { visitorId: 'a@b.com', filters: {} }),
+   437→    )).status).toBe(400)
+   438→  })
+   439→
+   440→  it('should return 400 without filters', async () => {
+   441→    expect((await (await import('../search/saved/route')).POST(
+   442→      makeJsonRequest('/api/search/saved', { visitorId: 'a@b.com', name: 'S' }),
+   443→    )).status).toBe(400)
+   444→  })
+   445→
+   446→  it('should return 400 when max 20 reached', async () => {
+   447→    _db.savedSearch.count.mockResolvedValue(20)
+   448→    expect((await (await import('../search/saved/route')).POST(
+   449→      makeJsonRequest('/api/search/saved', { visitorId: 'a@b.com', name: 'S', filters: {} }),
+   450→    )).status).toBe(400)
+   451→  })
+   452→
+   453→  it('should create a saved search', async () => {
+   454→    _db.savedSearch.count.mockResolvedValue(0)
+   455→    const res = await (await import('../search/saved/route')).POST(
+   456→      makeJsonRequest('/api/search/saved', {
+   457→        visitorId: 'a@b.com', name: 'My Search', filters: { q: 'AI' },
+   458→      }),
+   459→    )
+   460→    expect(res.status).toBe(201)
+   461→    expect(_db.savedSearch.create).toHaveBeenCalled()
+   462→  })
+   463→})
+   464→
+   465→describe('DELETE /api/search/saved', () => {
+   466→  it('should return 400 without id and visitorId', async () => {
+   467→    expect((await (await import('../search/saved/route')).DELETE(
+   468→      makeRequest('/api/search/saved', { method: 'DELETE' }),
+   469→    )).status).toBe(400)
+   470→  })
+   471→
+   472→  it('should delete saved searches', async () => {
+   473→    _db.savedSearch.deleteMany.mockResolvedValue({ count: 1 })
+   474→    const res = await (await import('../search/saved/route')).DELETE(
+   475→      makeRequest('/api/search/saved?id=ss-1&visitorId=a@b.com', { method: 'DELETE' }),
+   476→    )
+   477→    expect(res.status).toBe(200)
+   478→    expect((await res.json()).success).toBe(true)
+   479→  })
+   480→})
+   481→
+   482→// ═════════════════════════════════════════════════════════════
+   483→//  PROTOCOL
+   484→// ═════════════════════════════════════════════════════════════
+   485→
+   486→describe('GET /api/protocol', () => {
+   487→  it('should return protocol info and submissions', async () => {
+   488→    _db.protocolVersion.findFirst.mockResolvedValue(null)
+   489→    _db.benchmarkSubmission.count.mockResolvedValue(3)
+   490→    _db.benchmarkSubmission.findMany.mockResolvedValue([])
+   491→    _db.benchmarkSubmission.groupBy.mockResolvedValue([])
+   492→    const res = await (await import('../protocol/route')).GET(makeRequest('/api/protocol'))
+   493→    expect(res.status).toBe(200)
+   494→    const data = await res.json()
+   495→    expect(data.protocol).toBeDefined()
+   496→    expect(data.submissions).toBeDefined()
+   497→    expect(data.stats).toBeDefined()
+   498→  })
+   499→
+   500→  it('should return protocol info only with type=info', async () => {
+   501→    _db.protocolVersion.findFirst.mockResolvedValue({
+   502→      id: 'p-1', version: '1.0', name: 'Open Benchmark',
+   503→      description: 'D', benchmarks: '[]', criteria: '{}', isActive: true, publishedAt: now,
+   504→    })
+   505→    const res = await (await import('../protocol/route')).GET(makeRequest('/api/protocol?type=info'))
+   506→    expect(res.status).toBe(200)
+   507→    expect((await res.json()).protocol).toBeDefined()
+   508→  })
+   509→
+   510→  it('should filter by status', async () => {
+   511→    await (await import('../protocol/route')).GET(makeRequest('/api/protocol?status=accepted'))
+   512→    expect(getMockDb().benchmarkSubmission.findMany).toHaveBeenCalledWith(
+   513→      expect.objectContaining({ where: expect.objectContaining({ status: 'accepted' }) })
+   514→    )
+   515→  })
+   516→})
+   517→
+   518→describe('POST /api/protocol/submit', () => {
+   519→  it('should create a benchmark submission', async () => {
+   520→    _db.protocolVersion.findFirst.mockResolvedValue({
+   521→      id: 'p-1', version: '1.0', name: 'Open Benchmark',
+   522→      benchmarks: '[{"id":"gpqa_diamond","name":"GPQA Diamond"}]',
+   523→      criteria: '{}',
+   524→    })
+   525→    const res = await (await import('../protocol/submit/route')).POST(
+   526→      makeJsonRequest('/api/protocol/submit', {
+   527→        modelName: 'GPT-4o', provider: 'OpenAI', benchmark: 'GPQA Diamond', score: 68.2,
+   528→        methodology: 'Chain-of-thought', submitterId: 'r@r.com', submitterName: 'Researcher',
+   529→      }),
+   530→    )
+   531→    expect(res.status).toBe(200)
+   532→    const data = await res.json()
+   533→    expect(data.success).toBe(true)
+   534→    expect(data.submission.status).toBe('pending')
+   535→    expect(_db.benchmarkSubmission.create).toHaveBeenCalled()
+   536→  })
+   537→
+   538→  it('should return 400 for missing fields', async () => {
+   539→    expect((await (await import('../protocol/submit/route')).POST(
+   540→      makeJsonRequest('/api/protocol/submit', { modelName: 'GPT-4o' }),
+   541→    )).status).toBe(400)
+   542→  })
+   543→
+   544→  it('should return 400 for invalid score', async () => {
+   545→    _db.protocolVersion.findFirst.mockResolvedValue(null)
+   546→    expect((await (await import('../protocol/submit/route')).POST(
+   547→      makeJsonRequest('/api/protocol/submit', {
+   548→        modelName: 'GPT-4o', provider: 'OpenAI', benchmark: 'GPQA', score: 150,
+   549→      }),
+   550→    )).status).toBe(400)
+   551→  })
+   552→
+   553→  it('should return 400 for unknown benchmark', async () => {
+   554→    _db.protocolVersion.findFirst.mockResolvedValue({
+   555→      id: 'p-1', version: '1.0', name: 'Open Benchmark',
+   556→      benchmarks: '[{"id":"gpqa_diamond","name":"GPQA Diamond"}]',
+   557→    })
+   558→    expect((await (await import('../protocol/submit/route')).POST(
+   559→      makeJsonRequest('/api/protocol/submit', {
+   560→        modelName: 'GPT-4o', provider: 'OpenAI', benchmark: 'UnknownBench', score: 90,
+   561→      }),
+   562→    )).status).toBe(400)
+   563→  })
+   564→})
+   565→
+   566→// ═════════════════════════════════════════════════════════════
+   567→//  UPDATES
+   568→// ═════════════════════════════════════════════════════════════
+   569→
+   570→describe('GET /api/updates', () => {
+   571→  it('should return updates list', async () => {
+   572→    const res = await (await import('../updates/route')).GET(makeRequest('/api/updates'))
+   573→    expect(res.status).toBe(200)
+   574→    const data = await res.json()
+   575→    expect(data.updates).toBeDefined()
+   576→    expect(data.total).toBeGreaterThan(0)
+   577→  })
+   578→
+   579→  it('should filter by category', async () => {
+   580→    const res = await (await import('../updates/route')).GET(makeRequest('/api/updates?category=ai'))
+   581→    expect(res.status).toBe(200)
+   582→    const data = await res.json()
+   583→    expect(data.updates.every((u: { category: string }) => u.category === 'ai'))
+   584→  })
+   585→
+   586→  it('should filter by search', async () => {
+   587→    const res = await (await import('../updates/route')).GET(makeRequest('/api/updates?search=security'))
+   588→    expect(res.status).toBe(200)
+   589→    const data = await res.json()
+   590→    expect(data.updates.length).toBeGreaterThan(0)
+   591→  })
+   592→
+   593→  it('should return empty for no matches', async () => {
+   594→    const res = await (await import('../updates/route')).GET(makeRequest('/api/updates?search=zzzzzzz'))
+   595→    expect(res.status).toBe(200)
+   596→    expect((await res.json()).total).toBe(0)
+   597→  })
+   598→})
+   599→
+   600→// ═════════════════════════════════════════════════════════════
+   601→//  KEYS
+   602→// ═════════════════════════════════════════════════════════════
+   603→
+   604→describe('GET /api/keys', () => {
+   605→  it('should return 401 when no auth', async () => {
+   606→    expect((await (await import('../keys/route')).GET(makeRequest('/api/keys'))).status).toBe(401)
+   607→  })
+   608→
+   609→  it('should return API keys', async () => {
+   610→    _db.userSession.findUnique.mockResolvedValue({
+   611→      id: 's1', userId: 'user-001', token: 'tok',
+   612→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   613→    })
+   614→    _db.apiKey.findMany.mockResolvedValue([
+   615→      { id: 'key-1', name: 'My Key', prefix: 'onw_abc1', keyHash: 'hash', scopes: '["read"]', rateLimit: 100, lastUsed: null, requestCount: 5, expiresAt: future, isActive: true, createdAt: now },
+   616→    ])
+   617→    const res = await (await import('../keys/route')).GET(authedRequest('/api/keys', 'tok'))
+   618→    expect(res.status).toBe(200)
+   619→    const data = await res.json()
+   620→    expect(data.keys).toHaveLength(1)
+   621→    // Key should be masked (no raw keyHash)
+   622→    expect(data.keys[0].keyHash).toBeUndefined()
+   623→  })
+   624→})
+   625→
+   626→describe('POST /api/keys', () => {
+   627→  it('should return 401 when no auth', async () => {
+   628→    expect((await (await import('../keys/route')).POST(
+   629→      makeJsonRequest('/api/keys', { name: 'K' }),
+   630→    )).status).toBe(401)
+   631→  })
+   632→
+   633→  it('should return 400 for missing name', async () => {
+   634→    _db.userSession.findUnique.mockResolvedValue({
+   635→      id: 's1', userId: 'user-001', token: 'tok',
+   636→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   637→    })
+   638→    expect((await (await import('../keys/route')).POST(
+   639→      makeJsonRequest('/api/keys', {}),
+   640→    )).status).toBe(400)
+   641→  })
+   642→
+   643→  it('should create an API key', async () => {
+   644→    _db.userSession.findUnique.mockResolvedValue({
+   645→      id: 's1', userId: 'user-001', token: 'tok',
+   646→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   647→    })
+   648→    _db.apiKey.count.mockResolvedValue(0)
+   649→    const res = await (await import('../keys/route')).POST(
+   650→      makeJsonRequest('/api/keys', { name: 'My Key', scopes: ['read', 'write'] }),
+   651→    )
+   652→    expect(res.status).toBe(201)
+   653→    expect(_db.apiKey.create).toHaveBeenCalled()
+   654→    expect(_db.userActivity.create).toHaveBeenCalled()
+   655→  })
+   656→
+   657→  it('should limit to 10 keys', async () => {
+   658→    _db.userSession.findUnique.mockResolvedValue({
+   659→      id: 's1', userId: 'user-001', token: 'tok',
+   660→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   661→    })
+   662→    _db.apiKey.count.mockResolvedValue(10)
+   663→    expect((await (await import('../keys/route')).POST(
+   664→      makeJsonRequest('/api/keys', { name: 'K11' }),
+   665→    )).status).toBe(400)
+   666→  })
+   667→})
+   668→
+   669→describe('DELETE /api/keys', () => {
+   670→  it('should return 401 when no auth', async () => {
+   671→    expect((await (await import('../keys/route')).DELETE(
+   672→      makeJsonRequest('/api/keys', { keyId: 'k1' }, { method: 'DELETE' }),
+   673→    )).status).toBe(401)
+   674→  })
+   675→
+   676→  it('should return 400 for missing keyId', async () => {
+   677→    _db.userSession.findUnique.mockResolvedValue({
+   678→      id: 's1', userId: 'user-001', token: 'tok',
+   679→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   680→    })
+   681→    expect((await (await import('../keys/route')).DELETE(
+   682→      makeJsonRequest('/api/keys', {}, { method: 'DELETE' }),
+   683→    )).status).toBe(400)
+   684→  })
+   685→
+   686→  it('should return 404 for non-existent key', async () => {
+   687→    _db.userSession.findUnique.mockResolvedValue({
+   688→      id: 's1', userId: 'user-001', token: 'tok',
+   689→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   690→    })
+   691→    _db.apiKey.findUnique.mockResolvedValue(null)
+   692→    expect((await (await import('../keys/route')).DELETE(
+   693→      makeJsonRequest('/api/keys', { keyId: 'nope' }, { method: 'DELETE' }),
+   694→    )).status).toBe(404)
+   695→  })
+   696→
+   697→  it('should return 403 for non-owner key', async () => {
+   698→    _db.userSession.findUnique.mockResolvedValue({
+   699→      id: 's1', userId: 'user-001', token: 'tok',
+   700→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   701→    })
+   702→    _db.apiKey.findUnique.mockResolvedValue({
+   703→      id: 'key-other', userId: 'other-user', prefix: 'onw_',
+   704→    })
+   705→    expect((await (await import('../keys/route')).DELETE(
+   706→      makeJsonRequest('/api/keys', { keyId: 'key-other' }, { method: 'DELETE' }),
+   707→    )).status).toBe(403)
+   708→  })
+   709→})
+   710→
+   711→// ═════════════════════════════════════════════════════════════
+   712→//  VISITORS (admin)
+   713→// ═══════════════════════════════════════════════════════════
+   714→
+   715→describe('GET /api/visitors', () => {
+   716→  it('should return 401 without admin secret', async () => {
+   717→    expect((await (await import('../visitors/route')).GET(makeRequest('/api/visitors'))).status).toBe(401)
+   718→  })
+   719→
+   720→  it('should return 401 with wrong secret', async () => {
+   721→    expect((await (await import('../visitors/route')).GET(
+   722→      makeRequest('/api/visitors', { headers: { Authorization: 'Bearer wrong-secret' } }),
+   723→    )).status).toBe(401)
+   724→  })
+   725→
+   726→  it('should return visitors for admin', async () => {
+   727→    _db.visitor.findMany.mockResolvedValue([{ id: 'v-1', email: 'a@b.com', name: 'Alice' }])
+   728→    _db.visitor.count.mockResolvedValue(1)
+   729→    _db.visitor.$queryRaw.mockResolvedValue([{ status: 'pending', visitorType: 'general', count: 1n }])
+   730→    const res = await (await import('../visitors/route')).GET(
+   731→      makeRequest('/api/visitors', { headers: { Authorization: 'Bearer admin-secret-token' } }),
+   732→    )
+   733→    expect(res.status).toBe(200)
+   734→    const data = await res.json()
+   735→    expect(data.visitors).toHaveLength(1)
+   736→    expect(data.pagination).toBeDefined()
+   737→    expect(data.stats).toBeDefined()
+   738→  })
+   739→
+   740→  it('should filter by status', async () => {
+   741→    await (await import('../visitors/route')).GET(
+   742→      makeRequest('/api/visitors?status=accepted', { headers: { Authorization: 'Bearer admin-secret-token' } }),
+   743→    )
+   744→    expect(getMockDb().visitor.findMany).toHaveBeenCalledWith(
+   745→      expect.objectContaining({ where: expect.objectContaining({ status: 'accepted' }) })
+   746→    )
+   747→  })
+   748→
+   749→  it('should search by name, email, or country', async () => {
+   750→    await (await import('../visitors/route')).GET(
+   751→      makeRequest('/api/visitors?search=alice', { headers: { Authorization: 'Bearer admin-secret-token' } }),
+   752→    )
+   753→    expect(getMockDb().visitor.findMany).toHaveBeenCalledWith(
+   754→      expect.objectContaining({ where: expect.objectContaining({ OR: expect.any(Array) } }) })
+   755→    )
+   756→  })
+   757→
+   758→  it('should paginate results', async () => {
+   759→    await (await import('../visitors/route')).GET(
+   760→      makeRequest('/api/visitors?page=2&limit=10', { headers: { Authorization: 'Bearer admin-secret-token' } }),
+   761→    )
+   762→    expect(getMockDb().visitor.findMany).toHaveBeenCalledWith(
+   763→      expect.objectContaining({ skip: 10, take: 10 })
+   764→    )
+   765→  })
+   766→})
+   767→
+   768→describe('PATCH /api/visitors', () => {
+   769→  it('should return 401 without admin secret', async () => {
+   770→    expect((await (await import('../visitors/route')).PATCH(
+   771→      makeJsonRequest('/api/visitors', { id: 'v-1', status: 'accepted' }, { method: 'PATCH' }),
+   772→    )).status).toBe(401)
+   773→  })
+   774→
+   775→  it('should update visitor status', async () => {
+   776→    _db.visitor.findUnique.mockResolvedValue({ id: 'v-1', email: 'a@b.com', status: 'pending' })
+   777→    _db.visitor.update.mockResolvedValue({})
+   778→    const res = await (await import('../visitors/route')).PATCH(
+   779→      makeJsonRequest('/api/visitors', { id: 'v-1', status: 'accepted' }, { method: 'PATCH' }),
+   780→    )
+   781→    expect(res.status).toBe(200)
+   782→    expect((await res.json()).success).toBe(true)
+   783→    expect(_db.visitor.update).toHaveBeenCalledWith(
+   784→      expect.objectContaining({ where: { id: 'v-1' }, data: { status: 'accepted' } })
+   785→    )
+   786→  })
+   787→
+   788→  it('should bulk update visitors', async () => {
+   789→    const res = await (await import('../visitors/route')).PATCH(
+   790→      makeJsonRequest('/api/visitors', { bulkIds: ['v-1', 'v-2'], bulkStatus: 'accepted' }, { method: 'PATCH' }),
+   791→    )
+   792→    expect(res.status).toBe(200)
+   793→    expect(_db.visitor.updateMany).toHaveBeenCalledWith(
+   794→      expect.objectContaining({ where: { id: { in: ['v-1', 'v-2'] } } })
+   795→    )
+   796→  })
+   797→
+   798→  it('should return 400 for invalid status', async () => {
+   799→    expect((await (await import('../visitors/route')).PATCH(
+   800→      makeJsonRequest('/api/visitors', { id: 'v-1', status: 'invalid' }, { method: 'PATCH' }),
+   801→    )).status).toBe(400)
+   802→  })
+   803→
+   804→  it('should return 400 when no fields to update', async () => {
+   805→    expect((await (await import('../visitors/route')).PATCH(
+   806→      makeJsonRequest('/api/visitors', { id: 'v-1' }, { method: 'PATCH' }),
+   807→    )).status).toBe(400)
+   808→  })
+   809→})
+   810→
+   811→describe('DELETE /api/visitors', () => {
+   812→  it('should return 401 without admin secret', async () => {
+   813→    expect((await (await import('../visitors/route')).DELETE(
+   814→      makeRequest('/api/visitors?id=v-1', { method: 'DELETE' }),
+   815→    )).status).toBe(401)
+   816→  })
+   817→
+   818→  it('should return 400 without id', async () => {
+   819→    expect((await (await import('../visitors/route')).DELETE(
+   820→      makeRequest('/api/visitors', { method: 'DELETE' }),
+   821→    )).status).toBe(400)
+   822→  })
+   823→
+   824→  it('should delete a visitor', async () => {
+   825→    _db.visitor.delete.mockResolvedValue({})
+   826→    const res = await (await import('../visitors/route')).DELETE(
+   827→      makeRequest('/api/visitors?id=v-1', { method: 'DELETE' }),
+   828→    )
+   829→    expect(res.status).toBe(200)
+   830→    expect((await res.json()).success).toBe(true)
+   831→  })
+   832→})
+   833→
+   834→// ═════════════════════════════════════════════════════════════
+   835→//  ARENA VOTE
+   836→// ═══════════════════════════════════════════════════════════════
+   837→
+   838→describe('POST /api/arena/[id]/vote', () => {
+   839→  it('should vote on a battle', async () => {
+   840→    _db.arenaBattle.findUnique.mockResolvedValue({ id: 'battle-1', isActive: true })
+   841→    _db.arenaVote.findUnique.mockResolvedValue(null)
+   842→    _db.arenaVote.create.mockResolvedValue({ id: 'vote-1' })
+   843→    const res = await (await import('../arena/[id]/vote/route')).POST(
+   844→      makeJsonRequest('/api/arena/battle-1/vote', { voterId: 'a@b.com', choice: 'model_a' }),
+   845→      { params: Promise.resolve({ id: 'battle-1' }) },
+   846→    )
+   847→    expect(res.status).toBe(200)
+   848→    expect((await res.json()).voted).toBe(true)
+   849→  })
+   850→
+   851→  it('should return 400 for missing fields', async () => {
+   852→    expect((await (await import('../arena/[id]/vote/route')).POST(
+   853→      makeJsonRequest('/api/arena/battle-1/vote', {}),
+   854→      { params: Promise.resolve({ id: 'battle-1' }) },
+   855→    )).status).toBe(400)
+   856→  })
+   857→
+   858→  it('should return 404 for non-existent battle', async () => {
+   859→    _db.arenaBattle.findUnique.mockResolvedValue(null)
+   860→    expect((await (await import('../arena/[id]/vote/route')).POST(
+   861→      makeJsonRequest('/api/arena/nope/vote', { voterId: 'a@b.com', choice: 'model_a' }),
+   862→      { params: Promise.resolve({ id: 'nope' }) },
+   863→    )).status).toBe(404)
+   864→  })
+   865→
+   866→  it('should return 400 for invalid choice', async () => {
+   867→    _db.arenaBattle.findUnique.mockResolvedValue({ id: 'battle-1', isActive: true })
+   868→    expect((await import('../arena/[id]/vote/route')).POST(
+   869→      makeJsonRequest('/api/arena/battle-1/vote', { voterId: 'a@b.com', choice: 'invalid' }),
+   870→      { params: Promise.resolve({ id: 'battle-1' }) },
+   871→    )).status).toBe(400)
+   872→  })
+   873→
+   874→  it('should return 400 for inactive battle', async () => {
+   875→    _db.arenaBattle.findUnique.mockResolvedValue({ id: 'battle-1', isActive: false })
+   876→    expect((await import('../arena/[id]/vote/route')).POST(
+   877→      makeJsonRequest('/api/arena/battle-1/vote', { voterId: 'a@b.com', choice: 'model_a' }),
+   878→      { params: Promise.resolve({ id: 'battle-1' }) },
+   879→    )).status).toBe(400)
+   880→  })
+   881→})
+   882→
+   883→// ═════════════════════════════════════════════════════════════
+   884→//  V1 PROXY
+   885→// ═════════════════════════════════════════════════════════════
+   886→
+   887→describe('GET /api/v1/[...path]', () => {
+   888→  it('should proxy GET requests', async () => {
+   889→    const handler = (await import('../v1/[[...path]]/route')).GET
+   890→    // Mock fetch to avoid real HTTP calls
+   891→    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200, headers: new Headers(), body: '{}' })
+   892→    vi.stubGlobal('fetch', mockFetch)
+   893→    const req = makeRequest('/api/v1/copilot')
+   894→    const res = await handler(req, { params: Promise.resolve({ path: ['copilot'] }) })
+   895→    expect(res.status).toBe(200)
+   896→    expect(mockFetch).toHaveBeenCalledWith(
+   897→      expect.stringContaining('/api/copilot'),
+   898→      expect.objectContaining({ method: 'GET' }),
+   899→    )
+   900→  })
+   901→
+   902→  it('should proxy POST requests', async () => {
+   903→    const handler = (await import('../v1/[[...path]]/route')).POST
+   904→    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 201, headers: new Headers(), body: '{}' })
+   905→    vi.stubGlobal('fetch', mockFetch)
+   906→    const req = makeJsonRequest('/api/v1/copilot', { data: {} })
+   907→    const res = await handler(req, { params: Promise.resolve({ path: ['copilot'] }) })
+   908→    expect(res.status).toBe(201)
+   909→  })
+   910→
+   911→  it('should return 400 for empty path', async () => {
+   912→    const handler = (await import('../v1/[[...path]]/route')).GET
+   913→    const res = await handler(makeRequest('/api/v1/'), { params: Promise.resolve({ path: [] }) })
+   914→    expect(res.status).toBe(400)
+   915→  })
+   916→})
+   917→
+   918→// ═════════════════════════════════════════════════════════════
+   919→//  BILLING
+   920→// ═════════════════════════════════════════════════════════════
+   921→
+   922→describe('GET /api/billing', () => {
+   923→  it('should return 401 when no auth', async () => {
+   924→    expect((await (await import('../billing/route')).GET(makeRequest('/api/billing'))).status).toBe(401)
+   925→  })
+   926→
+   927→  it('should return plan info and auto-create free subscription', async () => {
+   928→    _db.userSession.findUnique.mockResolvedValue({
+   929→      id: 's1', userId: 'user-001', token: 'tok',
+   930→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   931→    })
+   932→    _db.subscription.findUnique.mockResolvedValue(null)
+   933→    _db.subscription.create.mockResolvedValue({ id: 'sub-1', plan: 'free', status: 'active' })
+   934→    _db.usageRecord.count.mockResolvedValue(0)
+   935→    const res = await (await import('../billing/route')).GET(authedRequest('/api/billing', 'tok'))
+   936→    expect(res.status).toBe(200)
+   937→    const data = await res.json()
+   938→    expect(data.plan).toBeDefined()
+   939→    expect(data.limits).toBeDefined()
+   940→  })
+   941→})
+   942→
+   943→describe('POST /api/billing', () => {
+   944→  it('should return 401 when no auth', async () => {
+   945→    expect((await (await import('../billing/route')).POST(
+   946→      makeJsonRequest('/api/billing', { plan: 'pro' }),
+   947→    )).status).toBe(401)
+   948→  })
+   949→
+   950→  it('should return 400 for invalid plan', async () => {
+   951→    _db.userSession.findUnique.mockResolvedValue({
+   952→      id: 's1', userId: 'user-001', token: 'tok',
+   953→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   954→    })
+   955→    expect((await (await import('../billing/route')).POST(
+   956→      makeJsonRequest('/api/billing', { plan: 'platinum' }),
+   957→    )).status).toBe(400)
+   958→  })
+   959→})
+   960→
+   961→// ═══════════════════════════════════════════════════════════════
+   962→//  CHECKOUT
+   963→// ═════════════════════════════════════════════════════════════
+   964→
+   965→describe('POST /api/checkout', () => {
+   966→  it('should return 401 when no auth', async () => {
+   967→    expect((await (await import('../checkout/route')).POST(
+   968→      makeJsonRequest('/api/checkout', { plan: 'pro' }),
+   969→    )).status).toBe(401)
+   970→  })
+   971→
+   972→  it('should return 400 for invalid plan', async () => {
+   973→    _db.userSession.findUnique.mockResolvedValue({
+   974→      id: 's1', userId: 'user-001', token: 'tok',
+   975→      expiresAt: future, createdAt: new Date(), user: { ...baseUser(), role: 'user' },
+   976→    })
+   977→    expect((await (await import('../checkout/route')).POST(
+   978→      makeJsonRequest('/api/checkout', { plan: 'invalid' }),
+   979→    )).status).toBe(400)
+   980→  })
+   981→})
+   982→
+   983→// ═════════════════════════════════════════════════════════════
+   984→//  CERTIFICATIONS
+   985→// ═══════════════════════════════════════════════════════════════
+   986→
+   987→describe('GET /api/certifications', () => {
+   988→  it('should return certifications list', async () => {
+   989→    _db.certification.count.mockResolvedValue(5)
+   990→    _db.certification.findMany.mockResolvedValue([])
+   991→    _db.certification.groupBy
+   992→      .mockResolvedValueOnce([{ category: 'gold', _count: 2 }])
+   993→      .mockResolvedValueOnce([{ category: 'silver', _count: 2 }])
+   994→      .mockResolvedValueOnce([{ category: 'bronze', _count: 1 }])
+   995→    const res = await (await import('../certifications/route')).GET(makeRequest('/api/certifications'))
+   996→    expect(res.status).toBe(200)
+   997→    const data = await res.json()
+   998→    expect(data.certifications).toBeDefined()
+   999→    expect(data.stats).toBeDefined()
+  1000→    expect(data.stats.byLevel.length).toBeGreaterThan(0)
+  1001→  })
+  1002→
+  1003→  it('should filter by level', async () => {
+  1004→    await (await import('../certifications/route')).GET(makeRequest('/api/certifications?level=gold'))
+  1005→    expect(getMockDb().certification.findMany).toHaveBeenCalledWith(
+  1006→      expect.objectContaining({ where: expect.objectContaining({ level: 'gold' }) })
+  1007→    )
+  1008→  })
+  1009→
+  1010→  it('should filter by provider', async () => {
+  1011→    await (await import('../certifications/route')).GET(makeRequest('/api/certifications?provider=OpenAI'))
+  1012→    expect(getMockDb().certification.findMany).toHaveBeenCalledWith(
+  1013→      expect.objectContaining({ where: expect.objectContaining({ provider: 'OpenAI' }) })
+  1014→    )
+  1015→  })
+  1016→
+  1017→  it('should filter by category', async () => {
+  1018→    await (await import('../certifications/route')).GET(makeRequest('/api/certifications?category=reasoning'))
+  1019→    expect(getMockDb().certification.findMany).toHaveBeenCalledWith(
+  1020→      expect.objectContaining({ where: expect.objectContaining({ category: 'reasoning' }) })
+  1021→    )
+  1022→  })
+  1023→})
+  1024→
+  1025→// ═════════════════════════════════════════════════════════════════
+  1026→//  DEVOPS: DEPLOYS & ERRORS
+  1027→// ═══════════════════════════════════════════════════════════
+  1028→
+  1029→describe('GET /api/devops/deploys', () => {
+  1030→  it('should return deploy list and summary', async () => {
+  1031→    _db.deployLog.findMany.mockResolvedValue([])
+  1032→    _db.deployLog.groupBy.mockResolvedValue([{ status: 'success', _count: 5 }])
+  1033→    const res = await (await import('../devops/deploys/route')).GET(makeRequest('/api/devops/deploys'))
+  1034→    expect(res.status).toBe(200)
+  1035→    const data = await res.json()
+  1036→    expect(data.deploys).toBeDefined()
+  1037→    expect(data.summary).toBeDefined()
+  1038→  })
+  1039→})
+  1040→
+  1041→describe('POST /api/devops/deploys', () => {
+  1042→  it('should create a deploy log', async () => {
+  1043→    const res = await (await import('../devops/deploys/route')).POST(
+  1044→      makeJsonRequest('/api/devops/deploys', {
+  1045→        environment: 'staging', version: 'v2.4.0', deployer: 'CI',
+  1046→        status: 'success', durationMs: 45000,
+  1047→      }),
+  1048→    )
+  1049→    expect(res.status).toBe(201)
+  1050→    expect((await res.json()).id).toBeDefined()
+  1051→    expect(_db.deployLog.create).toHaveBeenCalled()
+  1052→  })
+  1053→})
+  1054→
+  1055→describe('GET /api/devops/errors', () => {
+  1056→  it('should return error list with pagination', async () => {
+  1057→    _db.appErrorLog.findMany.mockResolvedValue([])
+  1058→    _db.appErrorLog.count.mockResolvedValue(0)
+  1059→    const res = await (await import('../devops/errors/route')).GET(makeRequest('/api/devops/errors'))
+  1060→    expect(res.status).toBe(200)
+  1061→    const data = await res.json()
+  1062→    expect(data.errors).toBeDefined()
+  1063→    expect(data.pagination).toBeDefined()
+  1064→  })
+  1065→
+  1066→  it('should return error stats', async () => {
+  1067→    const res = await (await import('../devops/errors/route')).GET(
+  1068→      makeRequest('/api/devops/errors?stats=true'),
+  1069→    )
+  1070→    expect(res.status).toBe(200)
+  1071→    const data = await res.json()
+  1072→    expect(data.summary).toBeDefined()
+  1073→    expect(data.summary.totalErrors).toBeDefined()
+  1074→  })
+  1075→
+  1076→  it('should filter by level and domain', async () => {
+  1077→    await (await import('../devops/errors/route')).GET(
+  1078→      makeRequest('/api/devops/errors?level=fatal&domain=ai'),
+  1079→    )
+  1080→    expect(getMockDb().appErrorLog.findMany).toHaveBeenCalledWith(
+  1081→      expect.objectContaining({ where: expect.objectContaining({ level: 'fatal', domain: 'ai' }) })
+  1082→    )
+  1083→  })
+  1084→
+  1085→  it('should create an error log', async () => {
+  1086→    const res = await (await import('../devops/errors/route')).POST(
+  1087→      makeJsonRequest('/api/devops/errors', {
+  1088→        level: 'warn', domain: 'api', route: '/api/test',
+  1089→        message: 'Something failed', statusCode: 500,
+  1090→      }),
+  1091→    )
+  1092→    expect(res.status).toBe(201)
+  1093→    expect(_db.appErrorLog.create).toHaveBeenCalled()
+  1094→  })
+  1095→})
+  1096→
+  1097→// ═════════════════════════════════════════════════════════════
+  1098→//  METRICS (Prometheus-style)
+  1099→// ═══════════════════════════════════════════════════════════════
+  1100→
+  1101→describe('GET /api/metrics', () => {
+  1102→  it('should return Prometheus-style metrics output', async () => {
+  1103→    _db.aiAuditLog.count.mockResolvedValue(5)
+  1104→    _db.appErrorLog.count.mockResolvedValue(3)
+  1105→    _db.deployLog.count.mockResolvedValue(2)
+  1106→    _db.automationLog.count.mockResolvedValue(1)
+  1107→    _db.workflowPipeline.count.mockResolvedValue(0)
+  1108→    const res = await (await import('../metrics/route')).GET(makeRequest('/api/metrics'))
+  1109→    expect(res.status).toBe(200)
+  1110→    // Prometheus format is text/plain
+  1111→    expect(res.headers.get('content-type')).toContain('text/plain')
+  1112→    const text = await res.text()
+  1113→    expect(text).toContain('oneway_up')
+  1114→    expect(text).toContain('oneway_memory_bytes')
+  1115→    expect(text).toContain('oneway_ai_queries_total{period="24h"}')
+  1116→  })
+  1117→})
+  1118→
+  1119→// ═══════════════════════════════════════════════════════════════
+  1120→//  MODULES
+  1121→// ═══════════════════════════════════════════════════════════════════
+  1122→
+  1123→describe('GET /api/modules', () => {
+  1124→  it('should return module list', async () => {
+  1125→    const res = await (await import('../modules/route')).GET(makeRequest('/api/modules'))
+  1126→    expect(res.status).toBe(200)
+  1127→    const data = await res.json()
+  1128→    expect(data.modules).toBeDefined()
+  1129→    expect(data.modules.length).toBeGreaterThan(0)
+  1130→  })
+  1131→})
+  1132→
+  1133→describe('POST /api/modules', () => {
+  1134→  it('should return 400 for invalid action', async () => {
+  1135→    expect((await (await import('../modules/route')).POST(
+  1136→      makeJsonRequest('/api/modules', { action: 'invalid' }),
+  1137→    )).status).toBe(400)
+  1138→  })
+  1139→
+  1140→  it('should check for updates', async () => {
+  1141→    const res = await (await import('../modules/route')).POST(
+  1142→      makeJsonRequest('/api/modules', { action: 'check-updates' }),
+  1143→    )
+  1144→    expect(res.status).toBe(200)
+  1145→  })
+  1146→
+  1147→  it('should return 409 for duplicate module', async () => {
+  1148→    const res = await (await import('../modules/route')).POST(
+  1149→      makeJsonRequest('/api/modules', {
+  1150→        action: 'register', module: { id: 'existing', name: 'Dup' },
+  1151→      }),
+  1152→    )
+  1153→    expect(res.status).toBe(409)
+  1154→  })
+  1155→
+  1156→  it('should register a new module', async () => {
+  1157→    const res = await (await import('../modules/route')).POST(
+  1158→      makeJsonRequest('/api/modules', {
+  1159→        action: 'register', module: { id: 'new-mod', name: 'New Module', description: 'A new module', version: '1.0' },
+  1160→      }),
+  1161→    )
+  1162→    expect(res.status).toBe(200)
+  1163→  })
+  1164→
+  1165→  it('should return 404 for module not found on update', async () => {
+  1166→    const res = await (await import('../modules/route')).POST(
+  1167→      makeJsonRequest('/api/modules', {
+  1168→        action: 'update', moduleId: 'nonexistent', name: 'X',
+  1169→      }),
+  1170→    )
+  1171→    expect(res.status).toBe(404)
+  1172→  })
+  1173→})

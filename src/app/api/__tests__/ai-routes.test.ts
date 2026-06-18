@@ -23,11 +23,12 @@ const { setupMockDb, getMockDb } = vi.hoisted(() => {
   }
 
   function setupMockDb() {
-    _db.decisionRecord.create.mockResolvedValue({
+    _db.decisionRecord.create.mockImplementation((args: { data: Record<string, unknown> }) => ({
       id: 'dec-1', visitorId: null, projectId: null, pipelineId: null,
       context: 'workspace', question: 'Test question?', aiAnalysis: '{}',
       options: null, selectedOption: null, outcome: null, confidence: 0.8, createdAt: now,
-    })
+      ...args.data,
+    }))
     _db.decisionRecord.findMany.mockResolvedValue([])
 
     _db.aiAuditLog.findMany.mockResolvedValue([
