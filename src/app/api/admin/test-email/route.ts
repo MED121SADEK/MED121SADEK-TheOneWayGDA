@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'msad41855@gmail.com'
+const SENDER_EMAIL = process.env.RESEND_API_KEY
+  ? (process.env.RESEND_SENDER || 'onboarding@resend.dev')
+  : ADMIN_EMAIL
 
 const MICROSOFT_DOMAINS = ['outlook.com', 'outlook.fr', 'hotmail.com', 'live.com', 'msn.com']
 
 function detectProvider(): { name: string; configured: boolean } {
-  const hasAppPassword = !!process.env.ADMIN_EMAIL_APP_PASSWORD
+  if (process.env.RESEND_API_KEY) return { name: 'resend', configured: true }
   const hasCustomSmtp = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD)
-
   if (hasCustomSmtp) return { name: 'smtp', configured: true }
+  const hasAppPassword = !!process.env.ADMIN_EMAIL_APP_PASSWORD
   if (hasAppPassword) {
     const domain = ADMIN_EMAIL.split('@')[1]?.toLowerCase()
     if (domain && MICROSOFT_DOMAINS.includes(domain)) return { name: 'outlook', configured: true }
@@ -19,8 +23,30 @@ function detectProvider(): { name: string; configured: boolean } {
 }
 
 function buildTransporter() {
-  const hasCustomSmtp = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD)
-  if (hasCustomSmtp) {
+  if (process.env.RESEND_API_KEY) {
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    return nodemailer.createTransport({
+      name: 'resend',
+      version: '1.0.0',
+      send: async (mail: Record<string, unknown>, callback: (err: Error | null, info: unknown) => void) => {
+        try {
+          const { from, to, subject, html, text } = mail as { from: string; to: string | string[]; subject: string; html?: string; text?: string }
+          const result = await resend.emails.send({
+            from: typeof from === 'string' ? from : String(from),
+            to: Array.isArray(to) ? to : [to],
+            subject: subject as string,
+            html: html as string,
+            text: text as string,
+          })
+          callback(null, result)
+        } catch (err) {
+          callback(err instanceof Error ? err : new Error(String(err)))
+        }
+      },
+    })
+  }
+
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD) {
     return nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT || '587'),
@@ -54,6 +80,7 @@ export async function GET() {
   const { name, configured } = detectProvider()
 
   const providerLabels: Record<string, string> = {
+    resend: `Resend → ${ADMIN_EMAIL}`,
     outlook: 'Microsoft Outlook',
     gmail: 'Gmail',
     smtp: `Custom SMTP${process.env.SMTP_HOST ? ` (${process.env.SMTP_HOST})` : ''}`,
@@ -68,7 +95,7 @@ export async function GET() {
     mode: configured ? 'live' : 'dev',
     message: configured
       ? `Email is configured via ${providerLabels[name]}. You will receive real email notifications.`
-      : 'Email is NOT configured. Set ADMIN_EMAIL and ADMIN_EMAIL_APP_PASSWORD in your .env to enable.',
+      : 'Email is NOT configured. Set RESEND_API_KEY or ADMIN_EMAIL + ADMIN_EMAIL_APP_PASSWORD in your .env to enable.',
   })
 }
 
@@ -78,26 +105,14 @@ export async function POST(request: NextRequest) {
     const { name, configured } = detectProvider()
 
     if (!configured) {
-      const domain = ADMIN_EMAIL.split('@')[1]?.toLowerCase()
-      const isMicrosoft = domain && MICROSOFT_DOMAINS.includes(domain)
-
       return NextResponse.json({
         success: false,
         error: 'Email not configured',
-        message: 'Set ADMIN_EMAIL and ADMIN_EMAIL_APP_PASSWORD in your .env file first.',
-        setupGuide: isMicrosoft ? [
-          '1. Go to https://account.live.com/proofs/manage/additional',
-          '2. Under "App passwords", create a new app password for "TheOneWayGDA"',
-          '3. Add to your .env:',
-          '   ADMIN_EMAIL="your-email@outlook.com"',
-          '   ADMIN_EMAIL_APP_PASSWORD="the-app-password"',
-          '4. Restart your server',
-        ] : [
-          '1. Go to https://myaccount.google.com/apppasswords',
-          '2. Generate a new App Password for "TheOneWayGDA"',
-          '3. Add to your .env:',
-          '   ADMIN_EMAIL="your-email@gmail.com"',
-          '   ADMIN_EMAIL_APP_PASSWORD="the-16-char-code"',
+        message: 'Set RESEND_API_KEY (recommended) or ADMIN_EMAIL + ADMIN_EMAIL_APP_PASSWORD in your .env file first.',
+        setupGuide: [
+          '1. Sign up free at https://resend.com/signup',
+          '2. Go to https://resend.com/api-keys and create an API key',
+          '3. Add RESEND_API_KEY="re_xxxx" to your .env',
           '4. Restart your server',
         ],
       }, { status: 400 })
@@ -112,6 +127,7 @@ export async function POST(request: NextRequest) {
     const now = new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris', dateStyle: 'full', timeStyle: 'short' })
 
     const providerLabels: Record<string, string> = {
+      resend: `Resend → ${ADMIN_EMAIL}`,
       outlook: 'Microsoft Outlook',
       gmail: 'Gmail',
       smtp: `Custom SMTP (${process.env.SMTP_HOST})`,
@@ -151,7 +167,7 @@ export async function POST(request: NextRequest) {
 </td></tr></table></td></tr></table></body></html>`
 
     await transporter.sendMail({
-      from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`,
+      from: `"TheOneWayGDA" <${SENDER_EMAIL}>`,
       to: ADMIN_EMAIL,
       subject: '[TheOneWayGDA] Email Test — Configuration Verified',
       html,
@@ -168,14 +184,10 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Failed to send test email'
     console.error('[Email] Test email failed:', message)
 
-    const isMicrosoft = MICROSOFT_DOMAINS.includes(ADMIN_EMAIL.split('@')[1]?.toLowerCase() || '')
-
     return NextResponse.json({
       success: false,
       error: message,
-      hint: isMicrosoft
-        ? 'Microsoft tip: Make sure 2FA is enabled and the app password is correct. If using a work/school account, you may need to use OAuth2 or ask your IT admin to allow SMTP access.'
-        : 'If you see an authentication error, make sure your App Password is correct. If you see a connection error, check your network settings.',
+      hint: 'Check your API key and verify your sender email is configured in Resend.',
     }, { status: 500 })
   }
 }

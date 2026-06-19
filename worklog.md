@@ -75,3 +75,25 @@ Stage Summary:
 - Email system now supports Microsoft Outlook/Hotmail/Live natively via app password
 - Provider auto-detected from `ADMIN_EMAIL` domain — no extra config needed
 - To activate: set `ADMIN_EMAIL="you@outlook.com"` + `ADMIN_EMAIL_APP_PASSWORD="..."` in production .env
+
+---
+Task ID: 5
+Agent: main
+Task: Switch email provider from Microsoft SMTP to Resend (Microsoft blocked basic auth)
+
+Work Log:
+- Microsoft SMTP failed with "basic authentication is disabled" even with app password
+- Installed `resend` npm package
+- Updated `src/lib/email.ts`: Resend is now Priority 1 provider, wraps Resend SDK in nodemailer-compatible transport
+- Added `SENDER_EMAIL` constant: uses `onboarding@resend.dev` for Resend, `ADMIN_EMAIL` for SMTP
+- Replaced all `from` addresses to use `SENDER_EMAIL` instead of `ADMIN_EMAIL`
+- Updated `src/app/api/admin/test-email/route.ts`: same Resend support
+- Updated `.env.example`: Resend as Option A (recommended), SMTP as Option B
+- Successfully sent test email via Resend to msad41855@gmail.com
+- Set `ADMIN_EMAIL="msad41855@gmail.com"` + `RESEND_API_KEY` in local .env
+
+Stage Summary:
+- Email system now uses Resend (API key based, no SMTP auth issues)
+- Notifications go to msad41855@gmail.com (Resend registered email)
+- To send to outlook.fr: verify theonewaygda.com domain on resend.com/domains, then set RESEND_SENDER
+- For production: copy RESEND_API_KEY and ADMIN_EMAIL to production .env

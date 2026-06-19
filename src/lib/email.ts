@@ -1,11 +1,38 @@
 import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'msad41855@gmail.com'
+const SENDER_EMAIL = process.env.RESEND_API_KEY
+  ? (process.env.RESEND_SENDER || 'onboarding@resend.dev')
+  : ADMIN_EMAIL
 
 function getTransporter() {
-  const appPassword = process.env.ADMIN_EMAIL_APP_PASSWORD
+  // Priority 1: Resend (API key — works with any email provider, no auth issues)
+  if (process.env.RESEND_API_KEY) {
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    // Return a nodemailer-compatible transport wrapping Resend
+    return nodemailer.createTransport({
+      name: 'resend',
+      version: '1.0.0',
+      send: async (mail: Record<string, unknown>, callback: (err: Error | null, info: unknown) => void) => {
+        try {
+          const { from, to, subject, html, text } = mail as { from: string; to: string | string[]; subject: string; html?: string; text?: string }
+          const result = await resend.emails.send({
+            from: typeof from === 'string' ? from : String(from),
+            to: Array.isArray(to) ? to : [to],
+            subject: subject as string,
+            html: html as string,
+            text: text as string,
+          })
+          callback(null, result)
+        } catch (err) {
+          callback(err instanceof Error ? err : new Error(String(err)))
+        }
+      },
+    })
+  }
 
-  // Custom SMTP takes priority if fully configured
+  // Priority 2: Custom SMTP if fully configured
   if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD) {
     return nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -15,19 +42,18 @@ function getTransporter() {
     })
   }
 
-  // Auto-detect provider from admin email domain
+  // Priority 3: Auto-detect from admin email domain
+  const appPassword = process.env.ADMIN_EMAIL_APP_PASSWORD
   if (appPassword) {
     const domain = ADMIN_EMAIL.split('@')[1]?.toLowerCase()
     if (domain && ['outlook.com', 'outlook.fr', 'hotmail.com', 'live.com', 'msn.com'].includes(domain)) {
-      // Microsoft Outlook SMTP
       return nodemailer.createTransport({
         host: 'smtp-mail.outlook.com',
         port: 587,
-        secure: false, // STARTTLS
+        secure: false,
         auth: { user: ADMIN_EMAIL, pass: appPassword },
       })
     }
-    // Default: Gmail
     return nodemailer.createTransport({
       service: 'gmail',
       auth: { user: ADMIN_EMAIL, pass: appPassword },
@@ -147,10 +173,10 @@ ${ipAddress ? `<tr><td style="color:#64748b;font-size:12px;font-weight:600;text-
 <p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; Admin Notification<br>You can also manage all requests at <a href="${SITE_URL}/admin/approvals" style="color:#6366f1;">theonewaygda.com/admin/approvals</a></p>
 </td></tr></table></td></tr></table></body></html>`
 
-    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: ADMIN_EMAIL, subject, html })
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${SENDER_EMAIL}>`, to: ADMIN_EMAIL, subject, html })
 
-    if (!process.env.ADMIN_EMAIL_APP_PASSWORD) {
-      console.log(`[Email] DEV MODE — Access request notification for ${userEmail}. Set ADMIN_EMAIL_APP_PASSWORD to enable real emails.`)
+    if (!process.env.RESEND_API_KEY && !process.env.ADMIN_EMAIL_APP_PASSWORD) {
+      console.log(`[Email] DEV MODE — Access request notification for ${userEmail}. Set RESEND_API_KEY to enable real emails.`)
     } else {
       console.log(`[Email] Access request notification sent to ${ADMIN_EMAIL} for ${userEmail}`)
     }
@@ -199,7 +225,7 @@ export async function sendUserApprovalEmail(userEmail: string, userName: string 
 <p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; AI-Powered Statistical Analysis Platform</p>
 </td></tr></table></td></tr></table></body></html>`
 
-    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: userEmail, subject, html })
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${SENDER_EMAIL}>`, to: userEmail, subject, html })
     console.log(`[Email] Approval email sent to ${userEmail}`)
     return true
   } catch (error: unknown) {
@@ -238,7 +264,7 @@ export async function sendUserRejectionEmail(userEmail: string, userName: string
 <p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; AI-Powered Statistical Analysis Platform</p>
 </td></tr></table></td></tr></table></body></html>`
 
-    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: userEmail, subject, html })
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${SENDER_EMAIL}>`, to: userEmail, subject, html })
     console.log(`[Email] Rejection email sent to ${userEmail}`)
     return true
   } catch (error: unknown) {
@@ -312,7 +338,7 @@ Or manage all visitors at <strong>${SITE_URL}/admin/visitors</strong>.
 <p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; Visitor Notification</p>
 </td></tr></table></td></tr></table></body></html>`
 
-    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: ADMIN_EMAIL, subject, html })
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${SENDER_EMAIL}>`, to: ADMIN_EMAIL, subject, html })
 
     if (!process.env.ADMIN_EMAIL_APP_PASSWORD) {
       console.log(`[Email] DEV MODE — Visitor notification for ${data.email}. Set ADMIN_EMAIL_APP_PASSWORD to enable real emails.`)
@@ -371,7 +397,7 @@ export async function sendPasswordResetEmail(
 <p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; AI-Powered Statistical Analysis Platform</p>
 </td></tr></table></td></tr></table></body></html>`
 
-    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: userEmail, subject, html })
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${SENDER_EMAIL}>`, to: userEmail, subject, html })
     console.log(`[Email] Password reset email sent to ${userEmail}`)
     return true
   } catch (error: unknown) {
@@ -441,7 +467,7 @@ export async function sendAdminSubscriptionNotificationEmail(
 </td></tr>
 </table></td></tr></table></body></html>`
 
-    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: ADMIN_EMAIL, subject, html })
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${SENDER_EMAIL}>`, to: ADMIN_EMAIL, subject, html })
 
     if (!process.env.ADMIN_EMAIL_APP_PASSWORD) {
       console.log(`[Email] DEV MODE — Subscription notification for ${userEmail} (${plan}). Set ADMIN_EMAIL_APP_PASSWORD to enable real emails.`)
@@ -490,7 +516,7 @@ export async function sendUserSubscriptionApprovedEmail(
 <p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; Subscription Notification</p>
 </td></tr></table></td></tr></table></body></html>`
 
-    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: userEmail, subject, html })
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${SENDER_EMAIL}>`, to: userEmail, subject, html })
     console.log(`[Email] Subscription approved email sent to ${userEmail}`)
     return true
   } catch (error: unknown) {
@@ -534,7 +560,7 @@ export async function sendUserSubscriptionRejectedEmail(
 <p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">TheOneWayGDA &middot; Subscription Notification</p>
 </td></tr></table></td></tr></table></body></html>`
 
-    await transporter.sendMail({ from: `"TheOneWayGDA" <${ADMIN_EMAIL}>`, to: userEmail, subject, html })
+    await transporter.sendMail({ from: `"TheOneWayGDA" <${SENDER_EMAIL}>`, to: userEmail, subject, html })
     console.log(`[Email] Subscription rejected email sent to ${userEmail}`)
     return true
   } catch (error: unknown) {
