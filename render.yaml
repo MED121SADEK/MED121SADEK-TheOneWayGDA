@@ -1,0 +1,31 @@
+# ═══════════════════════════════════════════════════════════
+# The One-Way — Render.com Deployment Config
+# Deploy: Push to GitHub → Render auto-deploys
+# ═══════════════════════════════════════════════════════════
+
+services:
+  - type: web
+    name: theonewaygda
+    runtime: docker
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: DATABASE_URL
+        sync: false
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: ADMIN_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: msad41855@gmail.com
+      - key: RESEND_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_BASE_URL
+        sync: false
+    healthCheckPath: /api/health

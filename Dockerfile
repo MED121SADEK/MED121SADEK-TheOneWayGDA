@@ -1,7 +1,6 @@
 # ═══════════════════════════════════════════════════════════
-# The One-Way — Multi-stage Docker Build
-# Optimized for: small image size, fast builds, layer caching
-# Runtime: bun + Next.js standalone output
+# The One-Way — Multi-stage Docker Build for Render.com
+# Runtime: bun + Next.js standalone output + PostgreSQL (Neon)
 # ═══════════════════════════════════════════════════════════
 
 # ── Stage 1: Dependencies ──
@@ -24,8 +23,9 @@ COPY . .
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Build argument for database path (override at build time)
-ARG DATABASE_URL="file:/app/db/production.db"
+# DATABASE_URL will be provided at runtime via Render env vars
+# Use a placeholder for build time (Prisma needs it to analyze the schema)
+ARG DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 ENV DATABASE_URL=${DATABASE_URL}
 
 RUN bun run build
@@ -36,15 +36,17 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
+
+# Render.com injects PORT automatically
+ENV PORT=10000
 ENV HOSTNAME="0.0.0.0"
 
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 oneway
 
-# Create data directories
-RUN mkdir -p /app/db /app/public /app/logs && \
+# Create necessary directories
+RUN mkdir -p /app/public /app/logs && \
     chown -R oneway:nodejs /app
 
 # Copy standalone output
@@ -60,10 +62,11 @@ COPY --from=builder --chown=oneway:nodejs /app/node_modules/@prisma ./node_modul
 # Switch to non-root user
 USER oneway
 
-# Health check
+# Health check (Render.com uses PORT 10000 on free tier)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:10000/api/health || exit 1
 
-EXPOSE 3000
+EXPOSE 10000
 
-CMD ["bun", "server.js"]
+# Run database migration then start the server
+CMD ["sh", "-c", "npx prisma migrate deploy && bun server.js"]
