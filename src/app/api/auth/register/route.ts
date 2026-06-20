@@ -62,9 +62,11 @@ export async function POST(request: NextRequest) {
       create: { email: normalizedEmail, name: user.name, status: 'pending' },
     })
 
-    // Send admin notification email (fire-and-forget)
+    // Send admin notification email (fire-and-forget, but log errors)
     const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
-    sendAdminAccessRequestEmail(user.name, user.email, user.id, ipAddress).catch(() => {})
+    sendAdminAccessRequestEmail(user.name, user.email, user.id, ipAddress).catch((err) => {
+      console.error('[Register] Failed to send admin notification email:', err instanceof Error ? err.message : err)
+    })
 
     return NextResponse.json({
       status: 'pending',
