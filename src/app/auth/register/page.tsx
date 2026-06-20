@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Loader2, Mail, Lock, User, Shield, Sparkles, Clock, CheckCircle2, XCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Mail, Lock, User, Shield, Sparkles, Clock, CheckCircle2, XCircle, Github, Chrome, GitBranch, Monitor } from 'lucide-react'
 
 const fadeUp = {
   initial: { opacity: 0, y: 20 },
@@ -278,6 +278,36 @@ export default function RegisterPage() {
                           <Shield className="size-2.5" />
                           Your data is encrypted and secure
                         </Badge>
+                      </div>
+
+                      {/* OAuth Divider */}
+                      <div className="relative pt-4">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t border-border/40" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-card px-3 text-muted-foreground">Or continue with</span>
+                        </div>
+                      </div>
+
+                      {/* OAuth Buttons */}
+                      <div className="grid grid-cols-2 gap-3 pt-2">
+                        <a href="/api/auth/oauth/google" className="flex items-center justify-center gap-2 rounded-lg border border-border/40 bg-background/50 px-4 py-2.5 text-sm font-medium hover:bg-accent/50 transition-colors">
+                          <Chrome className="size-4 text-[#4285F4]" />
+                          Google
+                        </a>
+                        <a href="/api/auth/oauth/github" className="flex items-center justify-center gap-2 rounded-lg border border-border/40 bg-background/50 px-4 py-2.5 text-sm font-medium hover:bg-accent/50 transition-colors">
+                          <Github className="size-4" />
+                          GitHub
+                        </a>
+                        <a href="/api/auth/oauth/gitlab" className="flex items-center justify-center gap-2 rounded-lg border border-border/40 bg-background/50 px-4 py-2.5 text-sm font-medium hover:bg-accent/50 transition-colors">
+                          <GitBranch className="size-4 text-[#FC6D26]" />
+                          GitLab
+                        </a>
+                        <a href="/api/auth/oauth/microsoft" className="flex items-center justify-center gap-2 rounded-lg border border-border/40 bg-background/50 px-4 py-2.5 text-sm font-medium hover:bg-accent/50 transition-colors">
+                          <Monitor className="size-4 text-[#00A4EF]" />
+                          Microsoft
+                        </a>
                       </div>
                     </form>
                   </CardContent>

@@ -647,6 +647,7 @@ model User {
   subscription Subscription?
   notifications Notification[]
   projects     Project[]
+  oauthAccounts OAuthAccount[]
 }
 
 model UserSession {
@@ -1225,4 +1226,26 @@ model SavedSearch {
 
   @@index([visitorId])
   @@index([createdAt])
+}
+
+// ═══ OAuth Accounts ═══
+
+model OAuthAccount {
+  id          String    @id @default(cuid())
+  userId      String
+  provider    String    // "google" | "github" | "gitlab" | "microsoft"
+  providerId  String    // user's ID on the provider
+  email       String
+  name        String?
+  avatarUrl   String?
+  accessToken String?
+  refreshToken String?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@index([userId])
 }

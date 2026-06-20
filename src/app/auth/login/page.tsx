@@ -4,13 +4,14 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Loader2, Mail, Lock, Shield, XCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Mail, Lock, Shield, XCircle, Github, Chrome, GitBranch, Monitor } from 'lucide-react'
 
 const fadeUp = {
   initial: { opacity: 0, y: 20 },
@@ -31,6 +32,22 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [blockedState, setBlockedState] = useState<BlockedState | null>(null)
+  const searchParams = useSearchParams()
+  const oauthError = searchParams.get('oauth_error')
+
+  const errorMessages: Record<string, string> = {
+    access_denied: 'You denied access. Please try again.',
+    invalid_state: 'Security error. Please try again.',
+    no_code: 'No authorization code received.',
+    no_email: 'Could not get your email from the provider.',
+    rejected: 'Your access request was declined.',
+  }
+
+  React.useEffect(() => {
+    if (oauthError) {
+      setError(errorMessages[oauthError] || 'Authentication failed.')
+    }
+  }, [oauthError])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -238,6 +255,36 @@ export default function LoginPage() {
                           <Shield className="size-2.5" />
                           AES-256 Encrypted
                         </Badge>
+                      </div>
+
+                      {/* OAuth Divider */}
+                      <div className="relative pt-4">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t border-border/40" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-card px-3 text-muted-foreground">Or continue with</span>
+                        </div>
+                      </div>
+
+                      {/* OAuth Buttons */}
+                      <div className="grid grid-cols-2 gap-3 pt-2">
+                        <a href="/api/auth/oauth/google" className="flex items-center justify-center gap-2 rounded-lg border border-border/40 bg-background/50 px-4 py-2.5 text-sm font-medium hover:bg-accent/50 transition-colors">
+                          <Chrome className="size-4 text-[#4285F4]" />
+                          Google
+                        </a>
+                        <a href="/api/auth/oauth/github" className="flex items-center justify-center gap-2 rounded-lg border border-border/40 bg-background/50 px-4 py-2.5 text-sm font-medium hover:bg-accent/50 transition-colors">
+                          <Github className="size-4" />
+                          GitHub
+                        </a>
+                        <a href="/api/auth/oauth/gitlab" className="flex items-center justify-center gap-2 rounded-lg border border-border/40 bg-background/50 px-4 py-2.5 text-sm font-medium hover:bg-accent/50 transition-colors">
+                          <GitBranch className="size-4 text-[#FC6D26]" />
+                          GitLab
+                        </a>
+                        <a href="/api/auth/oauth/microsoft" className="flex items-center justify-center gap-2 rounded-lg border border-border/40 bg-background/50 px-4 py-2.5 text-sm font-medium hover:bg-accent/50 transition-colors">
+                          <Monitor className="size-4 text-[#00A4EF]" />
+                          Microsoft
+                        </a>
                       </div>
                     </form>
                   </CardContent>

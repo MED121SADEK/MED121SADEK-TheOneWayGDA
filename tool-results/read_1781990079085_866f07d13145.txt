@@ -1,0 +1,1228 @@
+     1→// This is your Prisma schema file,
+     2→// learn more about it in the docs: https://pris.ly/d/prisma-schema
+     3→
+     4→// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+     5→// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+     6→
+     7→generator client {
+     8→  provider = "prisma-client-js"
+     9→}
+    10→
+    11→datasource db {
+    12→  provider = "postgresql"
+    13→  url      = env("DATABASE_URL")
+    14→}
+    15→
+    16→model Project {
+    17→  id          String   @id @default(cuid())
+    18→  name        String
+    19→  description String?
+    20→  data        String
+    21→  variables   String
+    22→  outputs     String?
+    23→  shared      Boolean  @default(false)
+    24→  sharedWith  String?
+    25→  userId      String?
+    26→  createdAt   DateTime @default(now())
+    27→  updatedAt   DateTime @updatedAt
+    28→
+    29→  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+    30→
+    31→  @@index([userId])
+    32→}
+    33→
+    34→model CommunityPost {
+    35→  id                String   @id @default(cuid())
+    36→  type              String   @default("community") // "community" | "news"
+    37→  title             String
+    38→  content           String
+    39→  author            String   // visitor email or "TheOneWayGDA"
+    40→  authorName        String?
+    41→  imageUrl          String?
+    42→  sourceUrl         String?  // external news URL
+    43→  sourceName        String? // e.g. "TechCrunch"
+    44→  tags              String?  // JSON array of tag strings
+    45→  contentHash       String?  // SHA-256 of title+content for idempotent creation
+    46→  likes             Int      @default(0)
+    47→  comments          Int      @default(0)
+    48→  reposts           Int      @default(0)
+    49→  saves             Int      @default(0)
+    50→  featured          Boolean  @default(false)
+    51→  hasAcceptedAnswer Boolean  @default(false)
+    52→  acceptedAnswerId  String?
+    53→  createdAt         DateTime @default(now())
+    54→  updatedAt         DateTime @updatedAt
+    55→
+    56→  @@index([type])
+    57→  @@index([author])
+    58→  @@index([createdAt])
+    59→  @@index([featured])
+    60→  @@unique([author, contentHash])
+    61→
+    62→  postComments  PostComment[]
+    63→  interactions  PostInteraction[]
+    64→}
+    65→
+    66→model PostComment {
+    67→  id              String   @id @default(cuid())
+    68→  postId          String
+    69→  post            CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+    70→  author          String   // visitor email
+    71→  authorName      String?
+    72→  content         String
+    73→  isAnswer        Boolean  @default(false)
+    74→  answerMarkedBy  String?
+    75→  upvotes         Int      @default(0)
+    76→  createdAt       DateTime @default(now())
+    77→
+    78→  @@index([postId])
+    79→  @@index([createdAt])
+    80→  @@index([isAnswer])
+    81→}
+    82→
+    83→model PostInteraction {
+    84→  id        String   @id @default(cuid())
+    85→  postId    String
+    86→  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+    87→  visitorId String   // visitor email
+    88→  type      String   // "like" | "save"
+    89→  createdAt DateTime @default(now())
+    90→
+    91→  @@unique([postId, visitorId, type])
+    92→  @@index([postId])
+    93→  @@index([visitorId])
+    94→}
+    95→
+    96→model UserFollow {
+    97→  id          String   @id @default(cuid())
+    98→  followerId  String   // visitor email of the follower
+    99→  followingId String   // visitor email being followed
+   100→  createdAt   DateTime @default(now())
+   101→
+   102→  @@unique([followerId, followingId])
+   103→  @@index([followerId])
+   104→  @@index([followingId])
+   105→}
+   106→
+   107→model TopicFollow {
+   108→  id        String   @id @default(cuid())
+   109→  visitorId String   // visitor email
+   110→  topic     String   // "AI" | "Research" | "Innovation" | specific tags
+   111→  createdAt DateTime @default(now())
+   112→
+   113→  @@unique([visitorId, topic])
+   114→  @@index([visitorId])
+   115→  @@index([topic])
+   116→}
+   117→
+   118→model Visitor {
+   119→  id          String   @id @default(cuid())
+   120→  email       String   @unique
+   121→  name        String?
+   122→  visitorType String   @default("general")
+   123→  status      String   @default("pending")
+   124→  ipAddress   String?
+   125→  userAgent   String?
+   126→  path        String?
+   127→  notes       String?
+   128→  country     String?
+   129→  language    String?
+   130→  createdAt   DateTime @default(now())
+   131→  lastSeen    DateTime @updatedAt
+   132→
+   133→  @@index([createdAt])
+   134→  @@index([visitorType])
+   135→  @@index([status])
+   136→}
+   137→
+   138→model AiModel {
+   139→  @@map("AIModel")
+   140→  id            String   @id @default(cuid())
+   141→  name          String
+   142→  provider      String
+   143→  description   String?
+   144→  modelType     String   @default("chat")
+   145→  contextWindow Int      @default(8192)
+   146→  parameters    String?
+   147→  releaseDate   String?
+   148→  isActive      Boolean  @default(true)
+   149→  websiteUrl    String?
+   150→  apiDocsUrl    String?
+   151→  tags          String?
+   152→  createdAt     DateTime @default(now())
+   153→  updatedAt     DateTime @updatedAt
+   154→
+   155→  @@unique([name, provider])
+   156→  @@index([provider])
+   157→  @@index([modelType])
+   158→  @@index([isActive])
+   159→
+   160→  benchmarkScores BenchmarkScore[]
+   161→  pricing         ModelPricing[]
+   162→  liveMetrics     LiveMetric[]
+   163→}
+   164→
+   165→model BenchmarkScore {
+   166→  id        String   @id @default(cuid())
+   167→  modelId   String
+   168→  model     AiModel       @relation(fields: [modelId], references: [id], onDelete: Cascade)
+   169→  benchmark String
+   170→  score     Float
+   171→  maxScore  Float    @default(100)
+   172→  source    String   @default("verified")
+   173→  sourceUrl String?
+   174→  version   String   @default("latest")
+   175→  sampledAt DateTime @default(now())
+   176→  createdAt DateTime @default(now())
+   177→  updatedAt DateTime @updatedAt
+   178→
+   179→  @@unique([modelId, benchmark, version])
+   180→  @@index([modelId])
+   181→  @@index([benchmark])
+   182→  @@index([score])
+   183→}
+   184→
+   185→model ModelPricing {
+   186→  id              String   @id @default(cuid())
+   187→  modelId         String
+   188→  model           AiModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+   189→  provider        String
+   190→  inputPrice      Float
+   191→  outputPrice     Float
+   192→  batchInputPrice Float?
+   193→  batchOutputPrice Float?
+   194→  currency        String   @default("USD")
+   195→  effectiveDate   DateTime @default(now())
+   196→  isActive        Boolean  @default(true)
+   197→  updatedAt       DateTime @updatedAt
+   198→  createdAt       DateTime @default(now())
+   199→
+   200→  @@index([modelId])
+   201→  @@index([provider])
+   202→  @@index([isActive])
+   203→}
+   204→
+   205→model LiveMetric {
+   206→  id           String   @id @default(cuid())
+   207→  modelId      String
+   208→  model        AiModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+   209→  prompt       String
+   210→  response     String?
+   211→  latencyMs    Int?
+   212→  tps          Float?
+   213→  inputTokens  Int?
+   214→  outputTokens Int?
+   215→  status       String   @default("pending")
+   216→  errorMessage String?
+   217→  testedAt     DateTime @default(now())
+   218→  createdAt    DateTime @default(now())
+   219→
+   220→  @@index([modelId])
+   221→  @@index([testedAt])
+   222→  @@index([status])
+   223→}
+   224→
+   225→model LeaderboardSnapshot {
+   226→  id           String   @id @default(cuid())
+   227→  benchmark    String
+   228→  ranking      String
+   229→  snapshotDate DateTime @default(now())
+   230→  createdAt    DateTime @default(now())
+   231→
+   232→  @@index([benchmark])
+   233→  @@index([snapshotDate])
+   234→}
+   235→
+   236→model CronJob {
+   237→  id          String    @id @default(cuid())
+   238→  name        String    @unique
+   239→  type        String
+   240→  interval    String    @default("1h")
+   241→  status      String    @default("idle")
+   242→  lastRun     DateTime?
+   243→  nextRun     DateTime?
+   244→  lastError   String?
+   245→  runCount    Int       @default(0)
+   246→  createdAt   DateTime  @default(now())
+   247→  updatedAt   DateTime  @updatedAt
+   248→
+   249→  @@index([status])
+   250→  @@index([nextRun])
+   251→}
+   252→
+   253→// ═══ AI Copilot & Automation ═══
+   254→
+   255→model AiConversation {
+   256→  id          String   @id @default(cuid())
+   257→  sessionId   String
+   258→  visitorId   String?
+   259→  context     String   @default("general") // "workspace" | "leaderboard" | "community" | "general"
+   260→  title       String?
+   261→  messages    String   // JSON array of {role, content, timestamp}
+   262→  summary     String?
+   263→  createdAt   DateTime @default(now())
+   264→  updatedAt   DateTime @updatedAt
+   265→
+   266→  @@index([sessionId])
+   267→  @@index([visitorId])
+   268→  @@index([context])
+   269→}
+   270→
+   271→model AutomationRule {
+   272→  id          String   @id @default(cuid())
+   273→  visitorId   String?
+   274→  name        String
+   275→  description String?
+   276→  trigger     String   // "schedule" | "event" | "manual" | "new_data"
+   277→  triggerConfig String // JSON: {cron?: string, eventType?: string, condition?: string}
+   278→  actions     String   // JSON array of {type: "clean"|"model"|"report"|"notify", config: {...}}
+   279→  isActive    Boolean  @default(true)
+   280→  lastRun     DateTime?
+   281→  nextRun     DateTime?
+   282→  runCount    Int      @default(0)
+   283→  lastStatus  String?  // "success" | "error"
+   284→  lastError   String?
+   285→  createdAt   DateTime @default(now())
+   286→  updatedAt   DateTime @updatedAt
+   287→
+   288→  @@index([visitorId])
+   289→  @@index([isActive])
+   290→  @@index([nextRun])
+   291→}
+   292→
+   293→model AutomationLog {
+   294→  id          String   @id @default(cuid())
+   295→  ruleId      String
+   296→  status      String   @default("pending") // "pending" | "running" | "success" | "error"
+   297→  input       String?  // JSON: trigger input data
+   298→  output      String?  // JSON: action results
+   299→  error       String?
+   300→  durationMs  Int?
+   301→  startedAt   DateTime @default(now())
+   302→  completedAt DateTime?
+   303→
+   304→  @@index([ruleId])
+   305→  @@index([status])
+   306→}
+   307→
+   308→model AiSuggestion {
+   309→  id          String   @id @default(cuid())
+   310→  visitorId   String?
+   311→  context     String   // "workspace" | "leaderboard" | "data_prep" | "modeling" | "reporting"
+   312→  category    String   // "next_action" | "insight" | "optimization" | "template" | "learning"
+   313→  title       String
+   314→  content     String   // JSON: detailed suggestion data
+   315→  confidence  Float    @default(0.5)
+   316→  isAccepted  Boolean?
+   317→  isDismissed Boolean  @default(false)
+   318→  createdAt   DateTime @default(now())
+   319→
+   320→  @@index([visitorId])
+   321→  @@index([context])
+   322→  @@index([category])
+   323→  @@index([createdAt])
+   324→}
+   325→
+   326→model UserPreference {
+   327→  id            String   @id @default(cuid())
+   328→  visitorId     String   @unique
+   329→  skillLevel    String   @default("intermediate") // "beginner" | "intermediate" | "expert"
+   330→  preferredLang String   @default("en")
+   331→  interfaceMode String   @default("standard") // "compact" | "standard" | "advanced"
+   332→  recentPages   String?  // JSON array of recent page paths
+   333→  frequentActions String? // JSON: {action: count} map
+   334→  theme         String   @default("dark")
+   335→  aiSensitivity Float    @default(0.7) // 0-1, how proactive AI should be
+   336→  notificationsEnabled Boolean @default(true)
+   337→  createdAt     DateTime @default(now())
+   338→  updatedAt     DateTime @updatedAt
+   339→
+   340→  @@index([visitorId])
+   341→}
+   342→
+   343→model AiAuditLog {
+   344→  id          String   @id @default(cuid())
+   345→  visitorId   String?
+   346→  action      String   // "suggestion_accepted" | "suggestion_dismissed" | "automation_run" | "ai_query" | "data_access"
+   347→  details     String   // JSON: full context of the action
+   348→  error       String?  // Error message if action failed
+   349→  inputData   String?  // JSON: what data the AI accessed
+   350→  outputData  String?  // JSON: what the AI produced
+   351→  model       String   @default("default") // which AI model was used
+   352→  tokensUsed  Int?
+   353→  durationMs  Int?
+   354→  ipAddress   String?
+   355→  userAgent   String?
+   356→  createdAt   DateTime @default(now())
+   357→
+   358→  @@index([visitorId])
+   359→  @@index([action])
+   360→  @@index([createdAt])
+   361→}
+   362→
+   363→// ═══ Workflow-Native Copilot ═══
+   364→
+   365→model WorkflowPipeline {
+   366→  id               String   @id @default(cuid())
+   367→  visitorId        String?
+   368→  projectId        String?
+   369→  name             String
+   370→  description      String?
+   371→  intent           String   // User's high-level intent (e.g., "Analyze sales trends")
+   372→  steps            String   // JSON: ordered array of {id, type, name, config, status}
+   373→  status           String   @default("draft") // "draft" | "ready" | "running" | "completed" | "error"
+   374→  result           String?  // JSON: pipeline execution results
+   375→  executiveSummary String? // AI-generated executive summary
+   376→  tokensUsed       Int?
+   377→  durationMs       Int?
+   378→  createdAt        DateTime @default(now())
+   379→  updatedAt        DateTime @updatedAt
+   380→
+   381→  @@index([visitorId])
+   382→  @@index([status])
+   383→}
+   384→
+   385→model DecisionRecord {
+   386→  id              String   @id @default(cuid())
+   387→  visitorId       String?
+   388→  projectId       String?
+   389→  pipelineId      String?
+   390→  context         String   // "workspace" | "leaderboard" | "automation"
+   391→  question        String   // User's question/intent
+   392→  aiAnalysis      String   // JSON: AI's analysis and reasoning
+   393→  options         String?  // JSON: generated options
+   394→  selectedOption  String?
+   395→  outcome         String?  // JSON: what happened after decision
+   396→  confidence      Float?
+   397→  createdAt       DateTime @default(now())
+   398→
+   399→  @@index([visitorId])
+   400→  @@index([context])
+   401→  @@index([createdAt])
+   402→}
+   403→
+   404→// ═══ Community-Driven Learning ═══
+   405→
+   406→model SharedWorkflow {
+   407→  id               String   @id @default(cuid())
+   408→  sourcePipelineId String?  // ID of the original WorkflowPipeline (if forked from one)
+   409→  author           String   // visitor email
+   410→  authorName       String?
+   411→  name             String
+   412→  description      String?
+   413→  intent           String?  // Snapshot of the original intent
+   414→  steps            String   // JSON: snapshot of pipeline steps
+   415→  category         String   @default("general") // "data_analysis" | "reporting" | "ml_pipeline" | "data_cleaning" | "benchmarking" | "general"
+   416→  difficulty       String   @default("intermediate") // "beginner" | "intermediate" | "advanced"
+   417→  tags             String?  // JSON array of tag strings
+   418→  rating           Float    @default(0)
+   419→  ratingCount      Int      @default(0)
+   420→  usageCount       Int      @default(0)
+   421→  forkCount        Int      @default(0)
+   422→  isFeatured       Boolean  @default(false)
+   423→  isOfficial       Boolean  @default(false)
+   424→  createdAt        DateTime @default(now())
+   425→  updatedAt        DateTime @updatedAt
+   426→
+   427→  @@index([author])
+   428→  @@index([category])
+   429→  @@index([difficulty])
+   430→  @@index([rating])
+   431→  @@index([usageCount])
+   432→  @@index([isFeatured])
+   433→}
+   434→
+   435→model BenchmarkConfig {
+   436→  id               String   @id @default(cuid())
+   437→  sourceConfigId   String?  // ID of the config this was forked from
+   438→  author           String   // visitor email
+   439→  authorName       String?
+   440→  name             String
+   441→  description      String?
+   442→  category         String   @default("general") // "reasoning" | "coding" | "creative" | "math" | "multilingual" | "safety" | "general"
+   443→  difficulty       String   @default("intermediate") // "easy" | "intermediate" | "hard" | "expert"
+   444→  testPrompts      String   // JSON: array of {prompt, expectedKeywords?, expectedLength?}
+   445→  evaluationCriteria String // JSON: {metrics: [...], weights: {...}, rubric: string}
+   446→  expectedOutputs  String?  // JSON: array of expected output patterns/keywords
+   447→  modelIds         String?  // JSON: array of model IDs this config has been tested against
+   448→  results          String?  // JSON: aggregated results per model
+   449→  rating           Float    @default(0)
+   450→  ratingCount      Int      @default(0)
+   451→  usageCount       Int      @default(0)
+   452→  forkCount        Int      @default(0)
+   453→  isFeatured       Boolean  @default(false)
+   454→  isOfficial       Boolean  @default(false)
+   455→  createdAt        DateTime @default(now())
+   456→  updatedAt        DateTime @updatedAt
+   457→
+   458→  @@index([author])
+   459→  @@index([category])
+   460→  @@index([difficulty])
+   461→  @@index([rating])
+   462→  @@index([usageCount])
+   463→  @@index([isFeatured])
+   464→}
+   465→
+   466→model CommunityAnalysisTemplate {
+   467→  id                 String   @id @default(cuid())
+   468→  sourceTemplateId   String?  // ID of the template this was forked/improved from
+   469→  author             String   // visitor email
+   470→  authorName         String?
+   471→  name               String
+   472→  description        String?
+   473→  category           String   @default("statistical") // "statistical" | "machine_learning" | "data_cleaning" | "visualization" | "reporting" | "benchmarking"
+   474→  difficulty         String   @default("intermediate") // "beginner" | "intermediate" | "advanced"
+   475→  steps              String   // JSON: array of {id, order, name, description, type, config}
+   476→  requiredVariables  String?  // JSON array of required variable names
+   477→  estimatedDuration  String?  // e.g. "15 min", "1 hour", "2-3 hours"
+   478→  tags               String?  // JSON array of tag strings
+   479→  rating             Float    @default(0)
+   480→  ratingCount        Int      @default(0)
+   481→  usageCount         Int      @default(0)
+   482→  improvementCount   Int      @default(0)
+   483→  isFeatured         Boolean  @default(false)
+   484→  isOfficial         Boolean  @default(false)
+   485→  version            Int      @default(1)
+   486→  createdAt          DateTime @default(now())
+   487→  updatedAt          DateTime @updatedAt
+   488→
+   489→  @@index([author])
+   490→  @@index([category])
+   491→  @@index([difficulty])
+   492→  @@index([rating])
+   493→  @@index([usageCount])
+   494→  @@index([isFeatured])
+   495→  @@index([isOfficial])
+   496→}
+   497→
+   498→// ═══ MLOps — AI Prompt & Config Versioning ═══
+   499→
+   500→model PromptVersion {
+   501→  id          String   @id @default(cuid())
+   502→  name        String
+   503→  version     String   // "v1.0.0", "v1.1.0"
+   504→  context     String   // "copilot" | "workflow" | "automation" | "governance"
+   505→  prompt      String   // The actual system prompt text
+   506→  description String?
+   507→  isActive    Boolean  @default(false)
+   508→  metadata    String?  // JSON: {tokens, testedAt, changelog}
+   509→  createdBy   String?  // visitor email or "system"
+   510→  createdAt   DateTime @default(now())
+   511→
+   512→  @@unique([name, version])
+   513→  @@index([context])
+   514→  @@index([isActive])
+   515→}
+   516→
+   517→model AiModelConfig {
+   518→  id            String   @id @default(cuid())
+   519→  name          String
+   520→  version       String
+   521→  model         String   // "default" | "gpt-4" | specific model identifier
+   522→  parameters    String   // JSON: {temperature, maxTokens, topP, ...}
+   523→  promptVersion String?
+   524→  isActive      Boolean  @default(false)
+   525→  createdAt     DateTime @default(now())
+   526→
+   527→  @@unique([name, version])
+   528→  @@index([isActive])
+   529→}
+   530→
+   531→model EvaluationRun {
+   532→  id            String   @id @default(cuid())
+   533→  configVersion String
+   534→  promptVersion String
+   535→  status        String   @default("pending") // "pending" | "running" | "completed" | "failed"
+   536→  metrics       String   // JSON: {accuracy, latencyMs, tokenUsage, userSatisfaction}
+   537→  testCases     Int      @default(0)
+   538→  passed        Int      @default(0)
+   539→  errorMessage  String?
+   540→  createdAt     DateTime @default(now())
+   541→
+   542→  @@index([configVersion])
+   543→  @@index([status])
+   544→}
+   545→
+   546→// ═══ DevOps — Application Error Logging ═══
+   547→
+   548→model AppErrorLog {
+   549→  id          String   @id @default(cuid())
+   550→  level       String   @default("error") // "error" | "warn" | "fatal"
+   551→  domain      String   @default("application") // "api" | "database" | "ai" | "auth" | "system"
+   552→  route       String?  // API route or page path where error occurred
+   553→  message     String   // Error message
+   554→  stack       String?  // Stack trace (truncated)
+   555→  requestId   String?  // Request ID for correlation
+   556→  statusCode  Int?     // HTTP status code (if applicable)
+   557→  method      String?  // HTTP method
+   558→  ipAddress   String?
+   559→  userAgent   String?
+   560→  metadata    String?  // JSON: additional context
+   561→  resolved    Boolean  @default(false)
+   562→  resolvedAt  DateTime?
+   563→  createdAt   DateTime @default(now())
+   564→
+   565→  @@index([level])
+   566→  @@index([domain])
+   567→  @@index([route])
+   568→  @@index([createdAt])
+   569→  @@index([resolved])
+   570→}
+   571→
+   572→model DeployLog {
+   573→  id          String   @id @default(cuid())
+   574→  environment String   @default("production") // "staging" | "production"
+   575→  version     String   // git SHA or version tag
+   576→  deployer    String?  // who triggered the deploy
+   577→  strategy    String   @default("rolling") // "rolling" | "blue-green" | "canary"
+   578→  status      String   @default("pending") // "pending" | "running" | "success" | "failed" | "rolled_back"
+   579→  durationMs  Int?
+   580→  backupPath  String?  // path to database backup
+   581→  rollbackTo  String?  // version rolled back to (if applicable)
+   582→  notes       String?
+   583→  createdAt   DateTime @default(now())
+   584→  completedAt DateTime?
+   585→
+   586→  @@index([environment])
+   587→  @@index([status])
+   588→  @@index([createdAt])
+   589→}
+   590→
+   591→// ═══ Verified Researchers & Institutions ═══
+   592→
+   593→model VerifiedResearcher {
+   594→  id               String   @id @default(cuid())
+   595→  email            String   @unique           // visitor email or bot identifier (e.g. "THEONEWAYGDA_AI")
+   596→  displayName      String                      // public display name (e.g. "DeepMind Research")
+   597→  institution      String?                     // lab/company/institution name (e.g. "Google DeepMind")
+   598→  role             String?                     // role/title (e.g. "AI Lab", "Researcher", "News Bot")
+   599→  badgeType        String   @default("verified") // "verified" | "institution" | "official" | "bot"
+   600→  bio              String?                     // short description
+   601→  websiteUrl       String?
+   602→  verifiedBy       String?                     // admin who verified
+   603→  totalPosts       Int      @default(0)
+   604→  totalAnswers     Int      @default(0)
+   605→  totalCitations   Int      @default(0)
+   606→  reputationScore  Float    @default(0)
+   607→  isActive         Boolean  @default(true)
+   608→  createdAt        DateTime @default(now())
+   609→  updatedAt        DateTime @updatedAt
+   610→
+   611→  @@index([badgeType])
+   612→  @@index([isActive])
+   613→  @@index([institution])
+   614→}
+   615→
+   616→// ═══ Phase 1: Auth System & User Profiles ═══
+   617→
+   618→model User {
+   619→  id              String    @id @default(cuid())
+   620→  email           String    @unique
+   621→  password        String
+   622→  name            String?
+   623→  image           String?
+   624→  role            String    @default("user") // "user" | "pro" | "admin"
+   625→  bio             String?
+   626→  company         String?
+   627→  location        String?
+   628→  website         String?
+   629→  skills          String?   // JSON: ["statistics", "python", ...]
+   630→  preferences     String?   // JSON: {theme, language, notifications...}
+   631→  isOnboarded     Boolean   @default(false)
+   632→  resetToken      String?
+   633→  resetTokenExpiry DateTime?
+   634→  createdAt       DateTime  @default(now())
+   635→  updatedAt       DateTime  @updatedAt
+   636→  lastSeen        DateTime  @updatedAt
+   637→
+   638→  @@index([role])
+   639→  @@index([isOnboarded])
+   640→
+   641→  sessions UserSession[]
+   642→  activities UserActivity[]
+   643→  ownedTeams Team[] @relation("TeamOwner")
+   644→  teamMemberships TeamMember[] @relation("TeamMemberships")
+   645→  apiKeys      ApiKey[]
+   646→  usageRecords UsageRecord[]
+   647→  subscription Subscription?
+   648→  notifications Notification[]
+   649→  projects     Project[]
+   650→}
+   651→
+   652→model UserSession {
+   653→  id        String   @id @default(cuid())
+   654→  userId    String
+   655→  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   656→  token     String   @unique
+   657→  ipAddress String?
+   658→  userAgent String?
+   659→  expiresAt DateTime
+   660→  createdAt DateTime @default(now())
+   661→
+   662→  @@index([userId])
+   663→  @@index([expiresAt])
+   664→}
+   665→
+   666→model UserActivity {
+   667→  id        String   @id @default(cuid())
+   668→  userId    String
+   669→  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   670→  type      String   // "login" | "project_created" | "analysis_run" | "report_generated" | "workflow_executed" | "automation_triggered" | "profile_updated"
+   671→  details   String?  // JSON: additional context
+   672→  ipAddress String?
+   673→  createdAt DateTime @default(now())
+   674→
+   675→  @@index([userId])
+   676→  @@index([type])
+   677→  @@index([createdAt])
+   678→}
+   679→
+   680→// ═══ Phase 2: Advanced Analytics Engine ═══
+   681→
+   682→model AnalysisRun {
+   683→  id          String   @id @default(cuid())
+   684→  userId      String?
+   685→  projectId   String?
+   686→  name        String
+   687→  type        String   // "descriptive" | "inferential" | "regression" | "correlation" | "prediction" | "classification" | "clustering" | "time_series"
+   688→  status      String   @default("pending") // "pending" | "running" | "completed" | "error"
+   689→  inputData   String   // JSON: input data snapshot
+   690→  config      String?  // JSON: analysis configuration
+   691→  result      String?  // JSON: analysis results (statistics, p-values, r-squared, etc.)
+   692→  chartData   String?  // JSON: chart-ready data (for visualizations)
+   693→  summary     String?  // AI-generated summary of findings
+   694→  errorMessage String?
+   695→  durationMs  Int?
+   696→  aiModel     String?  // which AI model was used
+   697→  tokensUsed  Int?
+   698→  createdAt   DateTime @default(now())
+   699→  updatedAt   DateTime @updatedAt
+   700→
+   701→  @@index([userId])
+   702→  @@index([type])
+   703→  @@index([status])
+   704→  @@index([createdAt])
+   705→}
+   706→
+   707→// ═══ Phase 3: Collaboration & Teams ═══
+   708→
+   709→model Team {
+   710→  id          String   @id @default(cuid())
+   711→  name        String
+   712→  description String?
+   713→  slug        String   @unique
+   714→  avatar      String?  // team logo/gradient color
+   715→  ownerId     String
+   716→  owner       User     @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+   717→  isPublic    Boolean  @default(false) // visible in team directory
+   718→  maxMembers  Int      @default(10)
+   719→  inviteCode  String   @unique // 8-char alphanumeric join code
+   720→  settings    String?  // JSON: {defaultRole, allowFork, requireApproval, ...}
+   721→  createdAt   DateTime @default(now())
+   722→  updatedAt   DateTime @updatedAt
+   723→
+   724→  @@index([ownerId])
+   725→  @@index([isPublic])
+   726→  @@index([inviteCode])
+   727→
+   728→  members     TeamMember[]
+   729→  invites     TeamInvite[]
+   730→  sharedItems TeamShare[]
+   731→  activity    TeamActivity[]
+   732→}
+   733→
+   734→model TeamMember {
+   735→  id          String   @id @default(cuid())
+   736→  teamId      String
+   737→  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+   738→  userId      String
+   739→  user        User     @relation("TeamMemberships", fields: [userId], references: [id], onDelete: Cascade)
+   740→  role        String   @default("member") // "owner" | "admin" | "member" | "viewer"
+   741→  nickname    String?
+   742→  joinedAt    DateTime @default(now())
+   743→  lastActive  DateTime @updatedAt
+   744→
+   745→  @@unique([teamId, userId])
+   746→  @@index([teamId])
+   747→  @@index([userId])
+   748→  @@index([role])
+   749→}
+   750→
+   751→model TeamInvite {
+   752→  id          String   @id @default(cuid())
+   753→  teamId      String
+   754→  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+   755→  invitedBy   String   // userId who sent the invite
+   756→  email       String?  // target email (for email invites)
+   757→  userId      String?  // target userId (for direct invites)
+   758→  role        String   @default("member")
+   759→  status      String   @default("pending") // "pending" | "accepted" | "rejected" | "expired"
+   760→  message     String?  // personal message from inviter
+   761→  expiresAt   DateTime // invite expiry
+   762→  createdAt   DateTime @default(now())
+   763→  respondedAt DateTime?
+   764→
+   765→  @@index([teamId])
+   766→  @@index([email])
+   767→  @@index([userId])
+   768→  @@index([status])
+   769→  @@index([expiresAt])
+   770→}
+   771→
+   772→model TeamShare {
+   773→  id          String   @id @default(cuid())
+   774→  teamId      String
+   775→  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+   776→  sharedBy    String   // userId who shared
+   777→  resourceType String  // "workflow" | "analysis" | "project" | "benchmark_config" | "template"
+   778→  resourceId  String   // ID of the shared resource
+   779→  resourceName String  // snapshot of resource name
+   780→  description String?
+   781→  permissions String   @default("view") // JSON: ["view"] | ["view", "edit", "fork", "delete"]
+   782→  isPinned    Boolean  @default(false)
+   783→  createdAt   DateTime @default(now())
+   784→  updatedAt   DateTime @updatedAt
+   785→
+   786→  @@index([teamId])
+   787→  @@index([resourceType])
+   788→  @@index([sharedBy])
+   789→  @@index([isPinned])
+   790→}
+   791→
+   792→model TeamActivity {
+   793→  id          String   @id @default(cuid())
+   794→  teamId      String
+   795→  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+   796→  userId      String   // user who performed the action
+   797→  userName    String?  // snapshot of user name
+   798→  type        String   // "member_joined" | "member_left" | "invite_sent" | "invite_accepted" | "resource_shared" | "resource_created" | "comment_added" | "team_updated"
+   799→  details     String?  // JSON: additional context
+   800→  createdAt   DateTime @default(now())
+   801→
+   802→  @@index([teamId])
+   803→  @@index([userId])
+   804→  @@index([type])
+   805→  @@index([createdAt])
+   806→}
+   807→
+   808→model TeamComment {
+   809→  id          String   @id @default(cuid())
+   810→  teamId      String
+   811→  shareId     String?  // nullable = general team comment, otherwise linked to a shared resource
+   812→  userId      String
+   813→  userName    String?
+   814→  content     String
+   815→  editedAt    DateTime?
+   816→  createdAt   DateTime @default(now())
+   817→  updatedAt   DateTime @updatedAt
+   818→
+   819→  @@index([teamId])
+   820→  @@index([shareId])
+   821→  @@index([userId])
+   822→  @@index([createdAt])
+   823→}
+   824→
+   825→// ═══ Phase 4: Monetization, API Keys & Notifications ═══
+   826→
+   827→model ApiKey {
+   828→  id          String   @id @default(cuid())
+   829→  userId      String
+   830→  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   831→  name        String   // human-readable label, e.g. "Production Key"
+   832→  prefix      String   // first 8 chars shown in UI, e.g. "onw_a3f8..."
+   833→  keyHash     String   // SHA-256 hash of the full key (never stored plain)
+   834→  scopes      String   @default("read") // JSON: ["read"] | ["read", "write", "admin"]
+   835→  rateLimit   Int      @default(100) // requests per minute
+   836→  lastUsed    DateTime?
+   837→  requestCount Int     @default(0)
+   838→  expiresAt   DateTime? // null = never expires
+   839→  isActive    Boolean  @default(true)
+   840→  createdAt   DateTime @default(now())
+   841→
+   842→  @@index([userId])
+   843→  @@index([prefix])
+   844→  @@index([isActive])
+   845→}
+   846→
+   847→model UsageRecord {
+   848→  id          String   @id @default(cuid())
+   849→  userId      String
+   850→  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   851→  apiKeyId    String?
+   852→  category    String   // "ai_query" | "workflow" | "analysis" | "api_call" | "export"
+   853→  operation   String?  // specific operation, e.g. "chat.completion" | "workflow.execute"
+   854→  tokensUsed  Int      @default(0)
+   855→  durationMs  Int?
+   856→  costUsd     Float    @default(0) // estimated cost in USD
+   857→  ipAddress   String?
+   858→  userAgent   String?
+   859→  createdAt   DateTime @default(now())
+   860→
+   861→  @@index([userId])
+   862→  @@index([apiKeyId])
+   863→  @@index([category])
+   864→  @@index([createdAt])
+   865→}
+   866→
+   867→model Subscription {
+   868→  id          String   @id @default(cuid())
+   869→  userId      String   @unique
+   870→  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   871→  plan        String   @default("free") // "free" | "pro" | "enterprise"
+   872→  status      String   @default("active") // "active" | "past_due" | "canceled" | "trialing" | "pending_approval"
+   873→  stripeCustomerId   String? // Stripe customer ID (for future integration)
+   874→  stripeSubscriptionId String? // Stripe subscription ID
+   875→  currentPeriodStart DateTime @default(now())
+   876→  currentPeriodEnd   DateTime?
+   877→  trialEnd    DateTime?
+   878→  cancelAt    DateTime?
+   879→  createdAt   DateTime @default(now())
+   880→  updatedAt   DateTime @updatedAt
+   881→
+   882→  @@index([userId])
+   883→  @@index([plan])
+   884→  @@index([status])
+   885→}
+   886→
+   887→model Notification {
+   888→  id          String   @id @default(cuid())
+   889→  userId      String
+   890→  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   891→  type        String   // "team_invite" | "team_member_joined" | "resource_shared" | "usage_alert" | "system" | "billing"
+   892→  title       String
+   893→  message     String
+   894→  actionUrl   String?  // link to navigate to
+   895→  actionLabel String?  // CTA button text, e.g. "View Team"
+   896→  isRead      Boolean  @default(false)
+   897→  readAt      DateTime?
+   898→  metadata    String?  // JSON: additional context
+   899→  createdAt   DateTime @default(now())
+   900→
+   901→  @@index([userId])
+   902→  @@index([isRead])
+   903→  @@index([type])
+   904→  @@index([createdAt])
+   905→}
+   906→
+   907→// ═══════════════════════════════════════════════════════════
+   908→// FEATURE 1: AI ARENA — Live Model Battles
+   909→// ═══════════════════════════════════════════════════════════
+   910→
+   911→model ArenaBattle {
+   912→  id          String   @id @default(cuid())
+   913→  modelAId    String
+   914→  modelAName  String
+   915→  modelBId    String
+   916→  modelBName  String
+   917→  category    String   @default("general") // "reasoning" | "coding" | "creative" | "math" | "general"
+   918→  prompt      String
+   919→  responseA   String?
+   920→  responseB   String?
+   921→  votesA      Int      @default(0)
+   922→  votesB      Int      @default(0)
+   923→  votesTie    Int      @default(0)
+   924→  totalVotes  Int      @default(0)
+   925→  isRevealed  Boolean  @default(false) // whether model identities are shown
+   926→  isActive    Boolean  @default(true)
+   927→  createdAt   DateTime @default(now())
+   928→  updatedAt   DateTime @updatedAt
+   929→
+   930→  @@index([category])
+   931→  @@index([totalVotes])
+   932→  @@index([createdAt])
+   933→  @@index([isActive])
+   934→
+   935→  arenaVotes ArenaVote[]
+   936→}
+   937→
+   938→model ArenaVote {
+   939→  id        String   @id @default(cuid())
+   940→  battleId  String
+   941→  battle    ArenaBattle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+   942→  voterId   String   // visitor email or user id
+   943→  choice    String   // "model_a" | "model_b" | "tie" | "both_bad"
+   944→  comment   String?
+   945→  createdAt DateTime @default(now())
+   946→
+   947→  @@unique([battleId, voterId])
+   948→  @@index([battleId])
+   949→  @@index([voterId])
+   950→  @@index([choice])
+   951→}
+   952→
+   953→// ═══════════════════════════════════════════════════════════
+   954→// FEATURE 2: AI MODEL PORTFOLIO — Stock-like Tracking
+   955→// ═══════════════════════════════════════════════════════════
+   956→
+   957→model ModelPortfolio {
+   958→  id          String   @id @default(cuid())
+   959→  ownerId     String   // visitor email or user id
+   960→  ownerName   String?
+   961→  name        String
+   962→  description String?
+   963→  isPublic    Boolean  @default(false)
+   964→  totalValue     Float    @default(0) // composite score of portfolio
+   965→  holdingsCount  Int      @default(0) // number of models held
+   966→  createdAt   DateTime @default(now())
+   967→  updatedAt   DateTime @updatedAt
+   968→
+   969→  @@index([ownerId])
+   970→  @@index([isPublic])
+   971→  @@index([totalValue])
+   972→
+   973→  portfolioHoldings PortfolioHolding[]
+   974→  alerts   PortfolioAlert[]
+   975→}
+   976→
+   977→model PortfolioHolding {
+   978→  id           String   @id @default(cuid())
+   979→  portfolioId  String
+   980→  portfolio    ModelPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+   981→  modelId      String
+   982→  modelName    String
+   983→  provider     String
+   984→  score        Float    @default(0) // current composite benchmark score
+   985→  prevScore    Float    @default(0) // previous score for tracking change
+   986→  addedAt      DateTime @default(now())
+   987→  lastUpdated  DateTime @updatedAt
+   988→
+   989→  @@index([portfolioId])
+   990→  @@index([modelId])
+   991→  @@index([score])
+   992→
+   993→  @@unique([portfolioId, modelId])
+   994→}
+   995→
+   996→model PortfolioAlert {
+   997→  id           String   @id @default(cuid())
+   998→  portfolioId  String
+   999→  portfolio    ModelPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  1000→  modelId      String
+  1001→  modelName    String
+  1002→  alertType    String   // "score_increase" | "score_decrease" | "new_benchmark" | "pricing_change" | "overtake"
+  1003→  message      String
+  1004→  isRead       Boolean  @default(false)
+  1005→  createdAt    DateTime @default(now())
+  1006→
+  1007→  @@index([portfolioId])
+  1008→  @@index([modelId])
+  1009→  @@index([isRead])
+  1010→  @@index([createdAt])
+  1011→}
+  1012→
+  1013→// ═══════════════════════════════════════════════════════════
+  1014→// FEATURE 3: COPILOT STUDIO — Build, Share & Monetize
+  1015→// ═══════════════════════════════════════════════════════════
+  1016→
+  1017→model CustomCopilot {
+  1018→  id            String   @id @default(cuid())
+  1019→  authorId      String   // visitor email
+  1020→  authorName    String?
+  1021→  name          String
+  1022→  description   String
+  1023→  category      String   // "data_analyst" | "ml_engineer" | "statistician" | "code_gen" | "report_writer" | "domain_expert" | "creative"
+  1024→  systemPrompt  String   // the copilot's system prompt
+  1025→  avatarColor   String   @default("#5B8DB8") // hex color for avatar
+  1026→  tags          String?  // JSON array
+  1027→  tools         String?  // JSON: enabled tools ["workspace", "leaderboard", "community"]
+  1028→  pricing       String   @default("free") // "free" | "paid" | " freemium"
+  1029→  price         Float?   // monthly price if paid
+  1030→  rating        Float    @default(0)
+  1031→  ratingCount   Int      @default(0)
+  1032→  installCount  Int      @default(0)
+  1033→  usageCount    Int      @default(0)
+  1034→  forkCount     Int      @default(0)
+  1035→  isFeatured    Boolean  @default(false)
+  1036→  isOfficial   Boolean  @default(false)
+  1037→  isPublished   Boolean  @default(true)
+  1038→  version       String   @default("1.0.0")
+  1039→  createdAt     DateTime @default(now())
+  1040→  updatedAt     DateTime @updatedAt
+  1041→
+  1042→  @@index([authorId])
+  1043→  @@index([category])
+  1044→  @@index([rating])
+  1045→  @@index([installCount])
+  1046→  @@index([isFeatured])
+  1047→  @@index([isPublished])
+  1048→
+  1049→  reviews   CopilotReview[]
+  1050→  installs  CopilotInstall[]
+  1051→}
+  1052→
+  1053→model CopilotReview {
+  1054→  id         String   @id @default(cuid())
+  1055→  copilotId String
+  1056→  copilot   CustomCopilot @relation(fields: [copilotId], references: [id], onDelete: Cascade)
+  1057→  reviewerId String   // visitor email
+  1058→  reviewerName String?
+  1059→  rating     Int      // 1-5
+  1060→  comment    String?
+  1061→  createdAt  DateTime @default(now())
+  1062→
+  1063→  @@unique([copilotId, reviewerId])
+  1064→  @@index([copilotId])
+  1065→  @@index([reviewerId])
+  1066→  @@index([rating])
+  1067→}
+  1068→
+  1069→model CopilotInstall {
+  1070→  id         String   @id @default(cuid())
+  1071→  copilotId String
+  1072→  copilot   CustomCopilot @relation(fields: [copilotId], references: [id], onDelete: Cascade)
+  1073→  userId     String   // visitor email
+  1074→  createdAt  DateTime @default(now())
+  1075→
+  1076→  @@unique([copilotId, userId])
+  1077→  @@index([copilotId])
+  1078→  @@index([userId])
+  1079→}
+  1080→
+  1081→// ═══════════════════════════════════════════════════════════
+  1082→// FEATURE 4: AI CERTIFICATION PROGRAM
+  1083→// ═══════════════════════════════════════════════════════════
+  1084→
+  1085→model Certification {
+  1086→  id             String   @id @default(cuid())
+  1087→  modelId        String
+  1088→  modelName      String
+  1089→  provider       String
+  1090→  level          String   @default("standard") // "bronze" | "silver" | "gold" | "platinum"
+  1091→  category       String   @default("general") // "reasoning" | "coding" | "creative" | "math" | "safety" | "multilingual" | "general"
+  1092→  overallScore   Float
+  1093→  benchmarks     String   // JSON: {benchmark_name: score, ...}
+  1094→  criteria       String   // JSON: {min_score, benchmarks_required, ...}
+  1095→  status         String   @default("pending") // "pending" | "evaluating" | "certified" | "expired" | "revoked"
+  1096→  validFrom      DateTime?
+  1097→  validUntil     DateTime?
+  1098→  badgeUrl       String?
+  1099→  certificateUrl String?
+  1100→  certifiedBy    String?  // admin who approved
+  1101→  notes          String?
+  1102→  createdAt      DateTime @default(now())
+  1103→  updatedAt      DateTime @updatedAt
+  1104→
+  1105→  @@unique([modelId, category])
+  1106→  @@index([provider])
+  1107→  @@index([level])
+  1108→  @@index([category])
+  1109→  @@index([status])
+  1110→  @@index([overallScore])
+  1111→}
+  1112→
+  1113→// ═══════════════════════════════════════════════════════════
+  1114→// FEATURE 5: OPEN BENCHMARK PROTOCOL
+  1115→// ═══════════════════════════════════════════════════════════
+  1116→
+  1117→model BenchmarkSubmission {
+  1118→  id            String   @id @default(cuid())
+  1119→  submitterId   String   // visitor email
+  1120→  submitterName String?
+  1121→  modelId       String?
+  1122→  modelName     String
+  1123→  provider      String
+  1124→  benchmark     String
+  1125→  score         Float
+  1126→  maxScore      Float    @default(100)
+  1127→  methodology   String?  // description of testing methodology
+  1128→  evidence      String?  // JSON: test results, logs, screenshots
+  1129→  status        String   @default("pending") // "pending" | "reviewing" | "accepted" | "rejected"
+  1130→  reviewedBy    String?
+  1131→  reviewNotes   String?
+  1132→  isVerified    Boolean  @default(false)
+  1133→  protocolVersion String @default("1.0")
+  1134→  createdAt     DateTime @default(now())
+  1135→  updatedAt     DateTime @updatedAt
+  1136→
+  1137→  @@index([submitterId])
+  1138→  @@index([modelId])
+  1139→  @@index([benchmark])
+  1140→  @@index([status])
+  1141→  @@index([isVerified])
+  1142→}
+  1143→
+  1144→model ProtocolVersion {
+  1145→  id          String   @id @default(cuid())
+  1146→  version     String   @unique // "1.0", "1.1", etc.
+  1147→  name        String
+  1148→  description String
+  1149→  benchmarks  String   // JSON: list of benchmark definitions
+  1150→  criteria    String   // JSON: scoring criteria
+  1151→  isActive    Boolean  @default(true)
+  1152→  publishedAt DateTime @default(now())
+  1153→  createdAt   DateTime @default(now())
+  1154→}
+  1155→
+  1156→// ═══════════════════════════════════════════════════════════
+  1157→// COMMUNITY COLLECTIONS
+  1158→// ═══════════════════════════════════════════════════════════
+  1159→
+  1160→model ThematicCollection {
+  1161→  id          String   @id @default(cuid())
+  1162→  slug        String   @unique
+  1163→  title       String
+  1164→  description String?
+  1165→  author      String?  // visitor email
+  1166→  curator     String?
+  1167→  icon        String?  @default("BookOpen")
+  1168→  color       String?  @default("primary")
+  1169→  sortOrder   Int      @default(0)
+  1170→  isAuto      Boolean  @default(true) // auto (tag-based) vs manual (postIds)
+  1171→  tags        String?  // JSON: array of tag strings (for auto collections)
+  1172→  postIds     String?  // JSON: array of post IDs (for manual collections)
+  1173→  coverImage  String?
+  1174→  isFeatured  Boolean  @default(false)
+  1175→  postCount   Int      @default(0)
+  1176→  createdAt   DateTime @default(now())
+  1177→  updatedAt   DateTime @updatedAt
+  1178→
+  1179→  @@index([author])
+  1180→  @@index([isFeatured])
+  1181→  @@index([isAuto])
+  1182→}
+  1183→
+  1184→// ═══════════════════════════════════════════════════════════
+  1185→// COMMUNITY KNOWLEDGE BASE
+  1186→// ═══════════════════════════════════════════════════════════
+  1187→
+  1188→model KnowledgeItem {
+  1189→  id               String   @id @default(cuid())
+  1190→  title            String
+  1191→  content          String   // Markdown content
+  1192→  category         String   @default("general") // "tutorial" | "guide" | "faq" | "api" | "general"
+  1193→  type             String   @default("faq") // "faq" | "guide" | "tip" | "method" | "summary"
+  1194→  tags             String?  // JSON: array of tag strings
+  1195→  author           String?  // visitor email
+  1196→  authorName       String?
+  1197→  postId           String?  // linked community post
+  1198→  sourceCommentIds String?  // JSON: linked comment IDs
+  1199→  upvotes          Int      @default(0)
+  1200→  views            Int      @default(0)
+  1201→  isFeatured       Boolean  @default(false)
+  1202→  isPublished      Boolean  @default(true)
+  1203→  createdAt        DateTime @default(now())
+  1204→  updatedAt        DateTime @updatedAt
+  1205→
+  1206→  @@index([author])
+  1207→  @@index([category])
+  1208→  @@index([isFeatured])
+  1209→  @@index([isPublished])
+  1210→  @@index([views])
+  1211→}
+  1212→
+  1213→// ═══════════════════════════════════════════════════════════
+  1214→// USER SAVED SEARCHES
+  1215→// ═══════════════════════════════════════════════════════════
+  1216→
+  1217→model SavedSearch {
+  1218→  id        String   @id @default(cuid())
+  1219→  visitorId String   // visitor email
+  1220→  name      String
+  1221→  query     String   // the search query
+  1222→  filters   String?  // JSON: search filters
+  1223→  createdAt DateTime @default(now())
+  1224→  updatedAt DateTime @updatedAt
+  1225→
+  1226→  @@index([visitorId])
+  1227→  @@index([createdAt])
+  1228→}
