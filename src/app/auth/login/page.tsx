@@ -64,23 +64,6 @@ export default function LoginPage() {
 
       const data = await res.json()
 
-      // Redirect pending users to the status check page
-      if (data.status === 'pending') {
-        router.push(`/auth/status?email=${encodeURIComponent(data.email)}`)
-        return
-      }
-
-      // Handle rejected users inline
-      if (data.status === 'rejected') {
-        setBlockedState({
-          type: 'rejected',
-          email: data.email,
-          name: data.name,
-          message: data.message,
-        })
-        return
-      }
-
       if (!res.ok) {
         setError(data.error || 'Login failed')
         return

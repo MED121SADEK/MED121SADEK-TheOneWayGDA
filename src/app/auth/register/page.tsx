@@ -53,13 +53,24 @@ export default function RegisterPage() {
 
       const data = await res.json()
 
-      if (!res.ok && data.status !== 'pending') {
+      if (!res.ok) {
         setError(data.error || 'Registration failed')
         return
       }
 
-      // Show pending review screen
-      setPendingState({ email: data.email || email, name: data.user?.name || name?.trim() || null })
+      // Auto-login: store token and redirect to dashboard
+      if (data.token && data.user) {
+        localStorage.setItem('oneway-auth-token', data.token)
+        localStorage.setItem('oneway-user', JSON.stringify(data.user))
+        localStorage.setItem('oneway-visitor-session', JSON.stringify({
+          email: data.user.email,
+          name: data.user.name || data.user.email.split('@')[0],
+        }))
+        router.push('/dashboard')
+        return
+      }
+
+      setError('Registration succeeded but login failed. Please log in manually.')
     } catch {
       setError('Network error. Please try again.')
     } finally {
