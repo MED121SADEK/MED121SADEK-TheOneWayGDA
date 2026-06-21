@@ -184,12 +184,10 @@ export default function AdminVisitorsPage() {
 
   useEffect(() => {
     const session = localStorage.getItem('oneway-admin-session')
-    const pw = localStorage.getItem('oneway-admin-pw')
-    if (session === 'authenticated' && pw) {
-      setPassword(pw)
+    const token = localStorage.getItem('oneway-admin-token')
+    if (session === 'authenticated' && token) {
+      setPassword(token)
       setIsAuthenticated(true)
-      // Restore cookie for middleware (may have expired)
-      document.cookie = 'oneway-admin-token=' + encodeURIComponent(pw) + ';path=/;max-age=86400;SameSite=Strict'
     }
   }, [])
 
@@ -201,15 +199,17 @@ export default function AdminVisitorsPage() {
     setLoginLoading(true)
     setLoginError('')
     try {
-      const res = await fetch('/api/visitors?limit=1', {
-        headers: { Authorization: `Bearer ${password}` },
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
       })
-      if (res.ok) {
+      const data = await res.json()
+      if (res.ok && data.token) {
         setIsAuthenticated(true)
+        setPassword(data.token)
         localStorage.setItem('oneway-admin-session', 'authenticated')
-        localStorage.setItem('oneway-admin-pw', password)
-        // Set cookie for middleware auth check
-        document.cookie = 'oneway-admin-token=' + encodeURIComponent(password) + ';path=/;max-age=86400;SameSite=Strict'
+        localStorage.setItem('oneway-admin-token', data.token)
       } else {
         setLoginError('Invalid password. Access denied.')
       }
@@ -224,16 +224,14 @@ export default function AdminVisitorsPage() {
     setIsAuthenticated(false)
     setPassword('')
     localStorage.removeItem('oneway-admin-session')
-    localStorage.removeItem('oneway-admin-pw')
-    // Clear cookie for middleware
-    document.cookie = 'oneway-admin-token=;path=/;max-age=0'
+    localStorage.removeItem('oneway-admin-token')
   }, [])
 
   // ── Data Fetching ──────────────────────────────────────────────────────
 
   const fetchVisitors = useCallback(async () => {
-    const pw = localStorage.getItem('oneway-admin-pw') || password
-    if (!pw) return
+    const token = localStorage.getItem('oneway-admin-token') || password
+    if (!token) return
 
     setLoading(true)
     setError('')
@@ -287,7 +285,7 @@ export default function AdminVisitorsPage() {
 
   // ── Actions ────────────────────────────────────────────────────────────
 
-  const getPw = () => { if (typeof window === 'undefined') return password; return localStorage.getItem('oneway-admin-pw') || password }
+  const getPw = () => { if (typeof window === 'undefined') return password; return localStorage.getItem('oneway-admin-token') || password }
   const pw = password
 
   const updateVisitor = useCallback(async (id: string, data: Partial<Visitor>) => {

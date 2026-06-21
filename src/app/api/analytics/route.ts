@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getTokenFromRequest } from '@/lib/auth'
+import { requireAuthOrRespond } from '@/lib/require-auth'
 
-// POST /api/analytics — Run analysis
+// POST /api/analytics — Run analysis (auth required)
 export async function POST(request: NextRequest) {
-  try {
-    const token = getTokenFromRequest(request)
-    const session = token ? await db.userSession.findUnique({ where: { token } }) : null
+  const { response } = await requireAuthOrRespond(request)
+  if (response) return response
 
+  // Get userId from the auth token
+  const { getTokenFromRequest } = await import('@/lib/auth')
+  const token = getTokenFromRequest(request)!
+  const session = await db.userSession.findUnique({ where: { token } })
+
+  try {
     const body = await request.json()
     const { name, type, variables, dataRows } = body
 
@@ -46,9 +51,13 @@ export async function POST(request: NextRequest) {
 
 // GET /api/analytics — List analyses
 export async function GET(request: NextRequest) {
+  const { response } = await requireAuthOrRespond(request)
+  if (response) return response
+
   try {
-    const token = getTokenFromRequest(request)
-    const session = token ? await db.userSession.findUnique({ where: { token } }) : null
+    const { getTokenFromRequest } = await import('@/lib/auth')
+    const token = getTokenFromRequest(request)!
+    const session = await db.userSession.findUnique({ where: { token } })
 
     const { searchParams } = new URL(request.url)
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50)

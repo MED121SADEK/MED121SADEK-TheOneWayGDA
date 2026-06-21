@@ -21,6 +21,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
+    // ─── Role-based access control ───
+    if (user.role === 'rejected') {
+      return NextResponse.json(
+        { error: 'Your account has been declined. Please contact an administrator.', status: 'rejected' },
+        { status: 403 }
+      )
+    }
+
+    if (user.role === 'pending') {
+      return NextResponse.json(
+        { error: 'Your account is pending admin approval.', status: 'pending' },
+        { status: 202 }
+      )
+    }
+
     // ─── Rehash legacy SHA-256 passwords to scrypt on successful login ───
     if (!user.password.startsWith('scrypt$')) {
       const newHash = await hashPassword(password)

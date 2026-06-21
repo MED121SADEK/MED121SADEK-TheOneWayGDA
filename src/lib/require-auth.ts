@@ -89,3 +89,41 @@ export async function requireAuthOrRespond(
   }
   return { user, response: null }
 }
+
+/**
+ * Verify the request has a valid session AND the user has an active role
+ * (i.e., NOT 'pending' or 'rejected').
+ *
+ * Returns the user object if valid, or null if unauthorized/inactive.
+ *
+ * Usage:
+ *   const { user, response } = await requireActiveUserOrRespond(request)
+ *   if (response) return response
+ */
+export async function requireActiveUser(request: NextRequest): Promise<AuthUser> {
+  const user = await requireAuth(request)
+  if (!user) return null
+  if (user.role === 'pending' || user.role === 'rejected') return null
+  return user
+}
+
+export async function requireActiveUserOrRespond(
+  request: NextRequest
+): Promise<{ user: AuthUser; response: null } | { user: null; response: NextResponse }> {
+  const user = await requireActiveUser(request)
+  if (!user) {
+    // Distinguish between no session and inactive account
+    const hasToken = request.headers.get('authorization')?.startsWith('Bearer ')
+      || request.headers.get('x-auth-token')
+      || new URL(request.url).searchParams.get('token')
+
+    return {
+      user: null,
+      response: NextResponse.json(
+        { error: hasToken ? 'Account is not active. Please contact an administrator.' : 'Unauthorized. Please sign in.' },
+        { status: hasToken ? 403 : 401, headers: { 'WWW-Authenticate': 'Bearer realm="oneway"' } }
+      ),
+    }
+  }
+  return { user, response: null }
+}

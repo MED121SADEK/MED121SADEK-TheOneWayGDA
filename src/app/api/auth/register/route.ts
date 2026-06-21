@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { hashPassword, generateToken } from '@/lib/auth'
+import { hashPassword } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
@@ -21,13 +21,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 })
     }
 
-    // Create user with "user" role — immediate access, no approval needed
+    // Create user with 'pending' role — requires admin approval before access
     const user = await db.user.create({
       data: {
         email: normalizedEmail,
         name: name?.trim() || null,
         password: await hashPassword(password),
-        role: 'user',
+        role: 'pending',
         preferences: JSON.stringify({ theme: 'dark', language: 'en', notifications: true, aiSensitivity: 0.7 }),
       },
     })
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     await db.userActivity.create({
       data: {
         userId: user.id,
-        type: 'registration',
+        type: 'registration_pending',
         details: JSON.stringify({ method: 'register', name: name?.trim() || null }),
         ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null,
       },
@@ -43,32 +43,24 @@ export async function POST(request: NextRequest) {
 
     await db.visitor.upsert({
       where: { email: normalizedEmail },
-      update: { name: user.name, status: 'accepted' },
-      create: { email: normalizedEmail, name: user.name, status: 'accepted' },
+      update: { name: user.name, status: 'pending' },
+      create: { email: normalizedEmail, name: user.name, status: 'pending' },
     })
 
-    // Auto-login: create session token
-    const token = generateToken()
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-
-    await db.userSession.create({
-      data: {
-        userId: user.id,
-        token,
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null,
-        userAgent: request.headers.get('user-agent') || null,
-        expiresAt,
-      },
-    })
-
-    await db.user.update({ where: { id: user.id }, data: { lastSeen: new Date() } })
+    // Notify admin about new access request
+    try {
+      const { sendAdminAccessRequestEmail } = await import('@/lib/email')
+      await sendAdminAccessRequestEmail(user.name, normalizedEmail, user.id, null)
+    } catch {
+      // Non-critical — registration still succeeds
+    }
 
     const { password: _pw, ...safeUser } = user
 
     return NextResponse.json({
       user: safeUser,
-      token,
-      message: 'Account created successfully',
+      status: 'pending',
+      message: 'Account created. Your request is pending admin approval.',
     }, { status: 201 })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Registration failed'

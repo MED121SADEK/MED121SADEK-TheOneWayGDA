@@ -51,35 +51,47 @@ export default function AdminApprovalsPage() {
   // Check existing session on mount
   useEffect(() => {
     const session = localStorage.getItem('oneway-admin-session')
-    const pw = localStorage.getItem('oneway-admin-pw')
-    if (session === 'authenticated' && pw) {
-      setPassword(pw)
+    const token = localStorage.getItem('oneway-admin-token')
+    if (session === 'authenticated' && token) {
+      setPassword(token)
       setIsAuthenticated(true)
     }
   }, [])
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!password.trim()) return
-    // Store credentials
-    localStorage.setItem('oneway-admin-session', 'authenticated')
-    localStorage.setItem('oneway-admin-pw', password)
-    document.cookie = `oneway-admin-token=${encodeURIComponent(password)};path=/;max-age=86400;SameSite=Strict`
-    setIsAuthenticated(true)
-    setAuthError('')
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+      const data = await res.json()
+      if (res.ok && data.token) {
+        localStorage.setItem('oneway-admin-session', 'authenticated')
+        localStorage.setItem('oneway-admin-token', data.token)
+        setPassword(data.token)
+        setIsAuthenticated(true)
+        setAuthError('')
+      } else {
+        setAuthError('Invalid password.')
+      }
+    } catch {
+      setAuthError('Network error.')
+    }
   }
 
   const handleLogout = () => {
     setIsAuthenticated(false)
     setPassword('')
     localStorage.removeItem('oneway-admin-session')
-    localStorage.removeItem('oneway-admin-pw')
-    document.cookie = 'oneway-admin-token=;path=/;max-age=0'
+    localStorage.removeItem('oneway-admin-token')
   }
 
   // Auth header helper
   const getHeaders = () => {
-    const pw = localStorage.getItem('oneway-admin-pw') || password
-    return { 'x-admin-token': pw }
+    const token = localStorage.getItem('oneway-admin-token') || password
+    return { 'x-admin-token': token }
   }
 
   const fetchUsers = useCallback(async () => {

@@ -6,11 +6,14 @@
  * POST /api/devops/errors — Log a new error
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db as prisma } from '@/lib/db'
+import { requireAuthOrRespond } from '@/lib/require-auth'
 
 // ── List Errors or Stats ──
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const { response } = await requireAuthOrRespond(request)
+  if (response) return response
   try {
     const { searchParams } = new URL(request.url)
 
@@ -50,7 +53,9 @@ export async function GET(request: Request) {
 }
 
 // ── Log New Error ──
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const { response } = await requireAuthOrRespond(request)
+  if (response) return response
   try {
     const body = await request.json()
     const error = await prisma.appErrorLog.create({

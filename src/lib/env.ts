@@ -20,6 +20,8 @@ const ENV_SPECS: EnvVarSpec[] = [
   // ── Required ──
   { name: 'DATABASE_URL', required: true, validator: (v) => v.startsWith('file:') || v.startsWith('postgresql://') || v.startsWith('mysql://') },
   { name: 'ADMIN_SECRET', required: true, validator: (v) => v.length >= 8, errorMessage: 'ADMIN_SECRET must be at least 8 characters' },
+  { name: 'CSRF_SALT', required: true, validator: (v) => v.length >= 16, errorMessage: 'CSRF_SALT must be at least 16 characters for security' },
+  { name: 'EMAIL_ACTION_SECRET', required: true, validator: (v) => v.length >= 16, errorMessage: 'EMAIL_ACTION_SECRET must be at least 16 characters' },
 
   // ── Optional with defaults ──
   { name: 'NODE_ENV', required: false, defaultValue: 'development', validator: (v) => ['development', 'production', 'test'].includes(v) },

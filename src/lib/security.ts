@@ -162,14 +162,14 @@ export function generateCSRFToken(): string {
 export async function hashToken(token: string): Promise<string> {
   if (typeof crypto !== 'undefined' && crypto.subtle) {
     const encoder = new TextEncoder()
-    const csrfSalt = process.env.CSRF_SALT || 'CHANGE_ME_IN_PRODUCTION'
+    const csrfSalt = process.env.CSRF_SALT
     const data = encoder.encode(token + csrfSalt)
     const hash = await crypto.subtle.digest('SHA-256', data)
     return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, '0')).join('')
   }
   // Fallback for environments without crypto.subtle
   let hash = 0
-  const csrfSalt = process.env.CSRF_SALT || 'CHANGE_ME_IN_PRODUCTION'
+  const csrfSalt = process.env.CSRF_SALT
   const str = token + csrfSalt
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i)

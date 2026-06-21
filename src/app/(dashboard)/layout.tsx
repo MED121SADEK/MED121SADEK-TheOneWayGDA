@@ -27,11 +27,34 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!session) {
       // Use replace to avoid polluting browser history (prevents back-button loops)
       router.replace('/auth/login')
+      return
+    }
+
+    // Block pending/rejected users from accessing the dashboard
+    const role = session.user?.role
+    if (role === 'pending') {
+      const email = session.user?.email
+      router.replace(email ? `/auth/status?email=${encodeURIComponent(email)}` : '/auth/status')
+      return
+    }
+    if (role === 'rejected') {
+      router.replace('/auth/login?oauth_error=rejected')
+      return
     }
   }, [router])
 
   const session = getSession()
   if (!session) {
+    return (
+      <div className="h-screen flex items-center justify-center mesh-gradient">
+        <Loader2 className="size-8 text-primary animate-spin" />
+      </div>
+    )
+  }
+
+  // Show loading while redirecting blocked users
+  const role = session.user?.role
+  if (role === 'pending' || role === 'rejected') {
     return (
       <div className="h-screen flex items-center justify-center mesh-gradient">
         <Loader2 className="size-8 text-primary animate-spin" />

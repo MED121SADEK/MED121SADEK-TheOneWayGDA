@@ -111,7 +111,7 @@ export async function GET(
             name: userInfo.name,
             image: userInfo.avatarUrl,
             password: '', // OAuth users don't have a password
-            role: 'user',
+            role: 'pending',
             preferences: JSON.stringify({ theme: 'dark', language: 'en', notifications: true, aiSensitivity: 0.7 }),
           },
         })
@@ -197,11 +197,17 @@ export async function GET(
       },
     })
 
-    // Clear OAuth cookies
+    // Set session token in httpOnly cookie (avoids leaking in URL, browser history, logs)
     const redirectUrl = new URL(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/auth/oauth-success`)
-    redirectUrl.searchParams.set('token', token)
 
     const response = NextResponse.redirect(redirectUrl.toString())
+    response.cookies.set('oneway-oauth-token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60, // 60 seconds — client must read and transfer to localStorage
+      path: '/',
+    })
     response.cookies.delete('oauth-state')
     response.cookies.delete('oauth-provider')
     return response

@@ -58,19 +58,14 @@ export default function RegisterPage() {
         return
       }
 
-      // Auto-login: store token and redirect to dashboard
-      if (data.token && data.user) {
-        localStorage.setItem('oneway-auth-token', data.token)
-        localStorage.setItem('oneway-user', JSON.stringify(data.user))
-        localStorage.setItem('oneway-visitor-session', JSON.stringify({
-          email: data.user.email,
-          name: data.user.name || data.user.email.split('@')[0],
-        }))
-        router.push('/dashboard')
+      // Account created — redirect to pending status page
+      if (data.status === 'pending') {
+        const normalizedEmail = email.toLowerCase().trim()
+        router.push(`/auth/status?email=${encodeURIComponent(normalizedEmail)}`)
         return
       }
 
-      setError('Registration succeeded but login failed. Please log in manually.')
+      setError('Registration succeeded but something went wrong. Please log in manually.')
     } catch {
       setError('Network error. Please try again.')
     } finally {

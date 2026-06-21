@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'msad41855@gmail.com'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || ''
 const SENDER_EMAIL = process.env.RESEND_API_KEY
   ? (process.env.RESEND_SENDER || 'onboarding@resend.dev')
   : ADMIN_EMAIL
@@ -68,9 +68,10 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_BAS
 // ── Signed token for secure email action links ──
 import { createHmac } from 'crypto'
 
-const EMAIL_SECRET = process.env.EMAIL_ACTION_SECRET || 'oneway-email-secret-2025'
+const EMAIL_SECRET = process.env.EMAIL_ACTION_SECRET || ''
 
 export function generateActionToken(userId: string, action: 'approve' | 'reject' | 'reset' | 'sub_approve' | 'sub_reject'): string {
+  if (!EMAIL_SECRET) throw new Error('EMAIL_ACTION_SECRET is not configured')
   const payload = `${userId}:${action}:${Date.now()}`
   const signature = createHmac('sha256', EMAIL_SECRET).update(payload).digest('hex')
   return Buffer.from(`${payload}:${signature}`).toString('base64url')

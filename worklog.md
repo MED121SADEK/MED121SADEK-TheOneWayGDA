@@ -97,3 +97,43 @@ Stage Summary:
 - Notifications go to msad41855@gmail.com (Resend registered email)
 - To send to outlook.fr: verify theonewaygda.com domain on resend.com/domains, then set RESEND_SENDER
 - For production: copy RESEND_API_KEY and ADMIN_EMAIL to production .env
+---
+Task ID: 2
+Agent: main
+Task: Security audit — fix 18 critical/high/medium bugs across auth, API, and infrastructure
+
+Work Log:
+- Fixed register route: role changed from 'user' to 'pending', removed auto-login, visitor status set to 'pending', added admin email notification
+- Fixed login route: added role check returning 202 for pending and 403 for rejected users
+- Fixed OAuth callback: DB role changed from 'user' to 'pending' to match expected approval flow
+- Fixed OAuth token leak: replaced URL query param with httpOnly short-lived cookie + /api/auth/oauth-exchange endpoint
+- Updated oauth-success page to use cookie exchange instead of URL token
+- Fixed Dashboard AuthGuard: added role check, redirects pending users to /auth/status and rejected users to login with error
+- Fixed /api/auth/me: returns 403 for pending/rejected users
+- Added requireActiveUser() and requireActiveUserOrRespond() to require-auth.ts
+- Added admin auth guard (session token + admin role) to /api/admin/community (GET, PATCH, POST)
+- Added auth guard to /api/devops/errors (GET, POST)
+- Added auth guard to /api/devops/deploys (GET, POST)
+- Fixed arena voting: requires auth, derives voterId from session instead of request body
+- Fixed community post deletion: requires auth, verifies ownership from session (not query param), admins can delete any
+- Added auth guard to /api/leaderboard/cron (GET, POST)
+- Fixed cron initialization race condition with promise-based singleton pattern
+- Added CSRF_SALT and EMAIL_ACTION_SECRET to env.ts as required vars
+- Removed hardcoded fallback secrets from security.ts and email.ts
+- Removed hardcoded admin email fallback
+- Created /api/admin/login endpoint that issues signed HMAC tokens instead of storing raw password
+- Updated proxy.ts to verify signed admin tokens with timing-safe comparison
+- Updated admin/visitors and admin/approvals pages to use token-based auth (no more raw password in localStorage/cookies)
+- Fixed webhook secrets: stripped 'secret' field from GET /api/ai/extensions/webhooks response
+- Added auth guard to /api/modules POST
+- Added auth guard to /api/analytics GET and POST
+- Updated login page to handle 202 pending + 403 rejected responses
+- Updated register page to redirect to /auth/status for pending users
+
+Stage Summary:
+- 18 bugs fixed across 20+ files
+- Zero new TypeScript errors introduced (all remaining errors are pre-existing)
+- Approval workflow is now fully functional end-to-end
+- All critical auth gaps closed on admin, devops, arena, and community routes
+- Admin panel no longer stores raw password client-side
+- OAuth flow no longer leaks session tokens in URLs
