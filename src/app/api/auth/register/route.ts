@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { hashPassword } from '@/lib/auth'
+import { hashPassword, generateToken } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { sendAdminAccessRequestEmail } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,30 +18,16 @@ export async function POST(request: NextRequest) {
 
     const existing = await db.user.findUnique({ where: { email: normalizedEmail } })
     if (existing) {
-      // If user exists and is pending, tell them to wait
-      if (existing.role === 'pending') {
-        return NextResponse.json({
-          status: 'pending',
-          message: 'Your access request is still under review. Our team is evaluating your application. You will receive an email notification as soon as a decision is made.',
-          email: existing.email,
-        }, { status: 202 })
-      }
-      // If user was rejected, let them know
-      if (existing.role === 'rejected') {
-        return NextResponse.json({
-          error: 'Your previous access request was declined. Please contact support for more information.',
-        }, { status: 403 })
-      }
       return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 })
     }
 
-    // Create user with "pending" role — no access until approved by admin
+    // Create user with "user" role — immediate access, no approval needed
     const user = await db.user.create({
       data: {
         email: normalizedEmail,
         name: name?.trim() || null,
         password: await hashPassword(password),
-        role: 'pending',
+        role: 'user',
         preferences: JSON.stringify({ theme: 'dark', language: 'en', notifications: true, aiSensitivity: 0.7 }),
       },
     })
@@ -50,7 +35,7 @@ export async function POST(request: NextRequest) {
     await db.userActivity.create({
       data: {
         userId: user.id,
-        type: 'registration_pending',
+        type: 'registration',
         details: JSON.stringify({ method: 'register', name: name?.trim() || null }),
         ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null,
       },
@@ -58,24 +43,32 @@ export async function POST(request: NextRequest) {
 
     await db.visitor.upsert({
       where: { email: normalizedEmail },
-      update: { name: user.name, status: 'pending' },
-      create: { email: normalizedEmail, name: user.name, status: 'pending' },
+      update: { name: user.name, status: 'accepted' },
+      create: { email: normalizedEmail, name: user.name, status: 'accepted' },
     })
 
-    // Send admin notification email (fire-and-forget, but log errors)
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
-    sendAdminAccessRequestEmail(user.name, user.email, user.id, ipAddress).catch((err) => {
-      console.error('[Register] Failed to send admin notification email:', err instanceof Error ? err.message : err)
+    // Auto-login: create session token
+    const token = generateToken()
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
+    await db.userSession.create({
+      data: {
+        userId: user.id,
+        token,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null,
+        userAgent: request.headers.get('user-agent') || null,
+        expiresAt,
+      },
     })
+
+    await db.user.update({ where: { id: user.id }, data: { lastSeen: new Date() } })
+
+    const { password: _pw, ...safeUser } = user
 
     return NextResponse.json({
-      status: 'pending',
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-      },
-      message: 'Your access request is still under review. Our team is evaluating your application. You will receive an email notification as soon as a decision is made.',
+      user: safeUser,
+      token,
+      message: 'Account created successfully',
     }, { status: 201 })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Registration failed'

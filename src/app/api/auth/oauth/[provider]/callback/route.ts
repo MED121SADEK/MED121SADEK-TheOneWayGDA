@@ -101,7 +101,7 @@ export async function GET(
           },
         })
       } else {
-        // New user — create with 'pending' role
+        // New user — create with 'user' role (immediate access)
         isNewUser = true
         const randomPassword = `oauth_${Date.now()}_${Math.random().toString(36).slice(2)}`
 
@@ -111,7 +111,7 @@ export async function GET(
             name: userInfo.name,
             image: userInfo.avatarUrl,
             password: '', // OAuth users don't have a password
-            role: 'pending',
+            role: 'user',
             preferences: JSON.stringify({ theme: 'dark', language: 'en', notifications: true, aiSensitivity: 0.7 }),
           },
         })

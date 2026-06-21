@@ -27,26 +27,7 @@ export async function POST(request: NextRequest) {
       await db.user.update({ where: { id: user.id }, data: { password: newHash } })
     }
 
-    // ─── Pending users: show "under review" message ───
-    if (user.role === 'pending') {
-      return NextResponse.json({
-        status: 'pending',
-        email: user.email,
-        name: user.name,
-        message: 'Your access request is still under review. Our team is evaluating your application. You will receive an email notification as soon as a decision is made.',
-      }, { status: 202 })
-    }
-
-    // ─── Rejected users: show declined message ───
-    if (user.role === 'rejected') {
-      return NextResponse.json({
-        status: 'rejected',
-        email: user.email,
-        message: 'Your access request was declined. If you believe this is an error, please contact our support team.',
-      }, { status: 403 })
-    }
-
-    // ─── Approved users: normal login flow ───
+    // ─── Normal login flow ───
     const token = generateToken()
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 
