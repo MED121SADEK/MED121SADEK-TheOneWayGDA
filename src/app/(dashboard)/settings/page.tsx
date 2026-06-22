@@ -139,8 +139,9 @@ export default function SettingsPage() {
         setNotifications(prefs.notifications !== false)
       } catch { /* use defaults */ }
       try {
-        const langs = u.proficientLanguages ? JSON.parse(String(u.proficientLanguages)) : []
-        setSelectedLanguages(Array.isArray(langs) ? langs : [u.preferredLanguage || 'en'])
+        const langs = u.proficientLanguages ? JSON.parse(String(u.proficientLanguages)) : null
+        const parsed = Array.isArray(langs) && langs.length > 0 ? langs : [u.preferredLanguage || 'en']
+        setSelectedLanguages(parsed)
       } catch { setSelectedLanguages([u.preferredLanguage || 'en']) }
       fetchActivities()
     }

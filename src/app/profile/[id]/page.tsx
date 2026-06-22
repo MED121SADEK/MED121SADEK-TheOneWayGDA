@@ -48,6 +48,18 @@ interface VerifiedInfo {
   websiteUrl?: string | null
 }
 
+interface LangItem {
+  code: string
+  label: string
+  flag: string
+  isPrimary?: boolean
+}
+
+interface UserLanguageData {
+  preferredLanguage: { code: string; label: string; flag: string } | null
+  proficientLanguages: LangItem[]
+}
+
 function timeAgo(date: string): string {
   const now = Date.now()
   const d = new Date(date).getTime()
@@ -102,6 +114,7 @@ export default function UserProfilePage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('posts')
   const [verifiedInfo, setVerifiedInfo] = useState<VerifiedInfo | null>(null)
+  const [userLangs, setUserLangs] = useState<UserLanguageData | null>(null)
 
   // Profile data derived from posts & verified info
   const [displayName, setDisplayName] = useState(userId)
@@ -171,6 +184,22 @@ export default function UserProfilePage() {
       } catch { /* silent */ }
     }
     fetchVerified()
+  }, [userId])
+
+  /* ─── Fetch Language Badges ─── */
+  useEffect(() => {
+    const fetchLangs = async () => {
+      try {
+        const res = await fetch(`/api/community/user-languages?email=${encodeURIComponent(userId)}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.proficientLanguages && data.proficientLanguages.length > 0) {
+            setUserLangs(data)
+          }
+        }
+      } catch { /* silent */ }
+    }
+    fetchLangs()
   }, [userId])
 
   /* ─── Computed ─── */
@@ -290,6 +319,28 @@ export default function UserProfilePage() {
                   </a>
                 )}
               </div>
+
+              {/* Language Badges */}
+              {userLangs && userLangs.proficientLanguages.length > 0 && (
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  {userLangs.proficientLanguages.map((lang) => (
+                    <span
+                      key={lang.code}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+                        lang.isPrimary
+                          ? 'border-primary/30 bg-primary/10 text-primary'
+                          : 'border-border/40 bg-muted/30 text-muted-foreground'
+                      }`}
+                    >
+                      <span>{lang.flag}</span>
+                      <span>{lang.label}</span>
+                      {lang.isPrimary && (
+                        <span className="text-[8px] uppercase tracking-wider opacity-70">primary</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* Bio */}
               {(verifiedInfo?.bio || earliestPost) && (

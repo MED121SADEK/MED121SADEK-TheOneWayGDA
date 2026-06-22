@@ -70,7 +70,8 @@ export async function POST(request: NextRequest) {
     // Notify admin about new access request
     try {
       const { sendAdminAccessRequestEmail } = await import('@/lib/email')
-      await sendAdminAccessRequestEmail(user.name, normalizedEmail, user.id, sanitizedLangs.join(', '))
+      const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
+      await sendAdminAccessRequestEmail(user.name, normalizedEmail, user.id, ip, sanitizedLangs.join(', '))
     } catch {
       // Non-critical — registration still succeeds
     }

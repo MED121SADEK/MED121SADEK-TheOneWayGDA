@@ -137,3 +137,67 @@ Stage Summary:
 - All critical auth gaps closed on admin, devops, arena, and community routes
 - Admin panel no longer stores raw password client-side
 - OAuth flow no longer leaks session tokens in URLs
+
+---
+Task ID: 1
+Agent: main
+Task: Admin Panel Language Analytics
+
+Work Log:
+- Created `/api/admin/language-stats` GET endpoint with admin auth
+- Queries User table for: preferred language distribution, proficient language aggregate counts, pending users by language, monthly breakdown (last 6 months)
+- Returns summary stats: totalActive, totalPending, multiLanguageUsers, avgLanguagesPerUser, uniqueLanguagesUsed
+- All language codes validated against ALLOWED_LANG_CODES whitelist
+- Added collapsible "Language Analytics" card to `/admin/approvals` page
+- Card shows: 4 summary metric cards, horizontal bar chart for preferred language distribution, pill badges for proficient languages, amber pills for pending users by language
+- Auto-fetches on admin login alongside existing data
+- Added `Languages`, `ChevronDown`, `ChevronUp`, `BarChart3` icon imports
+- Added `LangStatItem`, `LanguageStats` interfaces
+
+Stage Summary:
+- New API: `src/app/api/admin/language-stats/route.ts`
+- Modified: `src/app/admin/approvals/page.tsx` (language analytics UI)
+- Zero new TypeScript errors
+- Build passes clean
+
+---
+Task ID: 2
+Agent: main
+Task: OAuth Flow Language Gap — Capture language preference during OAuth sign-in flow
+
+Work Log:
+- Added `detectLanguageFromHeader()` function to OAuth callback that parses Accept-Language header, sorts by quality factor, and matches against ALLOWED_LANG_CODES whitelist
+- New OAuth users: `preferredLanguage` and `proficientLanguages` DB columns now set from browser language (not just `preferences` JSON blob)
+- Existing users linking OAuth: if they still have default English-only values, browser language is auto-applied (keeping English as secondary)
+- Activity log now records `primaryLanguage` in details JSON
+- Visitor entry now stores `language` field from detection
+- Admin notification email now receives language name via the existing `languages` parameter
+- All validated against the 12-language whitelist
+
+Stage Summary:
+- Modified: `src/app/api/auth/oauth/[provider]/callback/route.ts`
+- Added `detectLanguageFromHeader()` with q-value sorting and whitelist validation
+- OAuth users no longer have a language gap vs email-registered users
+- Zero new TypeScript errors
+
+---
+Task ID: 3
+Agent: main
+Task: Community Profile Language Badges — Show language badges on user profiles
+
+Work Log:
+- Created public API endpoint `/api/community/user-languages?email=...` that returns only non-sensitive language data
+- Returns `preferredLanguage` (code, label, flag) and `proficientLanguages` array with `isPrimary` flag
+- All language codes validated and enriched with LANG_META lookup (flag emoji + human-readable label)
+- Updated `/profile/[id]/page.tsx` to fetch and display language badges
+- Added `LangItem` and `UserLanguageData` interfaces
+- Language badges rendered between institution/email info and bio section
+- Primary language badge gets highlighted style (primary color border + bg), others get muted style
+- Each badge shows: flag emoji + language name + "primary" micro-label for the main language
+- Fetches in parallel with verified info, silently fails if user has no account
+
+Stage Summary:
+- New API: `src/app/api/community/user-languages/route.ts`
+- Modified: `src/app/profile/[id]/page.tsx` (language badges in profile header)
+- Zero new TypeScript errors
+- Build passes clean

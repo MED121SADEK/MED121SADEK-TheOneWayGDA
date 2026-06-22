@@ -120,7 +120,8 @@ export async function sendAdminAccessRequestEmail(
   userName: string | null,
   userEmail: string,
   userId: string,
-  ipAddress: string | null
+  ipAddress: string | null,
+  languages?: string
 ): Promise<boolean> {
   try {
     const transporter = getTransporter()
@@ -153,6 +154,7 @@ export async function sendAdminAccessRequestEmail(
 <tr><td style="color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Date</td>
 <td style="color:#1e293b;font-size:14px;border-top:1px solid #e2e8f0;">${now}</td></tr>
 ${ipAddress ? `<tr><td style="color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">IP</td><td style="color:#94a3b8;font-size:13px;font-family:monospace;border-top:1px solid #e2e8f0;">${ipAddress}</td></tr>` : ''}
+${languages ? `<tr><td style="color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Languages</td><td style="color:#1e293b;font-size:14px;border-top:1px solid #e2e8f0;">${languages}</td></tr>` : ''}
 </table>
 
 <p style="margin:0 0 16px;color:#334155;font-size:14px;font-weight:600;">Review and take action:</p>

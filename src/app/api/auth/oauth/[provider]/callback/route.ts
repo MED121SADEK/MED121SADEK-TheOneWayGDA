@@ -3,6 +3,27 @@ import { getProvider, exchangeCodeForToken, getUserInfo } from '@/lib/oauth'
 import { generateToken } from '@/lib/auth'
 import { db } from '@/lib/db'
 
+const ALLOWED_LANG_CODES = ['en','fr','ar','es','de','zh','ja','ko','pt','ru','hi','tr']
+
+/**
+ * Parse Accept-Language header and return the best matching allowed language code.
+ * Falls back to 'en' if no match is found.
+ */
+function detectLanguageFromHeader(acceptLang: string | null): string {
+  if (!acceptLang) return 'en'
+  // Parse: "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7"
+  const langs = acceptLang.split(',').map(part => {
+    const code = part.split(';')[0].trim().split('-')[0].toLowerCase()
+    const q = parseFloat(part.match(/q=([\d.]+)/)?.[1] || '1')
+    return { code, q }
+  }).sort((a, b) => b.q - a.q)
+
+  for (const { code } of langs) {
+    if (ALLOWED_LANG_CODES.includes(code)) return code
+  }
+  return 'en'
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ provider: string }> }
@@ -83,9 +104,23 @@ export async function GET(
       const existingUser = await db.user.findUnique({ where: { email: normalizedEmail } })
 
       if (existingUser) {
-        // Link OAuth to existing user
+        // Link OAuth to existing user — fill language gaps if user has default-only values
         userId = existingUser.id
         userRole = existingUser.role
+
+        // If user still has default English-only language (never customized), update from browser
+        if (existingUser.preferredLanguage === 'en' && existingUser.proficientLanguages === '["en"]') {
+          const detectedLang = detectLanguageFromHeader(request.headers.get('accept-language'))
+          if (detectedLang !== 'en') {
+            await db.user.update({
+              where: { id: userId },
+              data: {
+                preferredLanguage: detectedLang,
+                proficientLanguages: JSON.stringify([detectedLang, 'en']),
+              },
+            })
+          }
+        }
 
         await db.oAuthAccount.create({
           data: {
@@ -101,9 +136,10 @@ export async function GET(
           },
         })
       } else {
-        // New user — create with 'user' role (immediate access)
+        // New user — detect language from browser Accept-Language header
         isNewUser = true
         const randomPassword = `oauth_${Date.now()}_${Math.random().toString(36).slice(2)}`
+        const detectedLang = detectLanguageFromHeader(request.headers.get('accept-language'))
 
         const newUser = await db.user.create({
           data: {
@@ -112,7 +148,9 @@ export async function GET(
             image: userInfo.avatarUrl,
             password: '', // OAuth users don't have a password
             role: 'pending',
-            preferences: JSON.stringify({ theme: 'dark', language: 'en', notifications: true, aiSensitivity: 0.7 }),
+            preferredLanguage: detectedLang,
+            proficientLanguages: JSON.stringify([detectedLang]),
+            preferences: JSON.stringify({ theme: 'dark', language: detectedLang, notifications: true, aiSensitivity: 0.7 }),
           },
         })
 
@@ -133,26 +171,27 @@ export async function GET(
           },
         })
 
-        // Create activity log
+        // Create activity log with language info
         await db.userActivity.create({
           data: {
             userId,
             type: 'registration_pending',
-            details: JSON.stringify({ method: `oauth_${providerName}`, name: userInfo.name }),
+            details: JSON.stringify({ method: `oauth_${providerName}`, name: userInfo.name, primaryLanguage: detectedLang }),
           },
         })
 
-        // Create visitor entry
+        // Create visitor entry with detected language
         await db.visitor.upsert({
           where: { email: normalizedEmail },
-          update: { name: userInfo.name, status: 'pending' },
-          create: { email: normalizedEmail, name: userInfo.name, status: 'pending' },
+          update: { name: userInfo.name, status: 'pending', language: detectedLang },
+          create: { email: normalizedEmail, name: userInfo.name, status: 'pending', language: detectedLang },
         })
 
-        // Send admin notification email
+        // Send admin notification email with language info
         try {
           const { sendAdminAccessRequestEmail } = await import('@/lib/email')
-          sendAdminAccessRequestEmail(userInfo.name, normalizedEmail, userId, null).catch(() => {})
+          const LANG_NAMES: Record<string, string> = { en:'English', fr:'French', ar:'Arabic', es:'Spanish', de:'German', zh:'Chinese', ja:'Japanese', ko:'Korean', pt:'Portuguese', ru:'Russian', hi:'Hindi', tr:'Turkish' }
+          sendAdminAccessRequestEmail(userInfo.name, normalizedEmail, userId, null, LANG_NAMES[detectedLang] || detectedLang.toUpperCase()).catch(() => {})
         } catch { /* ignore */ }
       }
     }
