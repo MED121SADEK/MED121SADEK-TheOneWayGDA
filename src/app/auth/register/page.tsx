@@ -10,15 +10,89 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Loader2, Mail, Lock, User, Shield, Sparkles, Clock, CheckCircle2, XCircle, Github, Chrome, GitBranch, Monitor } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, Mail, Lock, User, Shield, Sparkles, Clock, CheckCircle2, Github, Chrome, GitBranch, Monitor, Globe, Check } from 'lucide-react'
+
+// ── Language options matching GDA's supported platform languages ──
+const LANGUAGES = [
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'fr', label: 'French', flag: '🇫🇷' },
+  { code: 'ar', label: 'Arabic', flag: '🇸🇦' },
+  { code: 'es', label: 'Spanish', flag: '🇪🇸' },
+  { code: 'de', label: 'German', flag: '🇩🇪' },
+  { code: 'zh', label: 'Chinese', flag: '🇨🇳' },
+  { code: 'ja', label: 'Japanese', flag: '🇯🇵' },
+  { code: 'ko', label: 'Korean', flag: '🇰🇷' },
+  { code: 'pt', label: 'Portuguese', flag: '🇧🇷' },
+  { code: 'ru', label: 'Russian', flag: '🇷🇺' },
+  { code: 'hi', label: 'Hindi', flag: '🇮🇳' },
+  { code: 'tr', label: 'Turkish', flag: '🇹🇷' },
+] as const
 
 const fadeUp = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' as const } },
 }
 
+// ── Step indicator component ──
+function StepIndicator({ currentStep, onBackToStep1 }: { currentStep: 1 | 2; onBackToStep1?: () => void }) {
+  return (
+    <div className="flex items-center justify-center gap-2 mb-5">
+      <button
+        type="button"
+        onClick={onBackToStep1}
+        className={`flex items-center gap-1.5 ${onBackToStep1 ? 'cursor-pointer' : 'cursor-default'}`}
+      >
+        <div className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+          currentStep >= 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+        }`}>
+          {currentStep > 1 ? <Check className="size-3.5" /> : '1'}
+        </div>
+        <span className={`text-xs font-medium ${currentStep > 1 ? 'text-primary' : 'text-foreground'}`}>Language</span>
+      </button>
+      <div className={`w-8 h-px ${currentStep >= 2 ? 'bg-primary/50' : 'bg-border'}`} />
+      <div className="flex items-center gap-1.5">
+        <div className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+          currentStep >= 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+        }`}>
+          2
+        </div>
+        <span className={`text-xs font-medium ${currentStep >= 2 ? 'text-foreground' : 'text-muted-foreground'}`}>Details</span>
+      </div>
+    </div>
+  )
+}
+
+// ── Selected languages summary ──
+function LanguageSummary({ languages, onChange }: { languages: string[]; onChange: () => void }) {
+  return (
+    <div className="rounded-lg bg-muted/40 border border-border/30 px-4 py-2 mb-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          {languages.length === 1 ? 'Language:' : 'Languages:'}
+        </p>
+        <button type="button" onClick={onChange} className="text-xs text-primary hover:underline cursor-pointer">
+          Change
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1.5 mt-1.5">
+        {languages.map((code) => {
+          const lang = LANGUAGES.find((l) => l.code === code)
+          return (
+            <Badge key={code} variant="secondary" className="text-xs gap-1 px-2 py-0.5">
+              <span>{lang?.flag}</span>
+              {lang?.label}
+            </Badge>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function RegisterPage() {
   const router = useRouter()
+  const [step, setStep] = useState<1 | 2>(1)
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([])
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -26,6 +100,23 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [pendingState, setPendingState] = useState<{ email: string; name: string | null } | null>(null)
+
+  const toggleLanguage = (code: string) => {
+    setSelectedLanguages((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    )
+  }
+
+  const goToStep1 = () => { setStep(1); setError('') }
+
+  const handleLanguageNext = () => {
+    if (selectedLanguages.length === 0) {
+      setError('Please select at least one language')
+      return
+    }
+    setError('')
+    setStep(2)
+  }
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,7 +139,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, password }),
+        body: JSON.stringify({ email, name, password, languages: selectedLanguages }),
       })
 
       const data = await res.json()
@@ -94,78 +185,124 @@ export default function RegisterPage() {
         <motion.div {...fadeUp} className="w-full max-w-md">
 
           <AnimatePresence mode="wait">
-            {pendingState ? (
-              /* ─── Pending Review Screen ─── */
+            {/* ─── Step 1: Language Selection ─── */}
+            {!pendingState && step === 1 && (
               <motion.div
-                key="pending"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4 }}
+                key="language"
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -40 }}
+                transition={{ duration: 0.35, ease: 'easeOut' as const }}
               >
                 <Card className="border-border/40 bg-card/60 backdrop-blur-sm">
                   <CardHeader className="text-center pb-2">
-                    <div className="mx-auto mb-4 size-16 rounded-2xl bg-amber-500/10 flex items-center justify-center">
-                      <Clock className="size-8 text-amber-500" />
+                    <div className="mx-auto mb-4 size-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                      <Globe className="size-7 text-primary" />
                     </div>
-                    <CardTitle className="text-2xl font-bold">Access Request Submitted</CardTitle>
-                    <CardDescription className="text-sm text-muted-foreground mt-2">
-                      Thank you, {pendingState.name || 'User'}!
+                    <CardTitle className="text-2xl font-bold">Choose Your Languages</CardTitle>
+                    <CardDescription className="text-sm text-muted-foreground mt-1">
+                      Select the languages you are proficient in. This personalizes your experience on TheOneWayGDA.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="pt-4 space-y-5">
-                    {/* Review message */}
-                    <div className="rounded-xl bg-amber-500/5 border border-amber-500/15 px-5 py-4">
-                      <p className="text-sm text-foreground/90 leading-relaxed">
-                        Your access request is still <span className="font-semibold text-amber-500">under review</span>. Our team is evaluating your application. You will receive an email notification at <span className="font-medium text-foreground">{pendingState.email}</span> as soon as a decision is made.
+                  <CardContent className="pt-4">
+                    {error && (
+                      <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-3 text-sm text-rose-400 mb-4">
+                        {error}
+                      </div>
+                    )}
+
+                    <StepIndicator currentStep={1} />
+
+                    {/* Language grid */}
+                    <div className="grid grid-cols-3 gap-2.5 mb-6">
+                      {LANGUAGES.map((lang) => {
+                        const isSelected = selectedLanguages.includes(lang.code)
+                        return (
+                          <button
+                            key={lang.code}
+                            type="button"
+                            onClick={() => toggleLanguage(lang.code)}
+                            className={`
+                              relative flex flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-sm transition-all duration-200
+                              ${isSelected
+                                ? 'border-primary/60 bg-primary/10 shadow-sm shadow-primary/10'
+                                : 'border-border/40 bg-background/50 hover:border-primary/30 hover:bg-accent/30'
+                              }
+                            `}
+                          >
+                            {isSelected && (
+                              <div className="absolute top-1.5 right-1.5">
+                                <Check className="size-3.5 text-primary" />
+                              </div>
+                            )}
+                            <span className="text-2xl leading-none">{lang.flag}</span>
+                            <span className={`text-xs font-medium leading-tight ${isSelected ? 'text-primary' : 'text-foreground/80'}`}>
+                              {lang.label}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {/* Selected summary */}
+                    {selectedLanguages.length > 0 && (
+                      <div className="rounded-lg bg-muted/40 border border-border/30 px-4 py-2.5 mb-5">
+                        <p className="text-xs text-muted-foreground mb-1.5">
+                          {selectedLanguages.length === 1 ? 'Selected language:' : 'Selected languages:'}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedLanguages.map((code) => {
+                            const lang = LANGUAGES.find((l) => l.code === code)
+                            return (
+                              <Badge key={code} variant="secondary" className="text-xs gap-1 px-2 py-0.5">
+                                <span>{lang?.flag}</span>
+                                {lang?.label}
+                              </Badge>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      type="button"
+                      className="w-full"
+                      size="lg"
+                      disabled={selectedLanguages.length === 0}
+                      onClick={handleLanguageNext}
+                    >
+                      Continue to Registration
+                      <ArrowRight className="size-4 ml-2" />
+                    </Button>
+
+                    <div className="text-center pt-3">
+                      <p className="text-sm text-muted-foreground">
+                        Already have an account?{' '}
+                        <Link href="/auth/login" className="text-primary hover:underline font-medium">
+                          Sign in
+                        </Link>
                       </p>
                     </div>
 
-                    {/* Timeline */}
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">What happens next</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-3">
-                          <CheckCircle2 className="size-4 text-emerald-500 mt-0.5 shrink-0" />
-                          <p className="text-sm text-foreground/80">Your request has been received and is in our queue</p>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <div className="size-4 rounded-full border-2 border-amber-500/40 mt-0.5 shrink-0 flex items-center justify-center">
-                            <div className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                          </div>
-                          <p className="text-sm text-foreground/80">Our team will review your application</p>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <div className="size-4 rounded-full border-2 border-muted-foreground/20 mt-0.5 shrink-0" />
-                          <p className="text-sm text-muted-foreground">You&apos;ll receive a confirmation email once approved</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2 pt-2">
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => router.push('/auth/login')}
-                      >
-                        Back to Sign In
-                      </Button>
-                      <Link href="/" className="text-center">
-                        <span className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                          Return to Homepage
-                        </span>
-                      </Link>
+                    <div className="flex items-center justify-center pt-1">
+                      <Badge variant="outline" className="text-[10px] gap-1 border-primary/20 text-primary/60">
+                        <Shield className="size-2.5" />
+                        Your data is encrypted and secure
+                      </Badge>
                     </div>
                   </CardContent>
                 </Card>
               </motion.div>
-            ) : (
-              /* ─── Registration Form ─── */
+            )}
+
+            {/* ─── Step 2: Registration Form ─── */}
+            {!pendingState && step === 2 && (
               <motion.div
                 key="form"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -40 }}
+                transition={{ duration: 0.35, ease: 'easeOut' as const }}
               >
                 <Card className="border-border/40 bg-card/60 backdrop-blur-sm">
                   <CardHeader className="text-center pb-2">
@@ -178,6 +315,9 @@ export default function RegisterPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-4">
+                    <StepIndicator currentStep={2} onBackToStep1={goToStep1} />
+                    <LanguageSummary languages={selectedLanguages} onChange={goToStep1} />
+
                     <form onSubmit={handleRegister} className="space-y-4">
                       {error && (
                         <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-3 text-sm text-rose-400">
@@ -316,6 +456,73 @@ export default function RegisterPage() {
                         </a>
                       </div>
                     </form>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* ─── Pending Review Screen ─── */}
+            {pendingState && (
+              <motion.div
+                key="pending"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <Card className="border-border/40 bg-card/60 backdrop-blur-sm">
+                  <CardHeader className="text-center pb-2">
+                    <div className="mx-auto mb-4 size-16 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+                      <Clock className="size-8 text-amber-500" />
+                    </div>
+                    <CardTitle className="text-2xl font-bold">Access Request Submitted</CardTitle>
+                    <CardDescription className="text-sm text-muted-foreground mt-2">
+                      Thank you, {pendingState.name || 'User'}!
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4 space-y-5">
+                    {/* Review message */}
+                    <div className="rounded-xl bg-amber-500/5 border border-amber-500/15 px-5 py-4">
+                      <p className="text-sm text-foreground/90 leading-relaxed">
+                        Your access request is still <span className="font-semibold text-amber-500">under review</span>. Our team is evaluating your application. You will receive an email notification at <span className="font-medium text-foreground">{pendingState.email}</span> as soon as a decision is made.
+                      </p>
+                    </div>
+
+                    {/* Timeline */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">What happens next</h4>
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-3">
+                          <CheckCircle2 className="size-4 text-emerald-500 mt-0.5 shrink-0" />
+                          <p className="text-sm text-foreground/80">Your request has been received and is in our queue</p>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="size-4 rounded-full border-2 border-amber-500/40 mt-0.5 shrink-0 flex items-center justify-center">
+                            <div className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          </div>
+                          <p className="text-sm text-foreground/80">Our team will review your application</p>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="size-4 rounded-full border-2 border-muted-foreground/20 mt-0.5 shrink-0" />
+                          <p className="text-sm text-muted-foreground">You&apos;ll receive a confirmation email once approved</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => router.push('/auth/login')}
+                      >
+                        Back to Sign In
+                      </Button>
+                      <Link href="/" className="text-center">
+                        <span className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                          Return to Homepage
+                        </span>
+                      </Link>
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>

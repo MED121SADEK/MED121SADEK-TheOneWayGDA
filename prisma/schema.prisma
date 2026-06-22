@@ -626,9 +626,11 @@ model User {
   company         String?
   location        String?
   website         String?
-  skills          String?   // JSON: ["statistics", "python", ...]
-  preferences     String?   // JSON: {theme, language, notifications...}
-  isOnboarded     Boolean   @default(false)
+  skills              String?   // JSON: ["statistics", "python", ...]
+  preferredLanguage   String    @default("en") // ISO 639-1 primary language code
+  proficientLanguages String?   // JSON array: ["en", "fr", "ar", ...]
+  preferences         String?   // JSON: {theme, notifications, aiSensitivity...}
+  isOnboarded         Boolean   @default(false)
   resetToken      String?
   resetTokenExpiry DateTime?
   createdAt       DateTime  @default(now())
@@ -637,6 +639,7 @@ model User {
 
   @@index([role])
   @@index([isOnboarded])
+  @@index([preferredLanguage])
 
   sessions UserSession[]
   activities UserActivity[]
