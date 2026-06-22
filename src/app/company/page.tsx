@@ -162,8 +162,15 @@ export default function CompanyPage() {
                 <motion.div key={leader.name} variants={fadeUp} custom={i + 2}>
                   <Card className="card-premium h-full hover:border-primary/30 transition-all duration-300 text-center">
                     <CardContent className="p-8">
-                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mx-auto mb-4 ring-4 ring-primary/10">
-                        <leader.icon className="size-8 text-primary" />
+                      <div className="w-24 h-24 rounded-full mx-auto mb-4 ring-4 ring-primary/20 overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20">
+                        <Image
+                          src="/images/founder.png"
+                          alt="Mohammed Essadek"
+                          width={96}
+                          height={96}
+                          className="w-full h-full object-cover"
+                          priority
+                        />
                       </div>
                       <h3 className="text-lg font-bold">{leader.name}</h3>
                       <p className="text-sm text-primary mt-1">{leader.title}</p>
