@@ -23,6 +23,21 @@ import {
 import { authFetch } from '@/lib/auth-fetch'
 
 /* ─── Types ─── */
+const LANG_MAP: Record<string, { label: string; flag: string }> = {
+  en: { label: 'English', flag: '🇬🇧' },
+  fr: { label: 'French', flag: '🇫🇷' },
+  ar: { label: 'Arabic', flag: '🇸🇦' },
+  es: { label: 'Spanish', flag: '🇪🇸' },
+  de: { label: 'German', flag: '🇩🇪' },
+  zh: { label: 'Chinese', flag: '🇨🇳' },
+  ja: { label: 'Japanese', flag: '🇯🇵' },
+  ko: { label: 'Korean', flag: '🇰🇷' },
+  pt: { label: 'Portuguese', flag: '🇧🇷' },
+  ru: { label: 'Russian', flag: '🇷🇺' },
+  hi: { label: 'Hindi', flag: '🇮🇳' },
+  tr: { label: 'Turkish', flag: '🇹🇷' },
+}
+
 interface UserData {
   id: string
   email: string
@@ -33,6 +48,8 @@ interface UserData {
   location: string | null
   website: string | null
   skills: string | null
+  preferredLanguage: string
+  proficientLanguages: string | null
   isOnboarded: boolean
   createdAt: string
   lastSeen: string
@@ -295,6 +312,25 @@ export default function DashboardPage() {
                       <Target className="size-3" /> {String(user.company)}
                     </p>
                   )}
+                  {user.proficientLanguages && (() => {
+                    try {
+                      const langs: string[] = JSON.parse(String(user.proficientLanguages))
+                      if (langs.length === 0) return null
+                      return (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {langs.map((code: string) => {
+                            const lang = LANG_MAP[code]
+                            return lang ? (
+                              <Badge key={code} variant="secondary" className="text-[10px] gap-1 px-2 py-0.5">
+                                <span>{lang.flag}</span>
+                                {lang.label}
+                              </Badge>
+                            ) : null
+                          })}
+                        </div>
+                      )
+                    } catch { return null }
+                  })()}
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
                   <Button size="sm" className="gap-1.5" onClick={() => router.push('/workflow/new')}>
@@ -554,8 +590,32 @@ export default function DashboardPage() {
                             <Globe className="size-3" /> {String(user.location)}
                           </div>
                         )}
+                        {user.proficientLanguages && (() => {
+                          try {
+                            const langs: string[] = JSON.parse(String(user.proficientLanguages))
+                            if (langs.length === 0) return null
+                            return (
+                              <div className="flex flex-wrap gap-1.5">
+                                <span className="text-xs text-muted-foreground w-full mb-0.5">Languages</span>
+                                {langs.map((code: string) => {
+                                  const lang = LANG_MAP[code]
+                                  return lang ? (
+                                    <Badge key={code} variant="outline" className="text-[10px] gap-1 px-2 py-0.5 border-primary/20">
+                                      <span>{lang.flag}</span>
+                                      {lang.label}
+                                      {code === user.preferredLanguage && (
+                                        <span className="text-[8px] text-primary ml-0.5">primary</span>
+                                      )}
+                                    </Badge>
+                                  ) : null
+                                })}
+                              </div>
+                            )
+                          } catch { return null }
+                        })()}
                         {user.skills && (
                           <div className="flex flex-wrap gap-1.5">
+                            <span className="text-xs text-muted-foreground w-full mb-0.5">Skills</span>
                             {JSON.parse(String(user.skills)).map((skill: string) => (
                               <Badge key={skill} variant="secondary" className="text-[10px]">
                                 {skill}
@@ -563,7 +623,7 @@ export default function DashboardPage() {
                             ))}
                           </div>
                         )}
-                        {!user.skills && (
+                        {!user.skills && !user.proficientLanguages && (
                           <div className="text-center py-6">
                             <Sparkles className="size-8 text-muted-foreground/30 mx-auto mb-2" />
                             <p className="text-xs text-muted-foreground">

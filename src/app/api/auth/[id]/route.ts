@@ -40,6 +40,8 @@ export async function GET(
         location: true,
         website: true,
         skills: true,
+        preferredLanguage: true,
+        proficientLanguages: true,
         isOnboarded: true,
         createdAt: true,
         lastSeen: true,
@@ -84,8 +86,9 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { name, bio, company, location, website, skills, preferences } = body
+    const { name, bio, company, location, website, skills, preferences, preferredLanguage, proficientLanguages } = body
 
+    const ALLOWED_LANG_CODES = ['en','fr','ar','es','de','zh','ja','ko','pt','ru','hi','tr']
     const updateData: Record<string, unknown> = {}
     if (name !== undefined) updateData.name = name
     if (bio !== undefined) updateData.bio = bio
@@ -94,6 +97,17 @@ export async function PATCH(
     if (website !== undefined) updateData.website = website
     if (skills !== undefined) updateData.skills = typeof skills === 'string' ? skills : JSON.stringify(skills)
     if (preferences !== undefined) updateData.preferences = typeof preferences === 'string' ? preferences : JSON.stringify(preferences)
+
+    // Language fields with validation
+    if (preferredLanguage !== undefined) {
+      const safe = typeof preferredLanguage === 'string' && ALLOWED_LANG_CODES.includes(preferredLanguage) ? preferredLanguage : 'en'
+      updateData.preferredLanguage = safe
+    }
+    if (proficientLanguages !== undefined) {
+      const parsed = Array.isArray(proficientLanguages) ? proficientLanguages : []
+      const sanitized = parsed.filter((l: unknown) => typeof l === 'string' && ALLOWED_LANG_CODES.includes(l))
+      updateData.proficientLanguages = JSON.stringify(sanitized.length > 0 ? sanitized : ['en'])
+    }
 
     const user = await db.user.update({
       where: { id },

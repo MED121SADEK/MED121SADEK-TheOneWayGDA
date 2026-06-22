@@ -1,0 +1,677 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback, useMemo } from 'react'
+     4→import { useRouter } from 'next/navigation'
+     5→import Link from 'next/link'
+     6→import Image from 'next/image'
+     7→import { motion, AnimatePresence } from 'framer-motion'
+     8→import { useTranslation, localeNames, type Locale } from '@/lib/i18n'
+     9→import { Button } from '@/components/ui/button'
+    10→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    11→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    12→import { Badge } from '@/components/ui/badge'
+    13→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+    14→import { Separator } from '@/components/ui/separator'
+    15→import { Progress } from '@/components/ui/progress'
+    16→import {
+    17→  ArrowLeft, Globe, BarChart3, FolderOpen, Workflow, Zap,
+    18→  Clock, TrendingUp, Activity, Settings, LogOut, Plus,
+    19→  FileText, Bot, Brain, Sparkles, ChevronRight, Loader2,
+    20→  Database, Shield, Star, Target, Trophy, Users, Building2,
+    21→  Medal, MessageSquare, Crown, Hash,
+    22→} from 'lucide-react'
+    23→import { authFetch } from '@/lib/auth-fetch'
+    24→
+    25→/* ─── Types ─── */
+    26→interface UserData {
+    27→  id: string
+    28→  email: string
+    29→  name: string | null
+    30→  role: string
+    31→  bio: string | null
+    32→  company: string | null
+    33→  location: string | null
+    34→  website: string | null
+    35→  skills: string | null
+    36→  isOnboarded: boolean
+    37→  createdAt: string
+    38→  lastSeen: string
+    39→  _count?: { activities: number }
+    40→}
+    41→
+    42→interface ActivityItem {
+    43→  id: string
+    44→  type: string
+    45→  details: string | null
+    46→  createdAt: string
+    47→}
+    48→
+    49→interface UserStats {
+    50→  totalActivities: number
+    51→  loginCount: number
+    52→  analysisCount: number
+    53→  projectCount: number
+    54→  workflowCount: number
+    55→  automationCount: number
+    56→  reportCount: number
+    57→  weeklyActivity: { date: string; count: number }[]
+    58→}
+    59→
+    60→interface LeaderboardEntry {
+    61→  id: string
+    62→  name: string
+    63→  provider: string
+    64→  normalizedScore: number
+    65→  score: number
+    66→  maxScore: number
+    67→  modelType: string
+    68→}
+    69→
+    70→interface CommunityPost {
+    71→  id: string
+    72→  title: string
+    73→  content: string | null
+    74→  author: string
+    75→  authorName: string | null
+    76→  type: string
+    77→  likes: number
+    78→  comments: number
+    79→  createdAt: string
+    80→  tags: string | null
+    81→}
+    82→
+    83→interface PlatformStats {
+    84→  totalModels: number
+    85→  totalPosts: number
+    86→  activeTeams: number
+    87→}
+    88→
+    89→/* ─── Helpers ─── */
+    90→function getSession(): { token: string; user: UserData } | null {
+    91→  if (typeof window === 'undefined') return null
+    92→  try {
+    93→    const token = localStorage.getItem('oneway-auth-token')
+    94→    const userStr = localStorage.getItem('oneway-user')
+    95→    if (!token || !userStr) return null
+    96→    return { token, user: JSON.parse(userStr) }
+    97→  } catch {
+    98→    return null
+    99→  }
+   100→}
+   101→
+   102→function timeAgo(date: string): string {
+   103→  const diff = Date.now() - new Date(date).getTime()
+   104→  const mins = Math.floor(diff / 60000)
+   105→  if (mins < 1) return 'Just now'
+   106→  if (mins < 60) return `${mins}m ago`
+   107→  const hrs = Math.floor(mins / 60)
+   108→  if (hrs < 24) return `${hrs}h ago`
+   109→  const days = Math.floor(hrs / 24)
+   110→  return `${days}d ago`
+   111→}
+   112→
+   113→function getActivityIcon(type: string) {
+   114→  switch (type) {
+   115→    case 'login': return { icon: LogOut, color: 'text-emerald-400 bg-emerald-500/10', label: 'Login' }
+   116→    case 'project_created': return { icon: FolderOpen, color: 'text-blue-400 bg-blue-500/10', label: 'Project Created' }
+   117→    case 'analysis_run': return { icon: BarChart3, color: 'text-purple-400 bg-purple-500/10', label: 'Analysis Run' }
+   118→    case 'report_generated': return { icon: FileText, color: 'text-sky-400 bg-sky-500/10', label: 'Report Generated' }
+   119→    case 'workflow_executed': return { icon: Workflow, color: 'text-orange-400 bg-orange-500/10', label: 'Workflow Executed' }
+   120→    case 'automation_triggered': return { icon: Zap, color: 'text-amber-400 bg-amber-500/10', label: 'Automation' }
+   121→    case 'profile_updated': return { icon: Settings, color: 'text-pink-400 bg-pink-500/10', label: 'Profile Updated' }
+   122→    default: return { icon: Activity, color: 'text-muted-foreground bg-muted/30', label: type }
+   123→  }
+   124→}
+   125→
+   126→function getRankStyle(rank: number) {
+   127→  switch (rank) {
+   128→    case 1: return { icon: Crown, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' }
+   129→    case 2: return { icon: Medal, color: 'text-slate-300', bg: 'bg-slate-400/10', border: 'border-slate-400/20' }
+   130→    case 3: return { icon: Medal, color: 'text-amber-600', bg: 'bg-amber-700/10', border: 'border-amber-700/20' }
+   131→    default: return { icon: Hash, color: 'text-muted-foreground', bg: 'bg-muted/30', border: 'border-border/30' }
+   132→  }
+   133→}
+   134→
+   135→const fadeUp = {
+   136→  initial: { opacity: 0, y: 12 },
+   137→  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } },
+   138→}
+   139→
+   140→const stagger = {
+   141→  animate: { transition: { staggerChildren: 0.04 } },
+   142→}
+   143→
+   144→/* ─── MAIN PAGE ─── */
+   145→export default function DashboardPage() {
+   146→  const router = useRouter()
+   147→  const { t, locale, setLocale, dir } = useTranslation()
+   148→  const [user, setUser] = useState<UserData | null>(null)
+   149→  const [stats, setStats] = useState<UserStats | null>(null)
+   150→  const [activities, setActivities] = useState<ActivityItem[]>([])
+   151→  const [loading, setLoading] = useState(true)
+   152→  const [activeTab, setActiveTab] = useState('overview')
+   153→
+   154→  /* ─── Platform data ─── */
+   155→  const [platformStats, setPlatformStats] = useState<PlatformStats>({ totalModels: 0, totalPosts: 0, activeTeams: 0 })
+   156→  const [topModels, setTopModels] = useState<LeaderboardEntry[]>([])
+   157→  const [recentPosts, setRecentPosts] = useState<CommunityPost[]>([])
+   158→  const [platformLoading, setPlatformLoading] = useState(true)
+   159→
+   160→  /* ─── Auth check + data ─── */
+   161→  useEffect(() => {
+   162→    const session = getSession()
+   163→    if (!session) return
+   164→    setUser(session.user)
+   165→    fetchStats()
+   166→    fetchActivities()
+   167→    fetchPlatformData()
+   168→  }, [])
+   169→
+   170→  const fetchStats = useCallback(async () => {
+   171→    try {
+   172→      const res = await authFetch('/api/auth/stats')
+   173→      if (!res.ok) return
+   174→      const data = await res.json()
+   175→      setStats(data.stats)
+   176→    } catch { /* silent */ } finally {
+   177→      setLoading(false)
+   178→    }
+   179→  }, [])
+   180→
+   181→  const fetchActivities = useCallback(async () => {
+   182→    try {
+   183→      const res = await authFetch('/api/auth/activity?limit=10')
+   184→      if (!res.ok) return
+   185→      const data = await res.json()
+   186→      setActivities(data.activities || [])
+   187→    } catch { /* silent */ }
+   188→  }, [])
+   189→
+   190→  const fetchPlatformData = useCallback(async () => {
+   191→    try {
+   192→      const [lbRes, postsRes] = await Promise.all([
+   193→        fetch('/api/leaderboard?benchmark=GPQA&limit=5&sort=score&order=desc'),
+   194→        fetch('/api/community/posts?limit=5&sort=latest'),
+   195→      ])
+   196→
+   197→      const [lbData, postsData] = await Promise.all([lbRes.json(), postsRes.json()])
+   198→
+   199→      if (lbData?.leaderboard) {
+   200→        const top5 = lbData.leaderboard.slice(0, 5)
+   201→        setTopModels(top5)
+   202→        setPlatformStats(prev => ({
+   203→          ...prev,
+   204→          totalModels: lbData.meta?.totalModels || lbData.leaderboard.length,
+   205→        }))
+   206→      }
+   207→
+   208→      if (postsData?.posts) {
+   209→        setRecentPosts(postsData.posts.slice(0, 5))
+   210→        setPlatformStats(prev => ({
+   211→          ...prev,
+   212→          totalPosts: postsData.pagination?.total || postsData.posts.length,
+   213→        }))
+   214→      }
+   215→    } catch { /* silent */ } finally {
+   216→      setPlatformLoading(false)
+   217→    }
+   218→  }, [])
+   219→
+   220→  /* ─── Logout ─── */
+   221→  const handleLogout = async () => {
+   222→    const session = getSession()
+   223→    if (session) {
+   224→      await authFetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+   225→    }
+   226→    localStorage.removeItem('oneway-auth-token')
+   227→    localStorage.removeItem('oneway-user')
+   228→    // Use replace so back button doesn't loop back after logout
+   229→    router.replace('/')
+   230→  }
+   231→
+   232→  /* ─── Weekly chart data ─── */
+   233→  const weeklyData = useMemo(() => {
+   234→    if (!stats?.weeklyActivity) return []
+   235→    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+   236→    const map = new Map<string, number>()
+   237→    stats.weeklyActivity.forEach((w: { date: string; count: number }) => {
+   238→      const d = new Date(w.date)
+   239→      const key = days[d.getDay()]
+   240→      map.set(key, (map.get(key) || 0) + w.count)
+   241→    })
+   242→    return days.map((day) => ({ day, count: map.get(day) || 0 }))
+   243→  }, [stats])
+   244→
+   245→  const maxWeekly = Math.max(...weeklyData.map((d: { count: number }) => d.count), 1)
+   246→
+   247→  /* ─── Initials avatar ─── */
+   248→  const initials = user?.name
+   249→    ? user.name.split(' ').map((n: string) => n.charAt(0).toUpperCase()).join('').slice(0, 2)
+   250→    : user?.email?.charAt(0).toUpperCase() || 'U'
+   251→
+   252→  const roleColor = user?.role === 'admin'
+   253→    ? 'bg-rose-500/15 text-rose-400 border-rose-500/25'
+   254→    : user?.role === 'pro'
+   255→    ? 'bg-amber-500/15 text-amber-400 border-amber-500/25'
+   256→    : 'bg-primary/15 text-primary border-primary/25'
+   257→
+   258→  if (!user) {
+   259→    return (
+   260→      <div className="flex items-center justify-center py-32">
+   261→        <Loader2 className="size-8 text-primary animate-spin" />
+   262→      </div>
+   263→    )
+   264→  }
+   265→
+   266→  return (
+   267→    <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6" dir={dir}>
+   268→        {loading ? (
+   269→          <div className="flex items-center justify-center py-20">
+   270→            <Loader2 className="size-8 text-primary animate-spin" />
+   271→          </div>
+   272→        ) : (
+   273→          <>
+   274→            {/* ── Welcome Section ── */}
+   275→            <motion.div {...fadeUp} className="hero-gradient rounded-2xl p-6 sm:p-8 relative overflow-hidden">
+   276→              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-violet-500/5 pointer-events-none" />
+   277→              <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+   278→                <div className="size-16 rounded-2xl bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-2xl font-bold text-primary flex-shrink-0">
+   279→                  {initials}
+   280→                </div>
+   281→                <div className="flex-1 min-w-0">
+   282→                  <div className="flex items-center gap-2 flex-wrap">
+   283→                    <h1 className="text-2xl sm:text-3xl font-bold">
+   284→                      Welcome back, {String(user.name || user.email.split('@')[0])}
+   285→                    </h1>
+   286→                    <Badge variant="outline" className={`text-xs px-2 py-0 border ${roleColor}`}>
+   287→                      {String(user.role).charAt(0).toUpperCase() + String(user.role).slice(1)}
+   288→                    </Badge>
+   289→                  </div>
+   290→                  <p className="text-sm text-muted-foreground mt-1">
+   291→                    {user.email} · Last seen {timeAgo(String(user.lastSeen))}
+   292→                  </p>
+   293→                  {user.company && (
+   294→                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+   295→                      <Target className="size-3" /> {String(user.company)}
+   296→                    </p>
+   297→                  )}
+   298→                </div>
+   299→                <div className="flex gap-2 flex-shrink-0">
+   300→                  <Button size="sm" className="gap-1.5" onClick={() => router.push('/workflow/new')}>
+   301→                    <Plus className="size-3.5" />New Workflow
+   302→                  </Button>
+   303→                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => router.push('/leaderboard')}>
+   304→                    <Star className="size-3.5" />Leaderboard
+   305→                  </Button>
+   306→                </div>
+   307→              </div>
+   308→            </motion.div>
+   309→
+   310→            {/* ── Platform Stats Cards ── */}
+   311→            <motion.div className="grid grid-cols-2 sm:grid-cols-3 gap-3" {...stagger}>
+   312→              <AnimatePresence>
+   313→                {[
+   314→                  { icon: Trophy, label: 'AI Models Tracked', value: platformStats.totalModels, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+   315→                  { icon: MessageSquare, label: 'Community Posts', value: platformStats.totalPosts, color: 'text-teal-400', bg: 'bg-teal-500/10' },
+   316→                  { icon: Users, label: 'Active Teams', value: platformStats.activeTeams, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+   317→                ].map((stat, i) => (
+   318→                  <motion.div key={stat.label} {...fadeUp} transition={{ ...fadeUp.animate.transition, delay: i * 0.05 }}>
+   319→                    <Card className="card-premium p-4 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all">
+   320→                      <div className="flex items-center gap-3">
+   321→                        <div className={`size-10 rounded-xl ${stat.bg} flex items-center justify-center flex-shrink-0`}>
+   322→                          {platformLoading ? (
+   323→                            <Loader2 className={`size-5 ${stat.color} animate-spin`} />
+   324→                          ) : (
+   325→                            <stat.icon className={`size-5 ${stat.color}`} />
+   326→                          )}
+   327→                        </div>
+   328→                        <div>
+   329→                          <p className="text-xl font-bold">{platformLoading ? '—' : String(stat.value)}</p>
+   330→                          <p className="text-xs text-muted-foreground">{stat.label}</p>
+   331→                        </div>
+   332→                      </div>
+   333→                    </Card>
+   334→                  </motion.div>
+   335→                ))}
+   336→              </AnimatePresence>
+   337→            </motion.div>
+   338→
+   339→            {/* ── Personal Stats Cards ── */}
+   340→            <motion.div className="grid grid-cols-2 sm:grid-cols-4 gap-3" {...stagger}>
+   341→              <AnimatePresence>
+   342→                {[
+   343→                  { icon: FolderOpen, label: 'Projects', value: stats?.projectCount || 0, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+   344→                  { icon: BarChart3, label: 'Analyses', value: stats?.analysisCount || 0, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+   345→                  { icon: Workflow, label: 'Workflows', value: stats?.workflowCount || 0, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+   346→                  { icon: Zap, label: 'Automations', value: stats?.automationCount || 0, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+   347→                ].map((stat, i) => (
+   348→                  <motion.div key={stat.label} {...fadeUp} transition={{ ...fadeUp.animate.transition, delay: i * 0.05 }}>
+   349→                    <Card className="card-premium p-4 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all">
+   350→                      <div className="flex items-center gap-3">
+   351→                        <div className={`size-10 rounded-xl ${stat.bg} flex items-center justify-center flex-shrink-0`}>
+   352→                          <stat.icon className={`size-5 ${stat.color}`} />
+   353→                        </div>
+   354→                        <div>
+   355→                          <p className="text-xl font-bold">{String(stat.value)}</p>
+   356→                          <p className="text-xs text-muted-foreground">{stat.label}</p>
+   357→                        </div>
+   358→                      </div>
+   359→                    </Card>
+   360→                  </motion.div>
+   361→                ))}
+   362→              </AnimatePresence>
+   363→            </motion.div>
+   364→
+   365→            {/* ── Platform Content: Leaderboard Top 5 + Community Posts ── */}
+   366→            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+   367→              {/* Top 5 Leaderboard */}
+   368→              <motion.div {...fadeUp} transition={{ ...fadeUp.animate.transition, delay: 0.1 }}>
+   369→                <Card className="card-premium h-full">
+   370→                  <CardHeader className="pb-3">
+   371→                    <div className="flex items-center justify-between">
+   372→                      <CardTitle className="text-sm flex items-center gap-2">
+   373→                        <Trophy className="size-4 text-amber-400" />
+   374→                        Top 5 Models (GPQA)
+   375→                      </CardTitle>
+   376→                      <Link href="/leaderboard">
+   377→                        <Button variant="ghost" size="sm" className="text-xs gap-1 h-7 text-muted-foreground hover:text-primary">
+   378→                          View Full <ChevronRight className="size-3" />
+   379→                        </Button>
+   380→                      </Link>
+   381→                    </div>
+   382→                  </CardHeader>
+   383→                  <CardContent className="pt-0">
+   384→                    {platformLoading ? (
+   385→                      <div className="flex items-center justify-center py-8">
+   386→                        <Loader2 className="size-5 text-primary animate-spin" />
+   387→                      </div>
+   388→                    ) : topModels.length === 0 ? (
+   389→                      <div className="text-center py-8">
+   390→                        <Database className="size-6 text-muted-foreground/30 mx-auto mb-2" />
+   391→                        <p className="text-xs text-muted-foreground">No leaderboard data yet</p>
+   392→                      </div>
+   393→                    ) : (
+   394→                      <div className="space-y-1.5">
+   395→                        {topModels.map((model, index) => {
+   396→                          const rank = index + 1
+   397→                          const rankStyle = getRankStyle(rank)
+   398→                          const RankIcon = rankStyle.icon
+   399→                          return (
+   400→                            <div
+   401→                              key={model.id}
+   402→                              className="flex items-center gap-3 py-2 px-2.5 rounded-lg hover:bg-muted/30 transition-colors group"
+   403→                            >
+   404→                              <div className={`size-7 rounded-lg ${rankStyle.bg} ${rankStyle.border} border flex items-center justify-center flex-shrink-0`}>
+   405→                                <RankIcon className={`size-3.5 ${rankStyle.color}`} />
+   406→                              </div>
+   407→                              <div className="flex-1 min-w-0">
+   408→                                <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+   409→                                  {model.name}
+   410→                                </p>
+   411→                                <p className="text-[10px] text-muted-foreground">{model.provider} · {model.modelType}</p>
+   412→                              </div>
+   413→                              <Badge variant="outline" className="text-xs font-mono px-2 py-0 flex-shrink-0 border-primary/20 text-primary">
+   414→                                {model.normalizedScore.toFixed(1)}%
+   415→                              </Badge>
+   416→                            </div>
+   417→                          )
+   418→                        })}
+   419→                      </div>
+   420→                    )}
+   421→                  </CardContent>
+   422→                </Card>
+   423→              </motion.div>
+   424→
+   425→              {/* Recent Community Posts */}
+   426→              <motion.div {...fadeUp} transition={{ ...fadeUp.animate.transition, delay: 0.15 }}>
+   427→                <Card className="card-premium h-full">
+   428→                  <CardHeader className="pb-3">
+   429→                    <div className="flex items-center justify-between">
+   430→                      <CardTitle className="text-sm flex items-center gap-2">
+   431→                        <MessageSquare className="size-4 text-teal-400" />
+   432→                        Recent Community
+   433→                      </CardTitle>
+   434→                      <Link href="/community">
+   435→                        <Button variant="ghost" size="sm" className="text-xs gap-1 h-7 text-muted-foreground hover:text-primary">
+   436→                          Visit <ChevronRight className="size-3" />
+   437→                        </Button>
+   438→                      </Link>
+   439→                    </div>
+   440→                  </CardHeader>
+   441→                  <CardContent className="pt-0">
+   442→                    {platformLoading ? (
+   443→                      <div className="flex items-center justify-center py-8">
+   444→                        <Loader2 className="size-5 text-primary animate-spin" />
+   445→                      </div>
+   446→                    ) : recentPosts.length === 0 ? (
+   447→                      <div className="text-center py-8">
+   448→                        <MessageSquare className="size-6 text-muted-foreground/30 mx-auto mb-2" />
+   449→                        <p className="text-xs text-muted-foreground">No community posts yet</p>
+   450→                      </div>
+   451→                    ) : (
+   452→                      <div className="space-y-1.5">
+   453→                        {recentPosts.map((post) => (
+   454→                          <Link
+   455→                            key={post.id}
+   456→                            href={`/community`}
+   457→                            className="flex items-start gap-3 py-2 px-2.5 rounded-lg hover:bg-muted/30 transition-colors group"
+   458→                          >
+   459→                            <div className="size-7 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+   460→                              <MessageSquare className="size-3.5 text-teal-400" />
+   461→                            </div>
+   462→                            <div className="flex-1 min-w-0">
+   463→                              <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+   464→                                {post.title}
+   465→                              </p>
+   466→                              <div className="flex items-center gap-2 mt-0.5">
+   467→                                <span className="text-[10px] text-muted-foreground">
+   468→                                  {post.authorName || post.author?.split('@')[0] || 'Anonymous'}
+   469→                                </span>
+   470→                                <span className="text-[10px] text-muted-foreground/50">·</span>
+   471→                                <span className="text-[10px] text-muted-foreground">{timeAgo(post.createdAt)}</span>
+   472→                                {(post.likes || post.comments) && (
+   473→                                  <>
+   474→                                    <span className="text-[10px] text-muted-foreground/50">·</span>
+   475→                                    <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+   476→                                      {post.likes > 0 && <>{post.likes}♥</>}
+   477→                                      {post.likes > 0 && post.comments > 0 && ' '}
+   478→                                      {post.comments > 0 && <>{post.comments}💬</>}
+   479→                                    </span>
+   480→                                  </>
+   481→                                )}
+   482→                              </div>
+   483→                            </div>
+   484→                          </Link>
+   485→                        ))}
+   486→                      </div>
+   487→                    )}
+   488→                  </CardContent>
+   489→                </Card>
+   490→              </motion.div>
+   491→            </div>
+   492→
+   493→            {/* ── Tabs ── */}
+   494→            <Tabs value={activeTab} onValueChange={setActiveTab}>
+   495→              <TabsList className="grid grid-cols-3 w-full sm:w-auto">
+   496→                <TabsTrigger value="overview" className="gap-1.5 text-xs">
+   497→                  <Activity className="size-3.5" />Overview
+   498→                </TabsTrigger>
+   499→                <TabsTrigger value="activity" className="gap-1.5 text-xs">
+   500→                  <Clock className="size-3.5" />Activity
+   501→                </TabsTrigger>
+   502→                <TabsTrigger value="quick" className="gap-1.5 text-xs">
+   503→                  <Sparkles className="size-3.5" />Quick Actions
+   504→                </TabsTrigger>
+   505→              </TabsList>
+   506→
+   507→              {/* ── Overview Tab ── */}
+   508→              <TabsContent value="overview" className="mt-4 space-y-4">
+   509→                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+   510→                  {/* Weekly Activity Chart */}
+   511→                  <motion.div {...fadeUp}>
+   512→                    <Card className="card-premium">
+   513→                      <CardHeader className="pb-3">
+   514→                        <CardTitle className="text-sm flex items-center gap-2">
+   515→                          <TrendingUp className="size-4 text-primary" />
+   516→                          Weekly Activity
+   517→                        </CardTitle>
+   518→                      </CardHeader>
+   519→                      <CardContent className="pt-0">
+   520→                        <div className="flex items-end gap-2 h-32">
+   521→                          {weeklyData.map((d: { day: string; count: number }) => (
+   522→                            <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
+   523→                              <div
+   524→                                className="w-full rounded-t-md bg-primary/80 hover:bg-primary transition-colors min-h-[4px]"
+   525→                                style={{ height: `${Math.max((d.count / maxWeekly) * 100, 4)}%` }}
+   526→                              />
+   527→                              <span className="text-[10px] text-muted-foreground">{d.day}</span>
+   528→                            </div>
+   529→                          ))}
+   530→                        </div>
+   531→                        <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+   532→                          <span>Total: {stats?.totalActivities || 0} actions</span>
+   533→                          <span>{stats?.loginCount || 0} logins</span>
+   534→                        </div>
+   535→                      </CardContent>
+   536→                    </Card>
+   537→                  </motion.div>
+   538→
+   539→                  {/* Skills & Info */}
+   540→                  <motion.div {...fadeUp} transition={{ ...fadeUp.animate.transition, delay: 0.1 }}>
+   541→                    <Card className="card-premium h-full">
+   542→                      <CardHeader className="pb-3">
+   543→                        <CardTitle className="text-sm flex items-center gap-2">
+   544→                          <Brain className="size-4 text-primary" />
+   545→                          Profile & Skills
+   546→                        </CardTitle>
+   547→                      </CardHeader>
+   548→                      <CardContent className="pt-0 space-y-3">
+   549→                        {user.bio && (
+   550→                          <p className="text-sm text-muted-foreground leading-relaxed">{String(user.bio)}</p>
+   551→                        )}
+   552→                        {user.location && (
+   553→                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+   554→                            <Globe className="size-3" /> {String(user.location)}
+   555→                          </div>
+   556→                        )}
+   557→                        {user.skills && (
+   558→                          <div className="flex flex-wrap gap-1.5">
+   559→                            {JSON.parse(String(user.skills)).map((skill: string) => (
+   560→                              <Badge key={skill} variant="secondary" className="text-[10px]">
+   561→                                {skill}
+   562→                              </Badge>
+   563→                            ))}
+   564→                          </div>
+   565→                        )}
+   566→                        {!user.skills && (
+   567→                          <div className="text-center py-6">
+   568→                            <Sparkles className="size-8 text-muted-foreground/30 mx-auto mb-2" />
+   569→                            <p className="text-xs text-muted-foreground">
+   570→                              No skills added yet. Go to Settings to add your expertise.
+   571→                            </p>
+   572→                            <Button variant="link" size="sm" className="text-xs mt-1" onClick={() => router.push('/settings')}>
+   573→                              Add Skills <ChevronRight className="size-3" />
+   574→                            </Button>
+   575→                          </div>
+   576→                        )}
+   577→                        <Separator />
+   578→                        <div className="grid grid-cols-2 gap-2 text-xs">
+   579→                          <div className="rounded-lg bg-muted/30 border border-border/30 p-2 text-center">
+   580→                            <p className="text-muted-foreground">Member since</p>
+   581→                            <p className="font-medium">{new Date(String(user.createdAt)).toLocaleDateString()}</p>
+   582→                          </div>
+   583→                          <div className="rounded-lg bg-muted/30 border border-border/30 p-2 text-center">
+   584→                            <p className="text-muted-foreground">Reports</p>
+   585→                            <p className="font-medium">{stats?.reportCount || 0}</p>
+   586→                          </div>
+   587→                        </div>
+   588→                      </CardContent>
+   589→                    </Card>
+   590→                  </motion.div>
+   591→                </div>
+   592→              </TabsContent>
+   593→
+   594→              {/* ── Activity Tab ── */}
+   595→              <TabsContent value="activity" className="mt-4">
+   596→                <motion.div {...fadeUp}>
+   597→                  <Card className="card-premium">
+   598→                    <CardHeader className="pb-3">
+   599→                      <CardTitle className="text-sm flex items-center gap-2">
+   600→                        <Clock className="size-4 text-primary" />
+   601→                        Recent Activity
+   602→                      </CardTitle>
+   603→                    </CardHeader>
+   604→                    <CardContent className="pt-0">
+   605→                      {activities.length === 0 ? (
+   606→                        <div className="text-center py-10">
+   607→                          <Activity className="size-8 text-muted-foreground/30 mx-auto mb-2" />
+   608→                          <p className="text-sm text-muted-foreground">No activity yet. Start exploring!</p>
+   609→                        </div>
+   610→                      ) : (
+   611→                        <div className="space-y-2">
+   612→                          {activities.map((activity: ActivityItem) => {
+   613→                            const { icon: ActIcon, color, label } = getActivityIcon(activity.type)
+   614→                            return (
+   615→                              <div key={activity.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-muted/30 transition-colors">
+   616→                                <div className={`size-8 rounded-lg ${color} flex items-center justify-center flex-shrink-0`}>
+   617→                                  <ActIcon className="size-4" />
+   618→                                </div>
+   619→                                <div className="flex-1 min-w-0">
+   620→                                  <p className="text-sm font-medium">{label}</p>
+   621→                                  {activity.details && (
+   622→                                    <p className="text-xs text-muted-foreground truncate">
+   623→                                      {String(activity.details).slice(0, 80)}
+   624→                                    </p>
+   625→                                  )}
+   626→                                </div>
+   627→                                <span className="text-xs text-muted-foreground flex-shrink-0">
+   628→                                  {timeAgo(String(activity.createdAt))}
+   629→                                </span>
+   630→                              </div>
+   631→                            )
+   632→                          })}
+   633→                        </div>
+   634→                      )}
+   635→                    </CardContent>
+   636→                  </Card>
+   637→                </motion.div>
+   638→              </TabsContent>
+   639→
+   640→              {/* ── Quick Actions Tab ── */}
+   641→              <TabsContent value="quick" className="mt-4">
+   642→                <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-4" {...stagger}>
+   643→                  {[
+   644→                    { icon: FolderOpen, title: 'New Project', desc: 'Create a new data analysis project', href: '/workspace', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
+   645→                    { icon: Workflow, title: 'Start Workflow', desc: 'Launch an AI-guided analysis pipeline', href: '/workflow/new', color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
+   646→                    { icon: Bot, title: 'AI Copilot', desc: 'Get AI-powered suggestions and insights', href: '/ai', color: 'text-purple-400 bg-purple-500/10 border-purple-500/20' },
+   647→                    { icon: Trophy, title: 'Leaderboard', desc: 'Compare AI models and benchmarks', href: '/leaderboard', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+   648→                    { icon: Building2, title: 'Teams', desc: 'Collaborate with your team on analyses', href: '/teams', color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
+   649→                    { icon: Shield, title: 'Community', desc: 'Browse shared workflows and templates', href: '/community', color: 'text-teal-400 bg-teal-500/10 border-teal-500/20' },
+   650→                    { icon: Settings, title: 'Settings', desc: 'Manage your profile and preferences', href: '/settings', color: 'text-pink-400 bg-pink-500/10 border-pink-500/20' },
+   651→                  ].map((action, i) => (
+   652→                    <motion.div key={action.title} {...fadeUp} transition={{ ...fadeUp.animate.transition, delay: i * 0.04 }}>
+   653→                      <Link href={action.href}>
+   654→                        <Card className="card-premium hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all cursor-pointer group h-full">
+   655→                          <CardContent className="p-5 flex items-center gap-4">
+   656→                            <div className={`size-12 rounded-xl ${action.color} border flex items-center justify-center flex-shrink-0`}>
+   657→                              <action.icon className="size-5" />
+   658→                            </div>
+   659→                            <div className="flex-1 min-w-0">
+   660→                              <h3 className="font-semibold text-sm group-hover:text-primary transition-colors">{action.title}</h3>
+   661→                              <p className="text-xs text-muted-foreground mt-0.5">{action.desc}</p>
+   662→                            </div>
+   663→                            <ChevronRight className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+   664→                          </CardContent>
+   665→                        </Card>
+   666→                      </Link>
+   667→                    </motion.div>
+   668→                  ))}
+   669→                </motion.div>
+   670→              </TabsContent>
+   671→            </Tabs>
+   672→          </>
+   673→        )}
+   674→    </div>
+   675→  )
+   676→}
+   677→
