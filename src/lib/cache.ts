@@ -1,9 +1,18 @@
-// In-memory cache with TTL (simulates Redis for SQLite deployment)
+// In-memory cache with TTL.
+// NOTE: In serverless (Netlify), each function invocation gets a fresh process,
+// so caches do NOT persist between requests. This is expected — use Redis
+// (REDIS_URL) for distributed caching in production serverless deployments.
 type CacheEntry<T> = {
   data: T;
   expiresAt: number;
   createdAt: number;
 };
+
+const isServerless = !!(
+  process.env.NETLIFY === 'true' ||
+  process.env.LAMBDA_TASK_ROOT ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME
+);
 
 class MemoryCache {
   private store = new Map<string, CacheEntry<unknown>>();
@@ -11,7 +20,9 @@ class MemoryCache {
 
   constructor(defaultTTLMs: number = 30 * 60 * 1000) {
     this.defaultTTL = defaultTTLMs;
-    if (typeof globalThis !== 'undefined' && typeof setInterval === 'function') {
+    // Only start background cleanup timer in long-running servers.
+    // In serverless, timers never fire — cleanup runs lazily on get()/stats().
+    if (!isServerless && typeof globalThis !== 'undefined' && typeof setInterval === 'function') {
       setInterval(() => this.cleanup(), 5 * 60 * 1000);
     }
   }

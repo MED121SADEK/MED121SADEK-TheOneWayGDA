@@ -1,5 +1,13 @@
 import { db as prisma } from './db';
 
+/** Detect serverless environment (Netlify, AWS Lambda, etc.) */
+const isServerless = !!(
+  process.env.NETLIFY === 'true' ||
+  process.env.LAMBDA_TASK_ROOT ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.VERCEL === '1'
+);
+
 const cronIntervalToMs: Record<string, number> = {
   '5m': 5 * 60 * 1000,
   '15m': 15 * 60 * 1000,
@@ -38,11 +46,21 @@ class CronManager {
         update: {},
       });
     }
-    console.log(`[CronManager] Initialized ${defaults.length} cron jobs`);
+    console.log(`[CronManager] Initialized ${defaults.length} cron jobs${isServerless ? ' (serverless: timers disabled)' : ''}`);
   }
 
   register(config: CronConfig): void {
     if (this.jobs.has(config.name)) return;
+
+    // In serverless, register the handler but do NOT start setInterval timers.
+    // Cron jobs must be triggered externally (Netlify Scheduled Functions,
+    // external cron service, or manual POST to /api/leaderboard/cron).
+    if (isServerless) {
+      this.jobs.set(config.name, { config, timer: null });
+      console.log(`[CronManager] Registered (no timer): ${config.name} — use external cron to trigger`);
+      return;
+    }
+
     const intervalMs = cronIntervalToMs[config.interval] || 3600000;
     const timer = setInterval(() => this.execute(config.name, config.handler), intervalMs);
     this.jobs.set(config.name, { config, timer });
@@ -86,7 +104,7 @@ class CronManager {
   }
 
   stop(): void {
-    for (const [name, job] of this.jobs.entries()) {
+    for (const [, job] of this.jobs.entries()) {
       if (job.timer) clearInterval(job.timer);
     }
     this.jobs.clear();

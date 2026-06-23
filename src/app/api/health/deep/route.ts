@@ -57,7 +57,7 @@ export async function GET() {
       const auditCount = await prisma.aiAuditLog.count()
 
       dbStatus = dbLatency < 100 ? 'healthy' : dbLatency < 500 ? 'degraded' : 'unhealthy'
-      dbDetails = `SQLite connected. Models: ${modelCount}, Audit logs: ${auditCount}`
+      dbDetails = `PostgreSQL connected. Models: ${modelCount}, Audit logs: ${auditCount}`
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Unknown error'
       dbStatus = 'unhealthy'
@@ -102,19 +102,24 @@ export async function GET() {
     }
 
     // ── Check 6: Disk Space ──
+    // Note: child_process.execSync is not available in Netlify serverless.
+    // Disk check only runs in non-serverless environments (Docker, VPS, etc.)
     let diskStatus = 'healthy'
-    let diskDetails = 'Not measured'
-    try {
-      const { execSync } = await import('child_process')
-      const dfOutput = execSync('df -h / | tail -1', { encoding: 'utf-8', timeout: 5000 })
-      const parts = dfOutput.trim().split(/\s+/)
-      if (parts.length >= 5) {
-        const usePercent = parts[4].replace('%', '')
-        diskStatus = parseInt(usePercent) < 80 ? 'healthy' : parseInt(usePercent) < 95 ? 'degraded' : 'unhealthy'
-        diskDetails = `Disk usage: ${usePercent}% (${parts[2]} used of ${parts[1]})`
+    let diskDetails = 'N/A (serverless — ephemeral storage)'
+    const isServerless = !!(process.env.NETLIFY === 'true' || process.env.LAMBDA_TASK_ROOT)
+    if (!isServerless) {
+      try {
+        const { execSync } = await import('child_process')
+        const dfOutput = execSync('df -h / | tail -1', { encoding: 'utf-8', timeout: 5000 })
+        const parts = dfOutput.trim().split(/\s+/)
+        if (parts.length >= 5) {
+          const usePercent = parts[4].replace('%', '')
+          diskStatus = parseInt(usePercent) < 80 ? 'healthy' : parseInt(usePercent) < 95 ? 'degraded' : 'unhealthy'
+          diskDetails = `Disk usage: ${usePercent}% (${parts[2]} used of ${parts[1]})`
+        }
+      } catch {
+        // Not available in some containers
       }
-    } catch {
-      // Not available in some containers
     }
 
     // ── Overall Status ──

@@ -201,3 +201,28 @@ Stage Summary:
 - Modified: `src/app/profile/[id]/page.tsx` (language badges in profile header)
 - Zero new TypeScript errors
 - Build passes clean
+
+---
+Task ID: 1
+Agent: main
+Task: Netlify serverless deployment preparation — audit and fix all serverless-incompatible code
+
+Work Log:
+- Audited entire codebase for 7 categories of serverless incompatibility
+- Found and fixed 7 issues across 10 files
+- FIX 1 (CRITICAL): `api/feedback/route.ts` — replaced filesystem writes (fs.writeFile) with Prisma DB. Added `Feedback` model to Prisma schema.
+- FIX 2 (CRITICAL): `api/notifications/stream/route.ts` — added serverless detection, returns JSON poll fallback when NETLIFY=true. Updated `use-notification-stream.ts` hook to auto-detect `X-SSE-Fallback: poll` header and switch to interval-based polling after 3 SSE failures.
+- FIX 3 (HIGH): `lib/cron-manager.ts` — `setInterval` timers now only start in non-serverless environments. In serverless, handlers register but don't schedule — must be triggered externally via Netlify Scheduled Functions or POST to cron endpoints.
+- FIX 4 (HIGH): `lib/monitor.ts` — wrapped 2 module-level `setInterval` timers (5min cleanup + 30s recovery) in `!isServerless` guard.
+- FIX 5 (HIGH): `lib/db.ts` — added automatic connection_limit=3 for serverless (configurable via DATABASE_CONNECTION_LIMIT env var). Appends `?connection_limit=3` to DATABASE_URL to prevent DB connection exhaustion.
+- FIX 6 (MEDIUM): `lib/cache.ts` — guarded `setInterval` cleanup timer for serverless. Added note that in-memory caches don't persist between serverless invocations (use Redis for distributed caching).
+- FIX 7 (MEDIUM): `api/health/deep/route.ts` — `child_process.execSync('df -h')` now only runs in non-serverless environments. Fixed stale "SQLite connected" text to "PostgreSQL connected".
+- Updated `netlify.toml` with production config: security headers, API cache-control, static asset caching, env var documentation.
+- Added `Feedback` model to `prisma/schema.prisma` with indexes on category and createdAt.
+- Ran `prisma generate` — succeeded.
+- Ran `next build` — all 142+ routes compile clean, zero errors.
+
+Stage Summary:
+- 7 serverless-incompatible issues fixed across 10 files
+- Build passes clean
+- Project is ready for Netlify deployment (connect repo + set env vars)
