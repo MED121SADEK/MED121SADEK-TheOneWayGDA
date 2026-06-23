@@ -105,3 +105,4 @@ docker-compose.override.yml
 # ---------- Lock files (keep package-lock, ignore others) ----------
 yarn.lock
 pnpm-lock.yaml
+tool-results/
