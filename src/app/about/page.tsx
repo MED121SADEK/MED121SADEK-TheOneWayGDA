@@ -7,13 +7,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Globe, Users, GraduationCap, Building2, Shield, Heart, Lightbulb, BookOpen, Mail, ExternalLink, ArrowLeft } from 'lucide-react'
+import { Globe, Users, GraduationCap, Building2, Shield, Heart, Lightbulb, BookOpen, Mail, ArrowLeft, Linkedin, Github, Crown, Languages } from 'lucide-react'
 
 const fadeUp = { hidden: { opacity: 0, y: 30 }, visible: (i: number = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6, ease: 'easeOut' as const } }) }
 const stagger = { visible: { transition: { staggerChildren: 0.08 } } }
 
+const SUPPORTED_LANGUAGES = [
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'es', label: 'Español', flag: '🇪🇸' },
+  { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { code: 'zh', label: '中文', flag: '🇨🇳' },
+  { code: 'ja', label: '日本語', flag: '🇯🇵' },
+  { code: 'ko', label: '한국어', flag: '🇰🇷' },
+]
+
 export default function AboutPage() {
-  const { t, dir } = useTranslation()
+  const { t, dir, locale, setLocale } = useTranslation()
 
   const values = [
     { icon: Lightbulb, title: t('about.valueInnovation'), desc: t('about.valueInnovationDesc'), color: 'bg-amber-500/10 text-amber-400' },
@@ -21,15 +32,6 @@ export default function AboutPage() {
     { icon: Heart, title: t('about.valueAccessibility'), desc: t('about.valueAccessibilityDesc'), color: 'bg-blue-500/10 text-blue-400' },
     { icon: BookOpen, title: t('about.valueOpenScience'), desc: t('about.valueOpenScienceDesc'), color: 'bg-purple-500/10 text-purple-400' },
     { icon: Globe, title: t('about.valueCommunity'), desc: t('about.valueCommunityDesc'), color: 'bg-teal-500/10 text-teal-400' },
-  ]
-
-  const team = [
-    { name: 'Dr. Sarah Chen', role: 'CEO & Founder', dept: 'Statistical AI Research' },
-    { name: 'Prof. Ahmad Al-Rashid', role: 'Chief Science Officer', dept: 'Computational Statistics' },
-    { name: 'Dr. Marie Dubois', role: 'VP Engineering', dept: 'Distributed Systems' },
-    { name: 'Kenji Tanaka', role: 'Head of AI', dept: 'Machine Learning' },
-    { name: 'Dr. Elena Volkova', role: 'Head of Research', dept: 'Data Science Methodology' },
-    { name: 'Carlos Rodriguez', role: 'Head of Security', dept: 'Cryptography & Privacy' },
   ]
 
   const stats = [
@@ -65,7 +67,7 @@ export default function AboutPage() {
             <motion.div variants={fadeUp} custom={3} className="mt-8">
               <Card className="card-premium inline-block border-primary/20 bg-card/50 backdrop-blur-sm">
                 <CardContent className="p-6 text-left max-w-2xl mx-auto">
-                  <p className="text-sm font-semibold text-primary mb-2">{t('about.vision')}</p>
+                  <p className="text-sm font-semibold text-primary mb-2">{t('about.visionLabel', 'Our Vision')}</p>
                   <p className="text-sm text-muted-foreground leading-relaxed italic">&quot;{t('about.vision')}&quot;</p>
                 </CardContent>
               </Card>
@@ -110,23 +112,97 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Team */}
+      {/* Founder */}
       <section className="py-20 md:py-28 bg-muted/30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}>
-            <motion.h2 variants={fadeUp} className="text-3xl md:text-4xl font-extrabold text-center mb-4">{t('about.team')}</motion.h2>
-            <motion.p variants={fadeUp} custom={1} className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">{t('about.teamDesc')}</motion.p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {team.map((m, i) => (
-                <motion.div key={i} variants={fadeUp} custom={i + 2}>
-                  <Card className="card-premium hover:border-primary/30 transition-all duration-300">
-                    <CardContent className="p-6 flex flex-col items-center text-center">
-                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center mb-4">
-                        <span className="text-2xl font-bold gradient-text-premium">{m.name.split(' ').map(n => n[0]).join('')}</span>
-                      </div>
-                      <h3 className="font-semibold text-base">{m.name}</h3>
-                      <p className="text-xs text-primary mt-1">{m.role}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{m.dept}</p>
+            <motion.h2 variants={fadeUp} className="text-3xl md:text-4xl font-extrabold text-center mb-4">
+              <Crown className="inline-block size-8 text-amber-400 mr-2 -mt-1" />
+              {t('about.founder', 'Meet the Founder')}
+            </motion.h2>
+            <motion.p variants={fadeUp} custom={1} className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">{t('about.founderDesc', 'The vision and drive behind TheOneWayGDA.')}</motion.p>
+
+            <motion.div variants={fadeUp} custom={2}>
+              <Card className="card-premium border-primary/20 bg-card/50 backdrop-blur-sm overflow-hidden">
+                <div className="flex flex-col md:flex-row">
+                  {/* Photo */}
+                  <div className="md:w-1/3 flex-shrink-0">
+                    <div className="aspect-square md:aspect-auto md:h-full relative">
+                      <Image
+                        src="/images/founder.png"
+                        alt="Mohammed Essadek — Founder & CEO of TheOneWayGDA"
+                        fill
+                        className="object-cover object-top"
+                        priority
+                      />
+                    </div>
+                  </div>
+                  {/* Info */}
+                  <CardContent className="p-6 md:p-8 flex flex-col justify-center">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-2xl font-bold">Mohammed Essadek</h3>
+                      <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20">
+                        <Crown className="size-3 mr-1" />Founder & CEO
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-primary font-medium mb-4">TheOneWayGDA</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+                      {t('about.founderBio', 'Solo founder building the next generation of AI-powered statistical analysis tools. Passionate about democratizing data science and making professional analytics accessible to researchers, students, and organizations worldwide.')}
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      <a href="https://www.linkedin.com/in/mohammed-essadek-549a17229" target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm" className="gap-2">
+                          <Linkedin className="size-4" />LinkedIn
+                        </Button>
+                      </a>
+                      <a href="https://github.com/MED121SADEK" target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm" className="gap-2">
+                          <Github className="size-4" />GitHub
+                        </Button>
+                      </a>
+                      <a href="mailto:msad41855@gmail.com">
+                        <Button variant="outline" size="sm" className="gap-2">
+                          <Mail className="size-4" />Email
+                        </Button>
+                      </a>
+                    </div>
+                  </CardContent>
+                </div>
+              </Card>
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Languages */}
+      <section className="py-20 md:py-28">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}>
+            <motion.div variants={fadeUp} className="text-center mb-12">
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <Languages className="size-7 text-primary" />
+                <h2 className="text-3xl md:text-4xl font-extrabold">{t('about.languages', 'Multilingual Platform')}</h2>
+              </div>
+              <p className="text-muted-foreground max-w-2xl mx-auto">{t('about.languagesDesc', 'TheOneWayGDA supports 8 languages with full interface translation, including right-to-left (RTL) support for Arabic. Switch languages instantly from the navbar.')}</p>
+            </motion.div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {SUPPORTED_LANGUAGES.map((lang, i) => (
+                <motion.div
+                  key={lang.code}
+                  variants={fadeUp}
+                  custom={i}
+                  onClick={() => setLocale(lang.code as 'en' | 'ar' | 'fr' | 'es' | 'de' | 'zh' | 'ja' | 'ko')}
+                  className={`cursor-pointer transition-all duration-200 hover:scale-105 ${locale === lang.code ? 'ring-2 ring-primary rounded-xl' : ''}`}
+                >
+                  <Card className="card-premium h-full hover:border-primary/30 text-center">
+                    <CardContent className="p-5">
+                      <span className="text-3xl mb-2 block">{lang.flag}</span>
+                      <p className="text-sm font-semibold">{lang.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{lang.code.toUpperCase()}</p>
+                      {locale === lang.code && (
+                        <Badge className="mt-2 bg-primary/10 text-primary border-primary/20 text-[10px]">Active</Badge>
+                      )}
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -136,8 +212,8 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Founded & Community */}
-      <section className="py-20 md:py-28">
+      {/* Founded & Contact */}
+      <section className="py-20 md:py-28 bg-muted/30">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}>
             <motion.div variants={fadeUp}>
