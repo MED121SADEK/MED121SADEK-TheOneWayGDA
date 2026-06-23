@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { I18nProvider } from "@/lib/i18n";
 import { GdprConsent } from "@/components/gdpr-consent";
+import { LanguageGate } from "@/components/LanguageGate";
 import { EmailGate } from "@/components/EmailGate";
 import AiCopilot from "@/components/ai/AiCopilot";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
@@ -210,6 +211,7 @@ export default function RootLayout({
         <I18nProvider>
           <AppProviders>
             <ServiceWorkerRegistrar />
+            <LanguageGate />
             <EmailGate />
             <GdprConsent />
             <PageTransition>{children}</PageTransition>
