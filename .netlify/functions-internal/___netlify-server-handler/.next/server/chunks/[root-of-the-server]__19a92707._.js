@@ -1,0 +1,3 @@
+module.exports=[463021,(e,r,s)=>{r.exports=e.x("@prisma/client-2c3a283f134fdcb6",()=>require("@prisma/client-2c3a283f134fdcb6"))},843793,e=>{"use strict";var r=e.i(463021);let s="true"===process.env.NETLIFY||process.env.LAMBDA_TASK_ROOT||process.env.AWS_LAMBDA_FUNCTION_NAME||"1"===process.env.VERCEL?parseInt(process.env.DATABASE_CONNECTION_LIMIT||"3",10):void 0,t=globalThis.prisma??new r.PrismaClient({log:["error"],datasourceUrl:s?function(e,r){try{let s=new URL(e);return s.searchParams.set("connection_limit",String(r)),s.toString()}catch{let s=e.includes("?")?"&":"?";return`${e}${s}connection_limit=${r}`}}(process.env.DATABASE_URL,s):void 0});e.s(["db",0,t])}];
+
+//# sourceMappingURL=%5Broot-of-the-server%5D__19a92707._.js.map

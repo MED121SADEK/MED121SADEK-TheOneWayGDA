@@ -1,0 +1,3 @@
+module.exports=[965955,a=>{"use strict";function b({children:a}){return a}a.s(["default",()=>b,"metadata",0,{title:"About",description:"Learn about TheOneWayGDA — our mission, values, team, and vision. We are building the most comprehensive AI model comparison and evaluation platform for researchers, developers, and enterprises.",openGraph:{title:"About TheOneWayGDA",description:"Learn about TheOneWayGDA — our mission, values, team, and vision. We are building the most comprehensive AI model comparison and evaluation platform."}}])}];
+
+//# sourceMappingURL=src_app_about_layout_tsx_798242e8._.js.map
