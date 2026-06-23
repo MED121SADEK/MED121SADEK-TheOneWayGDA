@@ -1,45 +1,38 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { db as prisma } from '@/lib/db';
 import { cronManager } from '@/lib/cron-manager';
 import { leaderboardCache, pricingCache, benchmarkCache, metricsCache } from '@/lib/cache';
-import { requireAuthOrRespond } from '@/lib/require-auth';
 
-let initPromise: Promise<void> | null = null;
+let initialized = false;
 
 async function initCron() {
-  if (!initPromise) {
-    initPromise = (async () => {
-      await cronManager.init();
+  if (initialized) return;
+  initialized = true;
+  await cronManager.init();
 
-      cronManager.register({
-        name: 'pricing-updater', type: 'pricing', interval: '1h',
-        handler: async () => { pricingCache.clear(); console.log('[Cron] Pricing refreshed'); },
-      });
+  cronManager.register({
+    name: 'pricing-updater', type: 'pricing', interval: '1h',
+    handler: async () => { pricingCache.clear(); console.log('[Cron] Pricing refreshed'); },
+  });
 
-      cronManager.register({
-        name: 'metrics-collector', type: 'metrics', interval: '1h',
-        handler: async () => {
-          metricsCache.clear();
-          try {
-            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://theoneway.app';
-            await fetch(`${baseUrl}/api/leaderboard/metrics`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-          } catch { console.warn('[Cron] Self-trigger failed (expected in dev)'); }
-        },
-      });
+  cronManager.register({
+    name: 'metrics-collector', type: 'metrics', interval: '1h',
+    handler: async () => {
+      metricsCache.clear();
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://theoneway.app';
+        await fetch(`${baseUrl}/api/leaderboard/metrics`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      } catch { console.warn('[Cron] Self-trigger failed (expected in dev)'); }
+    },
+  });
 
-      cronManager.register({
-        name: 'benchmarks-sync', type: 'benchmarks', interval: '6h',
-        handler: async () => { benchmarkCache.clear(); leaderboardCache.clear(); console.log('[Cron] Benchmarks synced'); },
-      });
-    })();
-  }
-  return initPromise;
+  cronManager.register({
+    name: 'benchmarks-sync', type: 'benchmarks', interval: '6h',
+    handler: async () => { benchmarkCache.clear(); leaderboardCache.clear(); console.log('[Cron] Benchmarks synced'); },
+  });
 }
 
-export async function GET(request: NextRequest) {
-  const { response } = await requireAuthOrRespond(request);
-  if (response) return response;
-
+export async function GET() {
   await initCron();
   const jobs = await prisma.cronJob.findMany({ orderBy: { name: 'asc' } });
   return NextResponse.json({
@@ -49,10 +42,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-export async function POST(request: NextRequest) {
-  const { response } = await requireAuthOrRespond(request);
-  if (response) return response;
-
+export async function POST(request: Request) {
   await initCron();
   const { action, jobName } = await request.json().catch(() => ({}));
 

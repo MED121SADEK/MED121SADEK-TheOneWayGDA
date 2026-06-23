@@ -19,7 +19,7 @@ const fadeUp = {
 }
 
 type BlockedState = {
-  type: 'rejected' | 'pending'
+  type: 'rejected'
   email: string
   name?: string | null
   message: string
@@ -63,23 +63,6 @@ export default function LoginPage() {
       })
 
       const data = await res.json()
-
-      // Handle pending approval (202)
-      if (res.status === 202 && data.status === 'pending') {
-        const normalizedEmail = email.toLowerCase().trim()
-        router.push(`/auth/status?email=${encodeURIComponent(normalizedEmail)}`)
-        return
-      }
-
-      // Handle rejected account (403)
-      if (res.status === 403 && data.status === 'rejected') {
-        setBlockedState({
-          type: 'rejected',
-          email,
-          message: data.error || 'Your account has been declined.',
-        })
-        return
-      }
 
       if (!res.ok) {
         setError(data.error || 'Login failed')

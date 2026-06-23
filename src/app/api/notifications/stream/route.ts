@@ -8,20 +8,11 @@ import { getTokenFromRequest } from '@/lib/auth'
  * Streams new notifications to authenticated users in real-time.
  * Uses polling internally (every 10s) to check for new notifications.
  *
- * SERVERLESS NOTE: On Netlify/serverless, SSE connections time out after ~10s.
- * The client-side hook (use-notification-stream.ts) already falls back to
- * regular polling when the SSE connection drops. This route works as a
- * best-effort streaming endpoint — it will deliver notifications until
- * the serverless function times out, then the client reconnects or polls.
- *
  * Auth: EventSource API cannot send custom headers, so the token is
  * passed via query param (see createAuthEventSource in auth-fetch.ts).
  */
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-
-/** Detect if we're running in a serverless/Netlify environment */
-const isServerless = process.env.NETLIFY === 'true' || !!process.env.LAMBDA_TASK_ROOT
 
 /**
  * Extract token from an SSE request.
@@ -58,35 +49,6 @@ export async function GET(request: NextRequest) {
 
   const userId = session.userId
 
-  // ── Serverless fallback: return recent notifications as JSON ──
-  // On Netlify, SSE streams get killed after ~10s. Instead of creating
-  // a stream that will die immediately, return a one-shot snapshot with
-  // a hint for the client to poll.
-  if (isServerless) {
-    const recent = await db.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-      select: {
-        id: true, type: true, title: true, message: true,
-        actionUrl: true, actionLabel: true, isRead: true, createdAt: true,
-      },
-    })
-
-    return NextResponse.json({
-      mode: 'poll',
-      notifications: recent,
-      pollIntervalMs: 15000,
-      hint: 'Serverless environment detected — use polling instead of SSE',
-    }, {
-      headers: {
-        'Cache-Control': 'no-cache, no-store',
-        'X-SSE-Fallback': 'poll',
-      },
-    })
-  }
-
-  // ── Standard server: full SSE stream ──
   const encoder = new TextEncoder()
   let keepAliveTimer: ReturnType<typeof setInterval>
   let pollTimer: ReturnType<typeof setInterval>

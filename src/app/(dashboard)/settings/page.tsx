@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
-import { useTranslation } from '@/lib/i18n'
+import { useTranslation, localeNames, type Locale } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,28 +15,13 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
-  Globe, User, Building2, MapPin, Link2, Save,
-  Loader2, Clock, Trash2, X, Plus,
-  Activity, Settings, CheckCircle2, AlertTriangle, Check, ChevronRight,
+  ArrowLeft, Globe, User, Building2, MapPin, Link2, Save,
+  Loader2, Shield, Clock, Trash2, X, Plus, Lock, Key,
+  Activity, Settings, CheckCircle2, AlertTriangle,
 } from 'lucide-react'
 import { authFetch } from '@/lib/auth-fetch'
-
-/* ─── Language options (mirrors register page) ─── */
-const LANGUAGES = [
-  { code: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'fr', label: 'French', flag: '🇫🇷' },
-  { code: 'ar', label: 'Arabic', flag: '🇸🇦' },
-  { code: 'es', label: 'Spanish', flag: '🇪🇸' },
-  { code: 'de', label: 'German', flag: '🇩🇪' },
-  { code: 'zh', label: 'Chinese', flag: '🇨🇳' },
-  { code: 'ja', label: 'Japanese', flag: '🇯🇵' },
-  { code: 'ko', label: 'Korean', flag: '🇰🇷' },
-  { code: 'pt', label: 'Portuguese', flag: '🇧🇷' },
-  { code: 'ru', label: 'Russian', flag: '🇷🇺' },
-  { code: 'hi', label: 'Hindi', flag: '🇮🇳' },
-  { code: 'tr', label: 'Turkish', flag: '🇹🇷' },
-] as const
 
 /* ─── Types ─── */
 interface UserData {
@@ -48,8 +35,6 @@ interface UserData {
   website: string | null
   skills: string | null
   preferences: string | null
-  preferredLanguage: string
-  proficientLanguages: string | null
   createdAt: string
   lastSeen: string
 }
@@ -119,9 +104,6 @@ export default function SettingsPage() {
   const [skillInput, setSkillInput] = useState('')
   const [skills, setSkills] = useState<string[]>([])
   const [notifications, setNotifications] = useState(true)
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([])
-  const [langSaving, setLangSaving] = useState(false)
-  const [langSaveMsg, setLangSaveMsg] = useState('')
 
   useEffect(() => {
     if (!session) return
@@ -138,11 +120,6 @@ export default function SettingsPage() {
         const prefs = u.preferences ? JSON.parse(String(u.preferences)) : {}
         setNotifications(prefs.notifications !== false)
       } catch { /* use defaults */ }
-      try {
-        const langs = u.proficientLanguages ? JSON.parse(String(u.proficientLanguages)) : null
-        const parsed = Array.isArray(langs) && langs.length > 0 ? langs : [u.preferredLanguage || 'en']
-        setSelectedLanguages(parsed)
-      } catch { setSelectedLanguages([u.preferredLanguage || 'en']) }
       fetchActivities()
     }
     setLoading(false)
@@ -173,8 +150,6 @@ export default function SettingsPage() {
           name, bio, company, location, website,
           skills: JSON.stringify(skills),
           preferences: JSON.stringify({ theme: 'dark', language: locale, notifications }),
-          preferredLanguage: selectedLanguages[0] || locale,
-          proficientLanguages: selectedLanguages,
         }),
       })
       if (res.ok) {
@@ -198,46 +173,6 @@ export default function SettingsPage() {
 
   const removeSkill = (skill: string) => {
     setSkills(skills.filter((s: string) => s !== skill))
-  }
-
-  const toggleLanguage = (code: string) => {
-    setSelectedLanguages((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
-    )
-  }
-
-  const setAsPrimary = (code: string) => {
-    setSelectedLanguages((prev) =>
-      [code, ...prev.filter((c) => c !== code)]
-    )
-  }
-
-  const handleLangSave = async () => {
-    if (!session?.user || selectedLanguages.length === 0) return
-    setLangSaving(true)
-    setLangSaveMsg('')
-    try {
-      const res = await fetch(`/api/auth/${session.user.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.token}`,
-        },
-        body: JSON.stringify({
-          preferredLanguage: selectedLanguages[0],
-          proficientLanguages: selectedLanguages,
-          preferences: JSON.stringify({ theme: 'dark', language: selectedLanguages[0], notifications }),
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        localStorage.setItem('oneway-user', JSON.stringify(data.user))
-        setUser(data.user)
-        setLangSaveMsg('Language preferences saved')
-        setTimeout(() => setLangSaveMsg(''), 3000)
-      }
-    } catch { setLangSaveMsg('') }
-    setLangSaving(false)
   }
 
   const initials = user?.name
@@ -385,8 +320,8 @@ export default function SettingsPage() {
                       <Separator />
                       <div className="flex items-center justify-between py-2">
                         <div>
-                          <p className="text-sm font-medium">Interface Language</p>
-                          <p className="text-xs text-muted-foreground">Active UI locale</p>
+                          <p className="text-sm font-medium">Language</p>
+                          <p className="text-xs text-muted-foreground">Interface language preference</p>
                         </div>
                         <Badge variant="outline" className="text-xs">{locale.toUpperCase()}</Badge>
                       </div>
@@ -397,93 +332,6 @@ export default function SettingsPage() {
                           <p className="text-xs text-muted-foreground">Dark mode is enabled by default</p>
                         </div>
                         <Badge variant="outline" className="text-xs">Dark</Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-
-                {/* ── Language Proficiency Card ── */}
-                <motion.div {...fadeUp} transition={{ ...fadeUp.animate.transition, delay: 0.05 }}>
-                  <Card className="card-premium">
-                    <CardHeader>
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <Globe className="size-4 text-primary" />Language Proficiency
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        Select the languages you are proficient in. The first selected language is your primary language.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                        {LANGUAGES.map((lang) => {
-                          const isSelected = selectedLanguages.includes(lang.code)
-                          return (
-                            <button
-                              key={lang.code}
-                              type="button"
-                              onClick={() => toggleLanguage(lang.code)}
-                              className={`
-                                relative flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-sm transition-all duration-200
-                                ${isSelected
-                                  ? 'border-primary/60 bg-primary/10 shadow-sm shadow-primary/10'
-                                  : 'border-border/40 bg-background/50 hover:border-primary/30 hover:bg-accent/30'
-                                }
-                              `}
-                            >
-                              {isSelected && (
-                                <div className="absolute top-1 right-1">
-                                  <Check className="size-3 text-primary" />
-                                </div>
-                              )}
-                              <span className="text-xl leading-none">{lang.flag}</span>
-                              <span className={`text-[10px] font-medium leading-tight ${isSelected ? 'text-primary' : 'text-foreground/80'}`}>
-                                {lang.label}
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </div>
-
-                      {selectedLanguages.length > 0 && (
-                        <div className="rounded-lg bg-muted/40 border border-border/30 px-4 py-2.5">
-                          <p className="text-xs text-muted-foreground mb-1.5">Selected languages (first = primary):</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {selectedLanguages.map((code, idx) => {
-                              const lang = LANGUAGES.find((l) => l.code === code)
-                              return lang ? (
-                                <Badge
-                                  key={code}
-                                  variant={idx === 0 ? 'default' : 'secondary'}
-                                  className="text-xs gap-1 px-2 py-0.5 cursor-pointer group"
-                                  onClick={() => idx !== 0 && setAsPrimary(code)}
-                                  title={idx !== 0 ? 'Click to set as primary' : 'Primary language'}
-                                >
-                                  <span>{lang.flag}</span>
-                                  {lang.label}
-                                  {idx === 0 && <span className="text-[8px] opacity-70">primary</span>}
-                                  {idx !== 0 && <ChevronRight className="size-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                                </Badge>
-                              ) : null
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between">
-                        {langSaveMsg && (
-                          <span className="text-xs text-emerald-400 flex items-center gap-1">
-                            <CheckCircle2 className="size-3" /> {langSaveMsg}
-                          </span>
-                        )}
-                        <Button
-                          onClick={handleLangSave}
-                          disabled={langSaving || selectedLanguages.length === 0}
-                          className="ml-auto gap-2"
-                          size="sm"
-                        >
-                          {langSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-                          Save Languages
-                        </Button>
                       </div>
                     </CardContent>
                   </Card>

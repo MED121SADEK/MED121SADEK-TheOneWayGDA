@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { createAuthEventSource, authFetch } from '@/lib/auth-fetch'
+import { createAuthEventSource } from '@/lib/auth-fetch'
 
 interface LiveNotification {
   id: string
@@ -15,116 +15,39 @@ interface LiveNotification {
 }
 
 /**
- * useNotificationStream — Real-time notifications client hook.
- *
- * Strategy:
- *  1. Try SSE (EventSource) first — works on long-running servers.
- *  2. If the server responds with X-SSE-Fallback: poll header (serverless/Netlify),
- *     automatically switch to interval-based polling.
- *  3. If SSE errors repeatedly, fall back to polling after 3 failures.
+ * useNotificationStream — SSE client hook for real-time notifications.
+ * Connects to /api/notifications/stream, auto-reconnects with exponential backoff.
  */
 export function useNotificationStream() {
   const [liveNotifications, setLiveNotifications] = useState<LiveNotification[]>([])
   const [isConnected, setIsConnected] = useState(false)
-  const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'polling'>('disconnected')
+  const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'reconnecting'>('disconnected')
   const [error, setError] = useState<string | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const seenIdsRef = useRef<Set<string>>(new Set())
   const retryCountRef = useRef(0)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const mountedRef = useRef(true)
-  const usePollingRef = useRef(false)
 
-  /** Add new notifications, deduplicating against seen IDs */
-  const addNotifications = useCallback((notifs: LiveNotification[]) => {
-    if (!mountedRef.current) return
-    let added = false
-    const updated = [...liveNotifications]
-    for (const notif of notifs) {
-      if (seenIdsRef.current.has(notif.id)) continue
-      seenIdsRef.current.add(notif.id)
-      updated.unshift(notif)
-      added = true
-    }
-    if (added) {
-      setLiveNotifications(updated.slice(0, 50))
-    }
-  }, [liveNotifications])
-
-  /** Stop polling timer */
-  const stopPolling = useCallback(() => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current)
-      pollTimerRef.current = null
-    }
-  }, [])
-
-  /** Start polling-based notification fetching */
-  const startPolling = useCallback((intervalMs = 15000) => {
-    stopPolling()
-    setStatus('polling')
-    setError(null)
-
-    // Fetch immediately
-    const poll = async () => {
-      try {
-        const res = await authFetch('/api/notifications/stream')
-        if (!res.ok) return
-        const data = await res.json()
-        if (data.mode === 'poll' && Array.isArray(data.notifications)) {
-          addNotifications(data.notifications)
-        }
-      } catch {
-        // Silent — polling is best-effort
-      }
-    }
-
-    poll()
-    pollTimerRef.current = setInterval(poll, intervalMs)
-  }, [stopPolling, addNotifications])
-
-  /** Close SSE connection and timers */
-  const disconnect = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current)
-      retryTimerRef.current = null
-    }
-    stopPolling()
-    setIsConnected(false)
-    setStatus('disconnected')
-  }, [stopPolling])
-
-  /** Connect via SSE (or fallback to polling) */
   const connect = useCallback(() => {
+    // Don't connect if not mounted
     if (!mountedRef.current) return
-    if (document.hidden) return
-    if (usePollingRef.current) {
-      startPolling()
-      return
-    }
 
-    // Close existing SSE
+    // Don't reconnect if tab is hidden
+    if (document.hidden) return
+
+    // Close existing connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
       eventSourceRef.current = null
     }
 
-    const s = retryCountRef.current > 0 ? 'reconnecting' : 'connecting'
-    setStatus(s)
+    const status = retryCountRef.current > 0 ? 'reconnecting' : 'connecting'
+    setStatus(status)
     setError(null)
 
     const es = createAuthEventSource('/api/notifications/stream')
-    if (!es) {
-      // authFetch not available — fall back to polling
-      usePollingRef.current = true
-      startPolling()
-      return
-    }
+    if (!es) return
     eventSourceRef.current = es
 
     es.addEventListener('connected', () => {
@@ -138,6 +61,7 @@ export function useNotificationStream() {
       if (!mountedRef.current) return
       try {
         const notif: LiveNotification = JSON.parse(e.data)
+        // Deduplicate
         if (seenIdsRef.current.has(notif.id)) return
         seenIdsRef.current.add(notif.id)
         setLiveNotifications(prev => [notif, ...prev].slice(0, 50))
@@ -152,16 +76,9 @@ export function useNotificationStream() {
       es.close()
       eventSourceRef.current = null
 
-      // After 3 consecutive SSE failures, switch to polling permanently
+      // Exponential backoff: 1s, 2s, 4s, 8s, ... max 30s
+      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000)
       retryCountRef.current++
-      if (retryCountRef.current >= 3) {
-        usePollingRef.current = true
-        startPolling()
-        return
-      }
-
-      // Exponential backoff: 1s, 2s, 4s — max 8s
-      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current - 1), 8000)
       setStatus('reconnecting')
       setError(`Reconnecting in ${Math.round(delay / 1000)}s...`)
 
@@ -169,23 +86,33 @@ export function useNotificationStream() {
         if (mountedRef.current) connect()
       }, delay)
     }
-  }, [startPolling])
+  }, [])
+
+  const disconnect = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current)
+      retryTimerRef.current = null
+    }
+    setIsConnected(false)
+    setStatus('disconnected')
+  }, [])
 
   // Lifecycle
   useEffect(() => {
     mountedRef.current = true
+
     connect()
 
-    const handleAuthChange = () => {
-      seenIdsRef.current.clear()
-      retryCountRef.current = 0
-      usePollingRef.current = false
-      connect()
-    }
+    // Listen for auth events
+    const handleAuthChange = () => connect()
     window.addEventListener('oneway-auth-change', handleAuthChange)
     window.addEventListener('storage', handleAuthChange)
 
-    // Retry after short delay (token might be set during hydration)
+    // Also try after a short delay (token might be set during hydration)
     const timer = setTimeout(() => connect(), 2000)
 
     return () => {

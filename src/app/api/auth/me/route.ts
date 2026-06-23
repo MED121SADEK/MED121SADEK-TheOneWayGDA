@@ -20,20 +20,6 @@ export async function GET(request: NextRequest) {
     const user = await database.user.findUnique({ where: { id: session.userId } })
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 401 })
 
-    // Block pending/rejected users
-    if (user.role === 'pending') {
-      return NextResponse.json(
-        { error: 'Account pending admin approval', status: 'pending' },
-        { status: 403 }
-      )
-    }
-    if (user.role === 'rejected') {
-      return NextResponse.json(
-        { error: 'Account has been declined', status: 'rejected' },
-        { status: 403 }
-      )
-    }
-
     const { password: _pw, ...safeUser } = user
     return NextResponse.json({ user: safeUser })
   } catch (error: unknown) {

@@ -1,5 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { promises as fs } from 'fs'
+import path from 'path'
+
+const DATA_DIR = path.join(process.cwd(), 'data')
+const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json')
+
+interface FeedbackEntry {
+  id: string
+  rating: number
+  category: string
+  message: string
+  email?: string
+  page: string
+  userAgent: string
+  timestamp: string
+}
+
+// ──────────────────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────────────────
+
+async function ensureDataDir() {
+  try {
+    await fs.access(DATA_DIR)
+  } catch {
+    await fs.mkdir(DATA_DIR, { recursive: true })
+  }
+}
+
+async function readFeedback(): Promise<FeedbackEntry[]> {
+  try {
+    const raw = await fs.readFile(FEEDBACK_FILE, 'utf-8')
+    return JSON.parse(raw)
+  } catch {
+    return []
+  }
+}
+
+async function writeFeedback(entries: FeedbackEntry[]) {
+  await ensureDataDir()
+  await fs.writeFile(FEEDBACK_FILE, JSON.stringify(entries, null, 2), 'utf-8')
+}
 
 // ──────────────────────────────────────────────────────────
 // POST: Submit feedback
@@ -9,13 +50,14 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    const { rating, category, message, email, page, userAgent } = body as {
+    const { rating, category, message, email, page, userAgent, timestamp } = body as {
       rating: number
       category: string
       message: string
       email?: string
       page?: string
       userAgent?: string
+      timestamp?: string
     }
 
     // Validate required fields
@@ -47,16 +89,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const entry = await db.feedback.create({
-      data: {
-        rating,
-        category,
-        message: message.trim(),
-        email: email?.trim() || null,
-        page: page || 'unknown',
-        userAgent: userAgent || 'unknown',
-      },
-    })
+    const entry: FeedbackEntry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+      rating,
+      category,
+      message: message.trim(),
+      email: email?.trim() || undefined,
+      page: page || 'unknown',
+      userAgent: userAgent || 'unknown',
+      timestamp: timestamp || new Date().toISOString(),
+    }
+
+    // Persist to JSON file
+    const existing = await readFeedback()
+    existing.push(entry)
+    await writeFeedback(existing)
 
     return NextResponse.json({
       status: 'ok',
@@ -78,10 +125,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const entries = await db.feedback.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    })
+    const entries = await readFeedback()
     return NextResponse.json({
       status: 'ok',
       count: entries.length,

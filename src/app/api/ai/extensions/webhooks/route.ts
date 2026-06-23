@@ -125,11 +125,7 @@ export async function GET(request: NextRequest) {
   }
 
   const response: Record<string, unknown> = {
-    // Strip secrets from the response — never expose them to clients
-    webhooks: filtered.map((w) => {
-      const { secret: _secret, ...safe } = w
-      return safe
-    }),
+    webhooks: filtered,
     availableEvents: WEBHOOK_EVENTS,
     summary: {
       total: webhooks.length,

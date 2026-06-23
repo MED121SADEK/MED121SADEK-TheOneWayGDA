@@ -3,27 +3,6 @@ import { getProvider, exchangeCodeForToken, getUserInfo } from '@/lib/oauth'
 import { generateToken } from '@/lib/auth'
 import { db } from '@/lib/db'
 
-const ALLOWED_LANG_CODES = ['en','fr','ar','es','de','zh','ja','ko','pt','ru','hi','tr']
-
-/**
- * Parse Accept-Language header and return the best matching allowed language code.
- * Falls back to 'en' if no match is found.
- */
-function detectLanguageFromHeader(acceptLang: string | null): string {
-  if (!acceptLang) return 'en'
-  // Parse: "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7"
-  const langs = acceptLang.split(',').map(part => {
-    const code = part.split(';')[0].trim().split('-')[0].toLowerCase()
-    const q = parseFloat(part.match(/q=([\d.]+)/)?.[1] || '1')
-    return { code, q }
-  }).sort((a, b) => b.q - a.q)
-
-  for (const { code } of langs) {
-    if (ALLOWED_LANG_CODES.includes(code)) return code
-  }
-  return 'en'
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ provider: string }> }
@@ -104,23 +83,9 @@ export async function GET(
       const existingUser = await db.user.findUnique({ where: { email: normalizedEmail } })
 
       if (existingUser) {
-        // Link OAuth to existing user — fill language gaps if user has default-only values
+        // Link OAuth to existing user
         userId = existingUser.id
         userRole = existingUser.role
-
-        // If user still has default English-only language (never customized), update from browser
-        if (existingUser.preferredLanguage === 'en' && existingUser.proficientLanguages === '["en"]') {
-          const detectedLang = detectLanguageFromHeader(request.headers.get('accept-language'))
-          if (detectedLang !== 'en') {
-            await db.user.update({
-              where: { id: userId },
-              data: {
-                preferredLanguage: detectedLang,
-                proficientLanguages: JSON.stringify([detectedLang, 'en']),
-              },
-            })
-          }
-        }
 
         await db.oAuthAccount.create({
           data: {
@@ -136,10 +101,9 @@ export async function GET(
           },
         })
       } else {
-        // New user — detect language from browser Accept-Language header
+        // New user — create with 'user' role (immediate access)
         isNewUser = true
         const randomPassword = `oauth_${Date.now()}_${Math.random().toString(36).slice(2)}`
-        const detectedLang = detectLanguageFromHeader(request.headers.get('accept-language'))
 
         const newUser = await db.user.create({
           data: {
@@ -147,10 +111,8 @@ export async function GET(
             name: userInfo.name,
             image: userInfo.avatarUrl,
             password: '', // OAuth users don't have a password
-            role: 'pending',
-            preferredLanguage: detectedLang,
-            proficientLanguages: JSON.stringify([detectedLang]),
-            preferences: JSON.stringify({ theme: 'dark', language: detectedLang, notifications: true, aiSensitivity: 0.7 }),
+            role: 'user',
+            preferences: JSON.stringify({ theme: 'dark', language: 'en', notifications: true, aiSensitivity: 0.7 }),
           },
         })
 
@@ -171,27 +133,26 @@ export async function GET(
           },
         })
 
-        // Create activity log with language info
+        // Create activity log
         await db.userActivity.create({
           data: {
             userId,
             type: 'registration_pending',
-            details: JSON.stringify({ method: `oauth_${providerName}`, name: userInfo.name, primaryLanguage: detectedLang }),
+            details: JSON.stringify({ method: `oauth_${providerName}`, name: userInfo.name }),
           },
         })
 
-        // Create visitor entry with detected language
+        // Create visitor entry
         await db.visitor.upsert({
           where: { email: normalizedEmail },
-          update: { name: userInfo.name, status: 'pending', language: detectedLang },
-          create: { email: normalizedEmail, name: userInfo.name, status: 'pending', language: detectedLang },
+          update: { name: userInfo.name, status: 'pending' },
+          create: { email: normalizedEmail, name: userInfo.name, status: 'pending' },
         })
 
-        // Send admin notification email with language info
+        // Send admin notification email
         try {
           const { sendAdminAccessRequestEmail } = await import('@/lib/email')
-          const LANG_NAMES: Record<string, string> = { en:'English', fr:'French', ar:'Arabic', es:'Spanish', de:'German', zh:'Chinese', ja:'Japanese', ko:'Korean', pt:'Portuguese', ru:'Russian', hi:'Hindi', tr:'Turkish' }
-          sendAdminAccessRequestEmail(userInfo.name, normalizedEmail, userId, null, LANG_NAMES[detectedLang] || detectedLang.toUpperCase()).catch(() => {})
+          sendAdminAccessRequestEmail(userInfo.name, normalizedEmail, userId, null).catch(() => {})
         } catch { /* ignore */ }
       }
     }
@@ -236,17 +197,11 @@ export async function GET(
       },
     })
 
-    // Set session token in httpOnly cookie (avoids leaking in URL, browser history, logs)
+    // Clear OAuth cookies
     const redirectUrl = new URL(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/auth/oauth-success`)
+    redirectUrl.searchParams.set('token', token)
 
     const response = NextResponse.redirect(redirectUrl.toString())
-    response.cookies.set('oneway-oauth-token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60, // 60 seconds — client must read and transfer to localStorage
-      path: '/',
-    })
     response.cookies.delete('oauth-state')
     response.cookies.delete('oauth-provider')
     return response

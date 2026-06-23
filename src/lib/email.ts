@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || ''
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'msad41855@gmail.com'
 const SENDER_EMAIL = process.env.RESEND_API_KEY
   ? (process.env.RESEND_SENDER || 'onboarding@resend.dev')
   : ADMIN_EMAIL
@@ -68,10 +68,9 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_BAS
 // ── Signed token for secure email action links ──
 import { createHmac } from 'crypto'
 
-const EMAIL_SECRET = process.env.EMAIL_ACTION_SECRET || ''
+const EMAIL_SECRET = process.env.EMAIL_ACTION_SECRET || 'oneway-email-secret-2025'
 
 export function generateActionToken(userId: string, action: 'approve' | 'reject' | 'reset' | 'sub_approve' | 'sub_reject'): string {
-  if (!EMAIL_SECRET) throw new Error('EMAIL_ACTION_SECRET is not configured')
   const payload = `${userId}:${action}:${Date.now()}`
   const signature = createHmac('sha256', EMAIL_SECRET).update(payload).digest('hex')
   return Buffer.from(`${payload}:${signature}`).toString('base64url')
@@ -120,8 +119,7 @@ export async function sendAdminAccessRequestEmail(
   userName: string | null,
   userEmail: string,
   userId: string,
-  ipAddress: string | null,
-  languages?: string
+  ipAddress: string | null
 ): Promise<boolean> {
   try {
     const transporter = getTransporter()
@@ -154,7 +152,6 @@ export async function sendAdminAccessRequestEmail(
 <tr><td style="color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Date</td>
 <td style="color:#1e293b;font-size:14px;border-top:1px solid #e2e8f0;">${now}</td></tr>
 ${ipAddress ? `<tr><td style="color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">IP</td><td style="color:#94a3b8;font-size:13px;font-family:monospace;border-top:1px solid #e2e8f0;">${ipAddress}</td></tr>` : ''}
-${languages ? `<tr><td style="color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid #e2e8f0;">Languages</td><td style="color:#1e293b;font-size:14px;border-top:1px solid #e2e8f0;">${languages}</td></tr>` : ''}
 </table>
 
 <p style="margin:0 0 16px;color:#334155;font-size:14px;font-weight:600;">Review and take action:</p>

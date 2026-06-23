@@ -135,27 +135,6 @@ model Visitor {
   @@index([status])
 }
 
-model AccessLog {
-  id        String   @id @default(cuid())
-  email     String?
-  name      String?
-  path      String
-  method    String   @default("GET")
-  userAgent String?
-  ipAddress String?
-  country   String?
-  city      String?
-  language  String?
-  referrer  String?
-  duration  Int?     // seconds spent on page (sent on leave)
-  createdAt DateTime @default(now())
-
-  @@index([email])
-  @@index([path])
-  @@index([createdAt])
-  @@index([country])
-}
-
 model AiModel {
   @@map("AIModel")
   id            String   @id @default(cuid())
@@ -647,11 +626,9 @@ model User {
   company         String?
   location        String?
   website         String?
-  skills              String?   // JSON: ["statistics", "python", ...]
-  preferredLanguage   String    @default("en") // ISO 639-1 primary language code
-  proficientLanguages String?   // JSON array: ["en", "fr", "ar", ...]
-  preferences         String?   // JSON: {theme, notifications, aiSensitivity...}
-  isOnboarded         Boolean   @default(false)
+  skills          String?   // JSON: ["statistics", "python", ...]
+  preferences     String?   // JSON: {theme, language, notifications...}
+  isOnboarded     Boolean   @default(false)
   resetToken      String?
   resetTokenExpiry DateTime?
   createdAt       DateTime  @default(now())
@@ -660,7 +637,6 @@ model User {
 
   @@index([role])
   @@index([isOnboarded])
-  @@index([preferredLanguage])
 
   sessions UserSession[]
   activities UserActivity[]
@@ -1272,20 +1248,4 @@ model OAuthAccount {
 
   @@unique([provider, providerId])
   @@index([userId])
-}
-
-// ═══ User Feedback ═══
-
-model Feedback {
-  id        String   @id @default(cuid())
-  rating    Int      // 1-5
-  category  String   // "bug" | "feature" | "general" | "uiux"
-  message   String
-  email     String?
-  page      String   @default("unknown")
-  userAgent String   @default("unknown")
-  createdAt DateTime @default(now())
-
-  @@index([category])
-  @@index([createdAt])
 }

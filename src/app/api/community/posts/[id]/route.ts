@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuthOrRespond } from '@/lib/require-auth'
 
 // GET /api/community/posts/[id] — Get single post
 export async function GET(
@@ -19,30 +18,22 @@ export async function GET(
   }
 }
 
-// DELETE /api/community/posts/[id] — Delete own post (auth required, author verified from session)
+// DELETE /api/community/posts/[id] — Delete own post
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // ── Require authentication ──
-  const { user, response: authResponse } = await requireAuthOrRespond(request)
-  if (authResponse || !user) return authResponse!
-
   try {
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const author = searchParams.get('author')
 
     const post = await db.communityPost.findUnique({ where: { id } })
     if (!post) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     }
-
-    // Verify ownership from session — admins can delete any post
-    const userEmail = user.email?.toLowerCase()
-    const isOwner = userEmail && post.author?.toLowerCase() === userEmail
-    const isAdmin = user.role === 'admin'
-
-    if (!isOwner && !isAdmin) {
-      return NextResponse.json({ error: 'You can only delete your own posts' }, { status: 403 })
+    if (author && post.author !== author.toLowerCase()) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     // Delete related comments and interactions

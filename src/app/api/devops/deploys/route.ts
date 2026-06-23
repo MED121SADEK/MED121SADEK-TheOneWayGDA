@@ -5,13 +5,10 @@
  * POST /api/devops/deploys — Record a new deployment
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db as prisma } from '@/lib/db'
-import { requireAuthOrRespond } from '@/lib/require-auth'
 
-export async function GET(request: NextRequest) {
-  const { response } = await requireAuthOrRespond(request)
-  if (response) return response
+export async function GET() {
   try {
     const [deploys, summary] = await Promise.all([
       prisma.deployLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
@@ -27,9 +24,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
-  const { response } = await requireAuthOrRespond(request)
-  if (response) return response
+export async function POST(request: Request) {
   try {
     const body = await request.json()
     const deploy = await prisma.deployLog.create({

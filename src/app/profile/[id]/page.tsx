@@ -38,6 +38,9 @@ interface Post {
   updatedAt: string
 }
 
+interface LangItem { code: string; label: string; flag: string; isPrimary?: boolean }
+interface UserLanguageData { proficientLanguages: LangItem[] }
+
 interface VerifiedInfo {
   email: string
   displayName: string
@@ -46,18 +49,6 @@ interface VerifiedInfo {
   badgeType: string
   bio?: string | null
   websiteUrl?: string | null
-}
-
-interface LangItem {
-  code: string
-  label: string
-  flag: string
-  isPrimary?: boolean
-}
-
-interface UserLanguageData {
-  preferredLanguage: { code: string; label: string; flag: string } | null
-  proficientLanguages: LangItem[]
 }
 
 function timeAgo(date: string): string {
@@ -171,6 +162,14 @@ export default function UserProfilePage() {
     fetchPosts()
   }, [userId])
 
+  /* ─── Fetch Language Badges ─── */
+  useEffect(() => {
+    fetch(`/api/community/user-languages?email=${encodeURIComponent(userId)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.proficientLanguages?.length) setUserLangs(data) })
+      .catch(() => {})
+  }, [userId])
+
   /* ─── Fetch Verified Info ─── */
   useEffect(() => {
     const fetchVerified = async () => {
@@ -184,22 +183,6 @@ export default function UserProfilePage() {
       } catch { /* silent */ }
     }
     fetchVerified()
-  }, [userId])
-
-  /* ─── Fetch Language Badges ─── */
-  useEffect(() => {
-    const fetchLangs = async () => {
-      try {
-        const res = await fetch(`/api/community/user-languages?email=${encodeURIComponent(userId)}`)
-        if (res.ok) {
-          const data = await res.json()
-          if (data.proficientLanguages && data.proficientLanguages.length > 0) {
-            setUserLangs(data)
-          }
-        }
-      } catch { /* silent */ }
-    }
-    fetchLangs()
   }, [userId])
 
   /* ─── Computed ─── */
@@ -321,26 +304,16 @@ export default function UserProfilePage() {
               </div>
 
               {/* Language Badges */}
-              {userLangs && userLangs.proficientLanguages.length > 0 && (
+              {userLangs?.proficientLanguages.length ? (
                 <div className="flex items-center gap-2 mt-3 flex-wrap">
-                  {userLangs.proficientLanguages.map((lang) => (
-                    <span
-                      key={lang.code}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${
-                        lang.isPrimary
-                          ? 'border-primary/30 bg-primary/10 text-primary'
-                          : 'border-border/40 bg-muted/30 text-muted-foreground'
-                      }`}
-                    >
-                      <span>{lang.flag}</span>
-                      <span>{lang.label}</span>
-                      {lang.isPrimary && (
-                        <span className="text-[8px] uppercase tracking-wider opacity-70">primary</span>
-                      )}
+                  {userLangs.proficientLanguages.map(l => (
+                    <span key={l.code} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${l.isPrimary ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border/40 bg-muted/30 text-muted-foreground'}`}>
+                      <span>{l.flag}</span><span>{l.label}</span>
+                      {l.isPrimary && <span className="text-[8px] uppercase tracking-wider opacity-70">primary</span>}
                     </span>
                   ))}
                 </div>
-              )}
+              ) : null}
 
               {/* Bio */}
               {(verifiedInfo?.bio || earliestPost) && (

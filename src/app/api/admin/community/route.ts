@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuthOrRespond } from '@/lib/require-auth'
 
 /**
  * Admin Community Management API
@@ -13,19 +12,7 @@ import { requireAuthOrRespond } from '@/lib/require-auth'
  * POST  /api/admin/community?trigger=digest   — Trigger manual digest
  */
 
-// ── Auth guard: admin session token required ──
-async function requireAdmin(request: NextRequest): Promise<NextResponse | null> {
-  const { user, response } = await requireAuthOrRespond(request)
-  if (response) return response
-  if (!user || user.role !== 'admin') {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-  }
-  return null
-}
-
 export async function GET(request: NextRequest) {
-  const denied = await requireAdmin(request)
-  if (denied) return denied
   try {
     const { searchParams } = new URL(request.url)
     const section = searchParams.get('section') || 'dashboard'
@@ -237,8 +224,6 @@ async function getPosts(searchParams: URLSearchParams) {
 /* ─── Moderate Posts (PATCH) ─── */
 
 export async function PATCH(request: NextRequest) {
-  const denied = await requireAdmin(request)
-  if (denied) return denied
   try {
     const body = await request.json()
     const { action, postIds, data } = body
@@ -350,8 +335,6 @@ export async function PATCH(request: NextRequest) {
 /* ─── Trigger Actions (POST) ─── */
 
 export async function POST(request: NextRequest) {
-  const denied = await requireAdmin(request)
-  if (denied) return denied
   try {
     const { searchParams } = new URL(request.url)
     const trigger = searchParams.get('trigger')

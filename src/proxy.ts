@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rate-limit'
-import { createHmac, timingSafeEqual } from 'crypto'
 
 /**
  * Next.js 16 Proxy — security, distributed rate limiting, request tracking
@@ -27,46 +26,20 @@ const BLOCKED_PATTERNS = [
   /(?:\.\.\/|\.\.\\)/,
 ]
 
-/**
- * Verify a signed admin token (issued by /api/admin/login).
- * Token format: <random_hex>.<hmac_signature>
- * Uses timing-safe comparison to prevent timing attacks.
- */
-function isValidAdminToken(token: string): boolean {
-  const adminSecret = process.env.ADMIN_SECRET
-  if (!adminSecret) return false
-
-  const dotIndex = token.lastIndexOf('.')
-  if (dotIndex === -1 || dotIndex === token.length - 1) return false
-
-  const rawToken = token.slice(0, dotIndex)
-  const signature = token.slice(dotIndex + 1)
-
-  const expectedSignature = createHmac('sha256', adminSecret)
-    .update(rawToken)
-    .digest('hex')
-
-  try {
-    const sigBuf = Buffer.from(signature, 'hex')
-    const expectedBuf = Buffer.from(expectedSignature, 'hex')
-    if (sigBuf.length !== expectedBuf.length) return false
-    return timingSafeEqual(sigBuf, expectedBuf)
-  } catch {
-    return false
-  }
-}
-
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const method = request.method
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
              request.headers.get('x-real-ip') || 'unknown'
 
-  // ── Protect admin page routes (signed token issued by /api/admin/login) ──
-  // The raw ADMIN_SECRET is never stored client-side.
+  // ── Protect admin page routes (cookie-based, NOT session-token auth) ──
+  // This check ONLY guards the /admin/* PAGE routes (e.g. /admin/visitors).
+  // It is completely separate from the session-token auth used by API routes.
+  // The cookie is set when the admin enters ADMIN_SECRET on /admin/login.
+  // If the cookie is missing, the user is redirected to the homepage.
   if (pathname.startsWith('/admin')) {
     const adminToken = request.cookies.get('oneway-admin-token')?.value
-    if (!adminToken || !isValidAdminToken(adminToken)) {
+    if (!adminToken) {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }

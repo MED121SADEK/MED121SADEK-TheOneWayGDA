@@ -12,7 +12,6 @@ import {
   ArrowLeft, UserCheck, Clock, XCircle, Search,
   CheckCircle2, AlertTriangle, Users, Loader2, Mail, Calendar,
   Shield, LogOut, MailWarning, MailCheck, Send, Settings, Lock,
-  Languages, ChevronDown, ChevronUp, BarChart3, Activity,
 } from 'lucide-react'
 
 interface PendingUser {
@@ -35,28 +34,6 @@ interface EmailStatus {
   adminEmail: string
 }
 
-interface LangStatItem {
-  code: string
-  label: string
-  flag: string
-  count: number
-  percentage: number
-}
-
-interface LanguageStats {
-  preferredLanguage: LangStatItem[]
-  proficientLanguages: LangStatItem[]
-  pendingLanguages: LangStatItem[]
-  monthlyBreakdown: Record<string, Record<string, number>>
-  summary: {
-    totalActive: number
-    totalPending: number
-    multiLanguageUsers: number
-    avgLanguagesPerUser: number
-    uniqueLanguagesUsed: number
-  }
-}
-
 export default function AdminApprovalsPage() {
   const [password, setPassword] = useState('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -70,54 +47,39 @@ export default function AdminApprovalsPage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null)
   const [testEmailLoading, setTestEmailLoading] = useState(false)
-  const [langStats, setLangStats] = useState<LanguageStats | null>(null)
-  const [langStatsLoading, setLangStatsLoading] = useState(false)
-  const [showLangStats, setShowLangStats] = useState(false)
 
   // Check existing session on mount
   useEffect(() => {
     const session = localStorage.getItem('oneway-admin-session')
-    const token = localStorage.getItem('oneway-admin-token')
-    if (session === 'authenticated' && token) {
-      setPassword(token)
+    const pw = localStorage.getItem('oneway-admin-pw')
+    if (session === 'authenticated' && pw) {
+      setPassword(pw)
       setIsAuthenticated(true)
     }
   }, [])
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
     if (!password.trim()) return
-    try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      })
-      const data = await res.json()
-      if (res.ok && data.token) {
-        localStorage.setItem('oneway-admin-session', 'authenticated')
-        localStorage.setItem('oneway-admin-token', data.token)
-        setPassword(data.token)
-        setIsAuthenticated(true)
-        setAuthError('')
-      } else {
-        setAuthError('Invalid password.')
-      }
-    } catch {
-      setAuthError('Network error.')
-    }
+    // Store credentials
+    localStorage.setItem('oneway-admin-session', 'authenticated')
+    localStorage.setItem('oneway-admin-pw', password)
+    document.cookie = `oneway-admin-token=${encodeURIComponent(password)};path=/;max-age=86400;SameSite=Strict`
+    setIsAuthenticated(true)
+    setAuthError('')
   }
 
   const handleLogout = () => {
     setIsAuthenticated(false)
     setPassword('')
     localStorage.removeItem('oneway-admin-session')
-    localStorage.removeItem('oneway-admin-token')
+    localStorage.removeItem('oneway-admin-pw')
+    document.cookie = 'oneway-admin-token=;path=/;max-age=0'
   }
 
   // Auth header helper
   const getHeaders = () => {
-    const token = localStorage.getItem('oneway-admin-token') || password
-    return { 'x-admin-token': token }
+    const pw = localStorage.getItem('oneway-admin-pw') || password
+    return { 'x-admin-token': pw }
   }
 
   const fetchUsers = useCallback(async () => {
@@ -142,28 +104,15 @@ export default function AdminApprovalsPage() {
     }
   }, [password])
 
-  const fetchLangStats = useCallback(async () => {
-    setLangStatsLoading(true)
-    try {
-      const res = await fetch('/api/admin/language-stats', { headers: getHeaders() })
-      if (res.ok) {
-        const data = await res.json()
-        setLangStats(data)
-      }
-    } catch { /* silent */ }
-    finally { setLangStatsLoading(false) }
-  }, [password])
-
   useEffect(() => {
     if (isAuthenticated) {
       fetchUsers()
-      fetchLangStats()
       fetch('/api/admin/test-email')
         .then(res => res.json())
         .then(data => setEmailStatus(data))
         .catch(() => {})
     }
-  }, [isAuthenticated, fetchUsers, fetchLangStats])
+  }, [isAuthenticated, fetchUsers])
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message })
@@ -316,26 +265,20 @@ export default function AdminApprovalsPage() {
       {/* Nav */}
       <nav className="sticky top-0 z-50 nav-premium">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <Link href="/admin/visitors" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft className="size-4" />
               <span className="text-xs hidden sm:inline">Admin</span>
             </Link>
-            <Link href="/admin/access-log" className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-              <Activity className="size-3.5" />
-              <span className="hidden sm:inline">Access Log</span>
-            </Link>
-          </div>
-          <div className="flex items-center gap-2">
             <Link href="/" className="flex items-center gap-2">
               <Image src="/images/logo.png" alt="TheOneWayGDA" width={28} height={28} className="rounded-lg" />
               <span className="font-bold gradient-text-premium text-sm">TheOneWayGDA</span>
             </Link>
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
-              <LogOut className="size-4 mr-1.5" />
-              <span className="text-xs">Logout</span>
-            </Button>
           </div>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
+            <LogOut className="size-4 mr-1.5" />
+            <span className="text-xs">Logout</span>
+          </Button>
         </div>
       </nav>
 
@@ -391,123 +334,6 @@ export default function AdminApprovalsPage() {
             </Button>
           </div>
         )}
-
-        {/* Language Analytics */}
-        <Card>
-          <CardHeader className="pb-2 cursor-pointer select-none" onClick={() => setShowLangStats(!showLangStats)}>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Languages className="size-5 text-blue-400" />
-                Language Analytics
-              </CardTitle>
-              <div className="flex items-center gap-3">
-                {langStats && !showLangStats && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground">{langStats.summary.totalActive} active</span>
-                    <span className="text-muted-foreground/30">|</span>
-                    <span className="text-xs text-muted-foreground">{langStats.summary.totalPending} pending</span>
-                    <span className="text-muted-foreground/30">|</span>
-                    <span className="text-xs text-muted-foreground">{langStats.summary.uniqueLanguagesUsed} languages</span>
-                  </div>
-                )}
-                {showLangStats ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-              </div>
-            </div>
-          </CardHeader>
-          {showLangStats && (
-            <CardContent className="pt-0 space-y-5">
-              {langStatsLoading ? (
-                <div className="flex items-center justify-center py-10"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
-              ) : langStats ? (
-                <>
-                  {/* Summary Cards */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="rounded-xl bg-blue-500/5 border border-blue-500/15 p-3 text-center">
-                      <p className="text-2xl font-bold text-blue-400">{langStats.summary.totalActive}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Active Users</p>
-                    </div>
-                    <div className="rounded-xl bg-amber-500/5 border border-amber-500/15 p-3 text-center">
-                      <p className="text-2xl font-bold text-amber-400">{langStats.summary.totalPending}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Pending</p>
-                    </div>
-                    <div className="rounded-xl bg-emerald-500/5 border border-emerald-500/15 p-3 text-center">
-                      <p className="text-2xl font-bold text-emerald-400">{langStats.summary.multiLanguageUsers}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Multi-Lang</p>
-                    </div>
-                    <div className="rounded-xl bg-purple-500/5 border border-purple-500/15 p-3 text-center">
-                      <p className="text-2xl font-bold text-purple-400">{langStats.summary.avgLanguagesPerUser}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Avg Langs</p>
-                    </div>
-                  </div>
-
-                  {/* Preferred Language Distribution */}
-                  <div>
-                    <h4 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
-                      <BarChart3 className="size-3.5 text-blue-400" />
-                      Preferred Language Distribution
-                    </h4>
-                    <div className="space-y-2">
-                      {langStats.preferredLanguage.map((lang) => (
-                        <div key={lang.code} className="flex items-center gap-3">
-                          <span className="text-lg w-8 text-center flex-shrink-0">{lang.flag}</span>
-                          <span className="text-xs font-medium w-24 truncate flex-shrink-0">{lang.label}</span>
-                          <div className="flex-1 h-5 bg-muted/30 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-blue-500/60 to-blue-400/60 rounded-full transition-all duration-500"
-                              style={{ width: `${Math.max(lang.percentage, 1)}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-muted-foreground w-10 text-right flex-shrink-0">{lang.count}</span>
-                          <span className="text-[10px] text-muted-foreground/60 w-10 text-right flex-shrink-0">{lang.percentage}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Proficient Languages (secondary) */}
-                  {langStats.proficientLanguages.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
-                        <BarChart3 className="size-3.5 text-emerald-400" />
-                        Proficient Languages (All Users)
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {langStats.proficientLanguages.map((lang) => (
-                          <div key={lang.code} className="flex items-center gap-1.5 rounded-full border border-border/30 bg-card/60 px-3 py-1.5">
-                            <span>{lang.flag}</span>
-                            <span className="text-xs font-medium">{lang.label}</span>
-                            <span className="text-[10px] text-muted-foreground">({lang.count})</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Pending Users Languages */}
-                  {langStats.pendingLanguages.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
-                        <BarChart3 className="size-3.5 text-amber-400" />
-                        Pending Users by Language
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {langStats.pendingLanguages.map((lang) => (
-                          <div key={lang.code} className="flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/5 px-3 py-1.5">
-                            <span>{lang.flag}</span>
-                            <span className="text-xs font-medium">{lang.label}</span>
-                            <span className="text-[10px] text-amber-300">{lang.count}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-6">No language data available yet.</p>
-              )}
-            </CardContent>
-          )}
-        </Card>
 
         {/* Search */}
         <div className="relative max-w-sm">

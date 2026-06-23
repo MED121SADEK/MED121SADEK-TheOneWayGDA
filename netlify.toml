@@ -1,64 +1,6 @@
-# ═══════════════════════════════════════════════════════════
-# Netlify Deployment Configuration for The One-Way (Next.js)
-# ═══════════════════════════════════════════════════════════
-
 [build]
   command = "npx prisma generate && npx next build"
   publish = ".next"
 
-# Required environment variables (set in Netlify dashboard):
-#   DATABASE_URL          — PostgreSQL connection string (Neon, Supabase, etc.)
-#   ADMIN_SECRET          — Min 8 chars, used for admin panel auth
-#   ADMIN_EMAIL           — Admin email for notifications
-#   RESEND_API_KEY        — Resend.com API key for email sending
-#   CSRF_SALT             — Min 16 chars, for CSRF protection
-#   EMAIL_ACTION_SECRET   — Min 16 chars, for email action signing
-#
-# Optional but recommended:
-#   REDIS_URL             — Upstash Redis for distributed rate limiting
-#   UPSTASH_REDIS_REST_URL
-#   UPSTASH_REDIS_REST_TOKEN
-#   NEXT_PUBLIC_BASE_URL  — Public URL (e.g. https://theoneway.app)
-#   DATABASE_CONNECTION_LIMIT — Default: 3 (for serverless connection pooling)
-
-[build.environment]
-  NODE_ENV = "production"
-  NETLIFY_NEXT_PLUGIN_SKIP = "false"
-
-# ── Next.js plugin handles routing, SSR, and API functions ──
 [[plugins]]
-  package = "@netlify/plugin-nextjs@5.2.0"
-
-# ── Headers: security headers applied to all routes ──
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    X-DNS-Prefetch-Control = "on"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
-    # Netlify automatically sets these, but explicit is better
-    X-XSS-Protection = "1; mode=block"
-
-# ── API routes: no caching ──
-[[headers]]
-  for = "/api/*"
-  [headers.values]
-    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
-
-# ── Static assets: long cache ──
-[[headers]]
-  for = "/_next/static/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "/icons/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "/images/*"
-  [headers.values]
-    Cache-Control = "public, max-age=86400, stale-while-revalidate=604800"
+  package = "@netlify/plugin-nextjs"

@@ -1,31 +1,27 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuthOrRespond } from '@/lib/require-auth';
 
-// In-memory vote cache for when DB is unavailable (last-resort fallback)
+// In-memory vote cache for when DB is unavailable
 const voteCache = new Map<string, Array<{ voterId: string; choice: string; comment: string | null; createdAt: Date }>>();
 
-/* ═══ POST /api/arena/[id]/vote — submit a vote (auth required) ═══ */
+/* ═══ POST /api/arena/[id]/vote — submit a vote ═══ */
 export async function POST(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // ── Require authentication ──
-  const { user, response: authResponse } = await requireAuthOrRespond(request);
-  if (authResponse || !user) return authResponse!;
-
   try {
     const { id } = await params;
     const body = await request.json();
-    const { choice, comment } = body;
-
-    // Derive voterId from the authenticated session (not from request body)
-    const voterId = user.userId;
+    const { voterId, choice, comment } = body;
 
     // Validate choice
     const validChoices = ['model_a', 'model_b', 'tie', 'both_bad'];
     if (!choice || !validChoices.includes(choice)) {
       return NextResponse.json({ error: 'Invalid choice. Must be: model_a, model_b, tie, or both_bad' }, { status: 400 });
+    }
+
+    if (!voterId) {
+      return NextResponse.json({ error: 'voterId is required' }, { status: 400 });
     }
 
     try {
@@ -78,7 +74,7 @@ export async function POST(
         choice,
       });
     } catch (dbError) {
-      // DB failed — use in-memory cache (last resort)
+      // DB failed — use in-memory cache
       console.warn('[Arena Vote] DB unavailable, using memory cache:', dbError);
 
       const battleVotes = voteCache.get(id) || [];

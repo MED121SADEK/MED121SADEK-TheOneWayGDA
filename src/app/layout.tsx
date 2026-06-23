@@ -5,13 +5,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { I18nProvider } from "@/lib/i18n";
 import { GdprConsent } from "@/components/gdpr-consent";
-import { LanguageGate } from "@/components/LanguageGate";
 import { EmailGate } from "@/components/EmailGate";
 import AiCopilot from "@/components/ai/AiCopilot";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import { AppProviders } from "@/components/providers";
 import { PageTransition } from "@/components/page-transition";
-import { AccessLogger } from "@/components/AccessLogger";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -212,9 +210,7 @@ export default function RootLayout({
         <I18nProvider>
           <AppProviders>
             <ServiceWorkerRegistrar />
-            <LanguageGate />
             <EmailGate />
-            <AccessLogger />
             <GdprConsent />
             <PageTransition>{children}</PageTransition>
             <AiCopilot />

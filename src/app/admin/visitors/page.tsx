@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ArrowLeft, Globe, Shield, Users, Mail, Search, Check, X, Trash2, Download, StickyNote, LogOut, Clock, MapPin, Languages, Filter, Lock, Loader2, AlertCircle, Activity } from 'lucide-react'
+import { ArrowLeft, Globe, Shield, Users, Mail, Search, Check, X, Trash2, Download, StickyNote, LogOut, Clock, MapPin, Languages, Filter, Lock, Loader2, AlertCircle } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -184,10 +184,12 @@ export default function AdminVisitorsPage() {
 
   useEffect(() => {
     const session = localStorage.getItem('oneway-admin-session')
-    const token = localStorage.getItem('oneway-admin-token')
-    if (session === 'authenticated' && token) {
-      setPassword(token)
+    const pw = localStorage.getItem('oneway-admin-pw')
+    if (session === 'authenticated' && pw) {
+      setPassword(pw)
       setIsAuthenticated(true)
+      // Restore cookie for middleware (may have expired)
+      document.cookie = 'oneway-admin-token=' + encodeURIComponent(pw) + ';path=/;max-age=86400;SameSite=Strict'
     }
   }, [])
 
@@ -199,17 +201,15 @@ export default function AdminVisitorsPage() {
     setLoginLoading(true)
     setLoginError('')
     try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+      const res = await fetch('/api/visitors?limit=1', {
+        headers: { Authorization: `Bearer ${password}` },
       })
-      const data = await res.json()
-      if (res.ok && data.token) {
+      if (res.ok) {
         setIsAuthenticated(true)
-        setPassword(data.token)
         localStorage.setItem('oneway-admin-session', 'authenticated')
-        localStorage.setItem('oneway-admin-token', data.token)
+        localStorage.setItem('oneway-admin-pw', password)
+        // Set cookie for middleware auth check
+        document.cookie = 'oneway-admin-token=' + encodeURIComponent(password) + ';path=/;max-age=86400;SameSite=Strict'
       } else {
         setLoginError('Invalid password. Access denied.')
       }
@@ -224,14 +224,16 @@ export default function AdminVisitorsPage() {
     setIsAuthenticated(false)
     setPassword('')
     localStorage.removeItem('oneway-admin-session')
-    localStorage.removeItem('oneway-admin-token')
+    localStorage.removeItem('oneway-admin-pw')
+    // Clear cookie for middleware
+    document.cookie = 'oneway-admin-token=;path=/;max-age=0'
   }, [])
 
   // ── Data Fetching ──────────────────────────────────────────────────────
 
   const fetchVisitors = useCallback(async () => {
-    const token = localStorage.getItem('oneway-admin-token') || password
-    if (!token) return
+    const pw = localStorage.getItem('oneway-admin-pw') || password
+    if (!pw) return
 
     setLoading(true)
     setError('')
@@ -285,7 +287,7 @@ export default function AdminVisitorsPage() {
 
   // ── Actions ────────────────────────────────────────────────────────────
 
-  const getPw = () => { if (typeof window === 'undefined') return password; return localStorage.getItem('oneway-admin-token') || password }
+  const getPw = () => { if (typeof window === 'undefined') return password; return localStorage.getItem('oneway-admin-pw') || password }
   const pw = password
 
   const updateVisitor = useCallback(async (id: string, data: Partial<Visitor>) => {
@@ -538,14 +540,6 @@ export default function AdminVisitorsPage() {
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* Access Log */}
-              <Link href="/admin/access-log">
-                <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs text-muted-foreground hover:text-foreground">
-                  <Activity className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Access Log</span>
-                </Button>
-              </Link>
 
               {/* Export CSV */}
               <Button

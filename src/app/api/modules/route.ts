@@ -1,8 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { checkForUpdates } from '@/lib/update-checker'
 import type { AppModule, ModuleUpdate } from '@/lib/modules'
 import { APP_VERSION } from '@/lib/modules'
-import { requireAuthOrRespond } from '@/lib/require-auth'
 
 // In-memory module registry for API side (mirrors client store)
 const SERVER_MODULES: AppModule[] = [
@@ -161,9 +160,7 @@ export async function GET() {
   })
 }
 
-export async function POST(request: NextRequest) {
-  const { response } = await requireAuthOrRespond(request)
-  if (response) return response
+export async function POST(request: Request) {
   try {
     const body = await request.json()
     const { action, module: moduleData } = body

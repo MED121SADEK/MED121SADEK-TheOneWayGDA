@@ -316,33 +316,21 @@ class HealthMonitor {
 // Singleton instance
 export const healthMonitor = new HealthMonitor()
 
-// Background timers — only start in long-running server environments.
-// In serverless (Netlify/Lambda), these timers would never fire and
-// would leak resources. The cleanup/recovery runs on-demand inside
-// getHealthReport() instead.
-const isServerless = !!(
-  process.env.NETLIFY === 'true' ||
-  process.env.LAMBDA_TASK_ROOT ||
-  process.env.AWS_LAMBDA_FUNCTION_NAME
-)
+// Auto-cleanup every 5 minutes
+setInterval(() => {
+  const result = healthMonitor.autoCleanup()
+  if (result.cleaned > 0) {
+    console.log(`[Auto-Maintenance] Cleaned ${result.cleaned} entries: ${result.actions.join(', ')}`)
+  }
+}, 5 * 60 * 1000)
 
-if (!isServerless) {
-  // Auto-cleanup every 5 minutes
-  setInterval(() => {
-    const result = healthMonitor.autoCleanup()
-    if (result.cleaned > 0) {
-      console.log(`[Auto-Maintenance] Cleaned ${result.cleaned} entries: ${result.actions.join(', ')}`)
-    }
-  }, 5 * 60 * 1000)
-
-  // Auto-recovery check every 30 seconds
-  setInterval(() => {
-    const { recovered } = healthMonitor.autoRecover()
-    if (recovered.length > 0) {
-      console.log(`[Auto-Recovery] ${recovered.join(', ')}`)
-    }
-  }, 30 * 1000)
-}
+// Auto-recovery check every 30 seconds
+setInterval(() => {
+  const { recovered } = healthMonitor.autoRecover()
+  if (recovered.length > 0) {
+    console.log(`[Auto-Recovery] ${recovered.join(', ')}`)
+  }
+}, 30 * 1000)
 
 // ─── Dependency Health Check ───
 export interface DependencyStatus {
