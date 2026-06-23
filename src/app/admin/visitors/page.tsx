@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ArrowLeft, Globe, Shield, Users, Mail, Search, Check, X, Trash2, Download, StickyNote, LogOut, Clock, MapPin, Languages, Filter, Lock, Loader2, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Globe, Shield, Users, Mail, Search, Check, X, Trash2, Download, StickyNote, LogOut, Clock, MapPin, Languages, Filter, Lock, Loader2, AlertCircle, Activity } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -538,6 +538,14 @@ export default function AdminVisitorsPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Access Log */}
+              <Link href="/admin/access-log">
+                <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+                  <Activity className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Access Log</span>
+                </Button>
+              </Link>
 
               {/* Export CSV */}
               <Button

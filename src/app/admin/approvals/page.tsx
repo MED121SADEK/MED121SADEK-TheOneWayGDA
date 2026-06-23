@@ -12,7 +12,7 @@ import {
   ArrowLeft, UserCheck, Clock, XCircle, Search,
   CheckCircle2, AlertTriangle, Users, Loader2, Mail, Calendar,
   Shield, LogOut, MailWarning, MailCheck, Send, Settings, Lock,
-  Languages, ChevronDown, ChevronUp, BarChart3,
+  Languages, ChevronDown, ChevronUp, BarChart3, Activity,
 } from 'lucide-react'
 
 interface PendingUser {
@@ -316,20 +316,26 @@ export default function AdminApprovalsPage() {
       {/* Nav */}
       <nav className="sticky top-0 z-50 nav-premium">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link href="/admin/visitors" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft className="size-4" />
               <span className="text-xs hidden sm:inline">Admin</span>
             </Link>
+            <Link href="/admin/access-log" className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+              <Activity className="size-3.5" />
+              <span className="hidden sm:inline">Access Log</span>
+            </Link>
+          </div>
+          <div className="flex items-center gap-2">
             <Link href="/" className="flex items-center gap-2">
               <Image src="/images/logo.png" alt="TheOneWayGDA" width={28} height={28} className="rounded-lg" />
               <span className="font-bold gradient-text-premium text-sm">TheOneWayGDA</span>
             </Link>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
+              <LogOut className="size-4 mr-1.5" />
+              <span className="text-xs">Logout</span>
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
-            <LogOut className="size-4 mr-1.5" />
-            <span className="text-xs">Logout</span>
-          </Button>
         </div>
       </nav>
 

@@ -135,6 +135,27 @@ model Visitor {
   @@index([status])
 }
 
+model AccessLog {
+  id        String   @id @default(cuid())
+  email     String?
+  name      String?
+  path      String
+  method    String   @default("GET")
+  userAgent String?
+  ipAddress String?
+  country   String?
+  city      String?
+  language  String?
+  referrer  String?
+  duration  Int?     // seconds spent on page (sent on leave)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([path])
+  @@index([createdAt])
+  @@index([country])
+}
+
 model AiModel {
   @@map("AIModel")
   id            String   @id @default(cuid())

@@ -11,6 +11,7 @@ import AiCopilot from "@/components/ai/AiCopilot";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import { AppProviders } from "@/components/providers";
 import { PageTransition } from "@/components/page-transition";
+import { AccessLogger } from "@/components/AccessLogger";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -213,6 +214,7 @@ export default function RootLayout({
             <ServiceWorkerRegistrar />
             <LanguageGate />
             <EmailGate />
+            <AccessLogger />
             <GdprConsent />
             <PageTransition>{children}</PageTransition>
             <AiCopilot />
