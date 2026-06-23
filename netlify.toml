@@ -3,7 +3,7 @@
 # ═══════════════════════════════════════════════════════════
 
 [build]
-  command = "echo 'build test OK'"
+  command = "npx prisma generate && npx next build"
   publish = ".next"
 
 # Required environment variables (set in Netlify dashboard):
@@ -27,7 +27,7 @@
 
 # ── Next.js plugin handles routing, SSR, and API functions ──
 [[plugins]]
-  package = "@netlify/plugin-nextjs"
+  package = "@netlify/plugin-nextjs@5.2.0"
 
 # ── Headers: security headers applied to all routes ──
 [[headers]]
