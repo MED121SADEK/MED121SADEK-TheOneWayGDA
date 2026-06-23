@@ -106,3 +106,6 @@ docker-compose.override.yml
 yarn.lock
 pnpm-lock.yaml
 tool-results/
+
+# Local Netlify folder
+.netlify
