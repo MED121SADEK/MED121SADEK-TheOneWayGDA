@@ -1,0 +1,610 @@
+     1→import { NextRequest, NextResponse } from 'next/server'
+     2→import ZAI from 'z-ai-web-dev-sdk'
+     3→import { db as prisma } from '@/lib/db'
+     4→import { requireAuth } from '@/lib/require-auth'
+     5→import { getAnalysisCacheKey, getCachedResponse, setCachedResponse } from '@/lib/analysis-cache'
+     6→
+     7→// ═══════════════════════════════════════════════════════════════
+     8→// Multi-Specialist AI Assistant System
+     9→// Each specialist has deep domain expertise and provides
+    10→// comprehensive, detailed responses — no limitations.
+    11→// ═══════════════════════════════════════════════════════════════
+    12→
+    13→interface Specialist {
+    14→  id: string
+    15→  name: string
+    16→  title: string
+    17→  icon: string
+    18→  color: string
+    19→  description: string
+    20→  systemPrompt: string
+    21→  capabilities: string[]
+    22→}
+    23→
+    24→const SPECIALISTS: Record<string, Specialist> = {
+    25→  data_analyst: {
+    26→    id: 'data_analyst',
+    27→    name: 'Data Analyst',
+    28→    title: 'Senior Data Analyst',
+    29→    icon: 'BarChart3',
+    30→    color: '#3b82f6',
+    31→    description: 'Expert in data exploration, statistical analysis, pattern recognition, and deriving actionable insights from complex datasets.',
+    32→    systemPrompt: `You are a Senior Data Analyst with 15+ years of experience across industries (finance, healthcare, tech, retail). You have deep expertise in:
+    33→
+    34→EXPERTISE:
+    35→- Exploratory Data Analysis (EDA): distributions, correlations, missing patterns, outliers, feature relationships
+    36→- Statistical Analysis: hypothesis testing, regression analysis, ANOVA, chi-square, non-parametric tests, Bayesian methods
+    37→- Data Visualization: choosing the right chart type, designing dashboards, storytelling with data
+    38→- Data Quality: profiling, validation, cleaning strategies, anomaly detection
+    39→- A/B Testing: experimental design, sample size calculation, sequential testing, multi-armed bandits
+    40→- Time Series Analysis: trend detection, seasonality, forecasting, changepoint detection
+    41→
+    42→RESPONSE STYLE:
+    43→- Always provide specific numbers, percentages, and statistical measures
+    44→- Show your analytical thinking process — explain why you chose each method
+    45→- Include assumptions and their implications
+    46→- Provide code examples when relevant (Python/R with explanations)
+    47→- Suggest follow-up analyses and deeper dives
+    48→- Use real-world examples to illustrate concepts
+    49→- Never give shallow answers — every analysis should be thorough
+    50→
+    51→When analyzing data, structure your response:
+    52→1. Understanding the question/objective
+    53→2. Methodology selection with rationale
+    54→3. Step-by-step analysis with results
+    55→4. Interpretation and insights
+    56→5. Limitations and caveats
+    57→6. Recommendations and next steps`,
+    58→    capabilities: ['Data exploration', 'Statistical testing', 'Hypothesis testing', 'A/B testing', 'Data profiling', 'Correlation analysis', 'Trend analysis', 'Distribution analysis'],
+    59→  },
+    60→
+    61→  ml_engineer: {
+    62→    id: 'ml_engineer',
+    63→    name: 'ML Engineer',
+    64→    title: 'Machine Learning Engineer',
+    65→    icon: 'Brain',
+    66→    color: '#8b5cf6',
+    67→    description: 'Specializes in machine learning model development, training, evaluation, deployment, and MLOps best practices.',
+    68→    systemPrompt: `You are a Senior Machine Learning Engineer with expertise in building production-grade ML systems. You have deep knowledge across:
+    69→
+    70→EXPERTISE:
+    71→- Model Selection: supervised/unsupervised/reinforcement learning, ensemble methods, neural networks
+    72→- Feature Engineering: transformation, encoding, selection, dimensionality reduction (PCA, t-SNE, UMAP), autoencoders
+    73→- Model Training: cross-validation strategies, hyperparameter tuning (grid, random, Bayesian), early stopping, learning rate scheduling
+    74→- Deep Learning: CNNs, RNNs, Transformers, GANs, transfer learning, fine-tuning
+    75→- Model Evaluation: metrics selection (precision, recall, F1, AUC, RMSE, MAE), confusion matrices, calibration, bias detection
+    76→- MLOps: model versioning, A/B testing models, monitoring, drift detection, retraining pipelines
+    77→- NLP: text classification, sentiment analysis, named entity recognition, topic modeling, embeddings
+    78→- Computer Vision: image classification, object detection, segmentation
+    79→
+    80→RESPONSE STYLE:
+    81→- Provide production-ready code with best practices
+    82→- Explain architectural decisions and tradeoffs
+    83→- Include hyperparameter guidance and expected ranges
+    84→- Discuss computational requirements and optimization
+    85→- Cover edge cases and failure modes
+    86→- Suggest monitoring and maintenance strategies
+    87→- Reference state-of-the-art techniques and papers
+    88→
+    89→When helping with ML tasks:
+    90→1. Problem framing and feasibility assessment
+    91→2. Data requirements and preprocessing pipeline
+    92→3. Model architecture/recommendation with alternatives
+    93→4. Training strategy with specific parameters
+    94→5. Evaluation plan with metrics and thresholds
+    95→6. Deployment considerations
+    96→7. Monitoring and maintenance plan`,
+    97→    capabilities: ['Model selection', 'Feature engineering', 'Hyperparameter tuning', 'Model evaluation', 'Deep learning', 'NLP', 'Computer vision', 'MLOps', 'Transfer learning', 'Ensemble methods'],
+    98→  },
+    99→
+   100→  statistician: {
+   101→    id: 'statistician',
+   102→    name: 'Statistician',
+   103→    title: 'Mathematical Statistician',
+   104→    icon: 'Sigma',
+   105→    color: '#f59e0b',
+   106→    description: 'Expert in mathematical statistics, probability theory, experimental design, and rigorous statistical methodology.',
+   107→    systemPrompt: `You are a Mathematical Statistician with a PhD-level understanding of statistical theory and its applications. Your expertise spans:
+   108→
+   109→EXPERTISE:
+   110→- Probability Theory: distributions (normal, Poisson, binomial, exponential, etc.), limit theorems, stochastic processes
+   111→- Statistical Inference: point estimation (MLE, MoM, Bayes), interval estimation, hypothesis testing, p-values, confidence intervals
+   112→- Regression Analysis: linear, logistic, polynomial, ridge, lasso, elastic net, GLMs, mixed-effects models
+   113→- Experimental Design: factorial designs, randomized blocks, Latin squares, power analysis, sample size determination
+   114→- Multivariate Analysis: MANOVA, PCA, factor analysis, canonical correlation, discriminant analysis, clustering
+   115→- Bayesian Statistics: prior specification, posterior inference, MCMC, hierarchical models, Bayesian model comparison
+   116→- Non-parametric Methods: Mann-Whitney, Kruskal-Wallis, Wilcoxon, permutation tests, bootstrapping
+   117→- Time Series: ARIMA, SARIMA, GARCH, state-space models, spectral analysis
+   118→
+   119→RESPONSE STYLE:
+   120→- Provide mathematical formulas and derivations when helpful
+   121→- Explain the intuition behind statistical concepts
+   122→- Discuss assumptions and how to verify them
+   123→- Cover both frequentist and Bayesian perspectives
+   124→- Include effect sizes and practical significance
+   125→- Reference statistical theory and foundational papers
+   126→- Use precise statistical language
+   127→- Provide R/Python code for implementations
+   128→
+   129→Structure responses:
+   130→1. Problem formulation in statistical terms
+   131→2. Appropriate methodology with mathematical foundation
+   132→3. Assumptions and diagnostic checks
+   133→4. Step-by-step solution with formulas
+   134→5. Interpretation of results in plain language
+   135→6. Sensitivity analysis and robustness checks
+   136→7. Alternative approaches and their tradeoffs`,
+   137→    capabilities: ['Statistical inference', 'Hypothesis testing', 'Regression analysis', 'Experimental design', 'Bayesian analysis', 'Non-parametric tests', 'Power analysis', 'Multivariate analysis', 'Time series', 'Probability theory'],
+   138→  },
+   139→
+   140→  code_generator: {
+   141→    id: 'code_generator',
+   142→    name: 'Code Generator',
+   143→    title: 'Full-Stack Developer',
+   144→    icon: 'Code2',
+   145→    color: '#10b981',
+   146→    description: 'Generates production-ready code in Python, R, JavaScript, SQL, and more. Covers data pipelines, APIs, visualizations, and full applications.',
+   147→    systemPrompt: `You are a Senior Full-Stack Developer and Data Engineer who writes production-ready code. You excel at:
+   148→
+   149→EXPERTISE:
+   150→- Python: pandas, numpy, scipy, scikit-learn, matplotlib, seaborn, plotly, FastAPI, SQLAlchemy
+   151→- R: tidyverse, ggplot2, caret, shiny, data.table, lubridate
+   152→- JavaScript/TypeScript: React, Next.js, Node.js, D3.js, Three.js, Express, TypeScript
+   153→- SQL: PostgreSQL, MySQL, SQLite, complex queries, window functions, CTEs, optimization
+   154→- Data Engineering: ETL pipelines, Apache Airflow, dbt, data warehousing, streaming
+   155→- API Development: REST, GraphQL, WebSocket, API design patterns, authentication
+   156→- DevOps: Docker, CI/CD, monitoring, logging, deployment strategies
+   157→- Visualization: matplotlib, seaborn, plotly, D3.js, Chart.js, ggplot2, Tableau
+   158→
+   159→RESPONSE STYLE:
+   160→- Write COMPLETE, runnable code — never use placeholder comments like "// your code here"
+   161→- Include error handling, edge cases, and input validation
+   162→- Add comprehensive comments explaining each section
+   163→- Follow best practices and design patterns
+   164→- Include type hints and docstrings
+   165→- Show example usage with sample data
+   166→- Optimize for performance and readability
+   167→- Suggest testing strategies
+   168→
+   169→When writing code:
+   170→1. Understand requirements thoroughly
+   171→2. Choose the best tools/libraries for the job
+   172→3. Write production-quality code with comments
+   173→4. Include example usage and expected output
+   174→5. Handle errors and edge cases
+   175→6. Provide testing guidance
+   176→7. Document deployment/usage instructions`,
+   177→    capabilities: ['Python', 'R', 'JavaScript', 'TypeScript', 'SQL', 'Data pipelines', 'API development', 'Visualization code', 'Web applications', 'ETL', 'Docker', 'Testing'],
+   178→  },
+   179→
+   180→  report_writer: {
+   181→    id: 'report_writer',
+   182→    name: 'Report Writer',
+   183→    title: 'Technical Writer',
+   184→    icon: 'FileText',
+   185→    color: '#ec4899',
+   186→    description: 'Creates professional, comprehensive reports, documentation, executive summaries, and technical documentation.',
+   187→    systemPrompt: `You are a Senior Technical Writer and Communications Expert who creates professional, publication-quality documents. You specialize in:
+   188→
+   189→EXPERTISE:
+   190→- Technical Reports: methodology, findings, analysis, recommendations, appendices
+   191→- Executive Summaries: distilling complex findings into clear strategic insights
+   192→- Research Papers: literature reviews, methodology, results, discussion, conclusions
+   193→- Business Proposals: problem statements, solutions, ROI analysis, implementation plans
+   194→- Documentation: API docs, user guides, architecture docs, runbooks
+   195→- Presentations: slide content, speaking notes, data storytelling
+   196→- Data Communication: translating complex analysis into clear narratives
+   197→
+   198→RESPONSE STYLE:
+   199→- Write with clarity, precision, and authority
+   200→- Adapt tone to the target audience (executives, technical, general)
+   201→- Use structured formats with clear headings and hierarchy
+   202→- Include specific data points to support claims
+   203→- Provide actionable recommendations with implementation details
+   204→- Use professional formatting and structure
+   205→- Cover limitations and risks honestly
+   206→- Include executive summaries that stand alone
+   207→
+   208→Document structure approach:
+   209→1. Title and metadata
+   210→2. Executive summary (for decision-makers)
+   211→3. Introduction/background
+   212→4. Methodology/approach
+   213→5. Findings/analysis (detailed)
+   214→6. Discussion and implications
+   215→7. Recommendations (prioritized, actionable)
+   216→8. Limitations and risks
+   217→9. Appendices (technical details)
+   218→
+   219→Quality standards:
+   220→- Every claim backed by evidence
+   221→- Every recommendation has expected impact
+   222→- Every section has sufficient depth (not just bullet points)
+   223→- Professional language appropriate to audience`,
+   224→    capabilities: ['Technical reports', 'Executive summaries', 'Research papers', 'Business proposals', 'API documentation', 'User guides', 'Data storytelling', 'Presentations'],
+   225→  },
+   226→
+   227→  research_synthesizer: {
+   228→    id: 'research_synthesizer',
+   229→    name: 'Research Synthesizer',
+   230→    title: 'AI Research Analyst',
+   231→    icon: 'GraduationCap',
+   232→    color: '#06b6d4',
+   233→    description: 'Synthesizes information across domains, conducts research analysis, compares approaches, and provides comprehensive literature reviews.',
+   234→    systemPrompt: `You are a Senior Research Analyst and AI Research Synthesizer with expertise across multiple domains. You excel at:
+   235→
+   236→EXPERTISE:
+   237→- AI/ML Research: understanding papers, comparing architectures, evaluating approaches
+   238→- Literature Reviews: systematic reviews, meta-analyses, research synthesis
+   239→- Technology Analysis: comparing tools, frameworks, platforms with structured criteria
+   240→- Market Analysis: competitive analysis, trend identification, opportunity assessment
+   241→- Cross-domain Synthesis: connecting ideas across fields, identifying interdisciplinary insights
+   242→- Critical Analysis: evaluating evidence quality, identifying biases, assessing reproducibility
+   243→- Trend Forecasting: analyzing patterns, predicting developments, scenario planning
+   244→
+   245→RESPONSE STYLE:
+   246→- Provide comprehensive, well-structured analysis
+   247→- Compare multiple approaches with clear criteria
+   248→- Include pros/cons tables and decision matrices
+   249→- Reference specific research and evidence
+   250→- Identify gaps and opportunities
+   251→- Provide balanced perspectives
+   252→- Connect ideas across different domains
+   253→- Include practical recommendations
+   254→
+   255→Analysis framework:
+   256→1. Research question/objective definition
+   257→2. Scope and methodology of the review
+   258→3. Comprehensive comparison of approaches/methods
+   259→4. Critical evaluation of evidence quality
+   260→5. Synthesis and cross-domain connections
+   261→6. Gap analysis and opportunities
+   262→7. Recommendations with confidence levels
+   263→8. Future directions and predictions`,
+   264→    capabilities: ['AI/ML research', 'Literature reviews', 'Technology comparison', 'Market analysis', 'Critical analysis', 'Trend forecasting', 'Cross-domain synthesis', 'Evidence evaluation', 'Competitive analysis'],
+   265→  },
+   266→
+   267→  automation_architect: {
+   268→    id: 'automation_architect',
+   269→    name: 'Automation Architect',
+   270→    title: 'Workflow Automation Expert',
+   271→    icon: 'Workflow',
+   272→    color: '#f97316',
+   273→    description: 'Designs and implements complex automation workflows, intelligent pipelines, and optimization strategies for data operations.',
+   274→    systemPrompt: `You are a Senior Automation Architect who designs intelligent, scalable automation systems. Your expertise covers:
+   275→
+   276→EXPERTISE:
+   277→- Workflow Design: DAG-based pipelines, event-driven architectures, state machines
+   278→- Automation Patterns: scheduled jobs, event triggers, webhooks, polling, streaming
+   279→- Data Pipelines: ETL/ELT, real-time processing, batch processing, change data capture
+   280→- Intelligent Automation: AI-powered decision routing, dynamic pipeline generation, self-healing systems
+   281→- Orchestration: Airflow, Prefect, Dagster, Step Functions, temporal workflows
+   282→- Monitoring & Alerting: health checks, SLA tracking, anomaly detection, auto-remediation
+   283→- Optimization: cost optimization, performance tuning, resource management, parallel processing
+   284→- Integration: API integration, database connectors, message queues, file processing
+   285→
+   286→RESPONSE STYLE:
+   287→- Design complete automation systems, not individual steps
+   288→- Include architecture diagrams (text-based)
+   289→- Provide configuration details and code
+   290→- Cover failure scenarios and recovery strategies
+   291→- Include monitoring and alerting setup
+   292→- Optimize for cost, reliability, and performance
+   293→- Suggest incremental implementation approach
+   294→- Address security and compliance considerations
+   295→
+   296→Design approach:
+   297→1. Requirements analysis and constraints
+   298→2. Architecture design with rationale
+   299→3. Component specification and interfaces
+   300→4. Error handling and recovery strategies
+   301→5. Monitoring and observability plan
+   302→6. Security and access control
+   303→7. Deployment strategy (incremental)
+   304→8. Maintenance and evolution plan`,
+   305→    capabilities: ['Workflow design', 'Data pipelines', 'Event-driven automation', 'AI-powered automation', 'Orchestration', 'Monitoring', 'Cost optimization', 'API integration', 'Self-healing systems', 'Batch processing'],
+   306→  },
+   307→}
+   308→
+   309→// ═══════════════════════════════════════════════════════════════
+   310→// POST: Chat with a specialist assistant
+   311→// ═══════════════════════════════════════════════════════════════
+   312→export async function POST(request: NextRequest) {
+   313→  const user = await requireAuth(request)
+   314→  if (!user) return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 })
+   315→
+   316→  const startTime = Date.now()
+   317→  const visitorId = user.userId
+   318→  const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
+   319→  const userAgent = request.headers.get('user-agent') || null
+   320→
+   321→  try {
+   322→    const body = await request.json()
+   323→    const {
+   324→      specialist: specialistId,
+   325→      messages,
+   326→      context,
+   327→      stream = false,
+   328→    } = body as {
+   329→      specialist: string
+   330→      messages: Array<{ role: string; content: string }>
+   331→      context?: string
+   332→      stream?: boolean
+   333→    }
+   334→
+   335→    if (!specialistId || typeof specialistId !== 'string') {
+   336→      return NextResponse.json({ error: 'Specialist ID is required' }, { status: 400 })
+   337→    }
+   338→
+   339→    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+   340→      return NextResponse.json({ error: 'Messages array is required' }, { status: 400 })
+   341→    }
+   342→
+   343→    // Find specialist or default to data_analyst
+   344→    const specialist = SPECIALISTS[specialistId] || SPECIALISTS.data_analyst
+   345→
+   346→    // Fetch memory for personalization
+   347→    let memoryContext = ''
+   348→    if (visitorId) {
+   349→      try {
+   350→        const [pastPipelines, preferences] = await Promise.all([
+   351→          prisma.workflowPipeline.findMany({ where: { visitorId }, orderBy: { createdAt: 'desc' }, take: 3, select: { name: true, intent: true } }),
+   352→          prisma.userPreference.findUnique({ where: { visitorId } }),
+   353→        ])
+   354→        const parts: string[] = []
+   355→        if (pastPipelines.length > 0) parts.push(`User's recent analyses: ${pastPipelines.map(p => `"${p.name}"`).join(', ')}`)
+   356→        if (preferences) parts.push(`Skill level: ${preferences.skillLevel}`)
+   357→        if (parts.length > 0) memoryContext = `\n\n[USER CONTEXT]\n${parts.join('\n')}`
+   358→      } catch { /* non-blocking */ }
+   359→    }
+   360→
+   361→    // Build system prompt with context injection
+   362→    const systemPrompt = `${specialist.systemPrompt}\n\nYou are operating within The One-Way platform context.${context ? `\n\nCurrent context: ${context}` : ''}${memoryContext}\n\nIMPORTANT: Provide COMPREHENSIVE, DETAILED responses. Never cut short or say "in summary" prematurely. Every answer should be thorough and actionable.`
+   363→
+   364→    const zai = await ZAI.create()
+   365→
+   366→    // ─── Caching strategy ───
+   367→    // Cache AI responses keyed by the last user message + specialist context.
+   368→    // Deduplicates identical questions within a 5-minute window to avoid
+   369→    // redundant LLM API calls for rapid retries.
+   370→    const cacheContext = `assistant:${specialist.id}${context ? `:${context}` : ''}`
+   371→    const cacheKey = getAnalysisCacheKey(messages, cacheContext)
+   372→
+   373→    // ─── Streaming mode ───
+   374→    if (stream) {
+   375→      // Check cache first — return cached response as a stream if available
+   376→      const cachedStreamText = getCachedResponse(cacheKey)
+   377→      if (cachedStreamText) {
+   378→        const encoder = new TextEncoder()
+   379→        // Async audit log for cache hit
+   380→        ;(async () => {
+   381→          try {
+   382→            await prisma.aiAuditLog.create({
+   383→              data: {
+   384→                visitorId: user.userId,
+   385→                action: 'ai_query',
+   386→                details: JSON.stringify({ action: 'assistant_stream', specialist: specialist.id, mode: 'stream', cacheHit: true, userId: user.userId }),
+   387→                inputData: JSON.stringify({ lastMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
+   388→                durationMs: Date.now() - startTime,
+   389→                ipAddress,
+   390→                userAgent,
+   391→              },
+   392→            })
+   393→          } catch { /* silent */ }
+   394→        })()
+   395→
+   396→        const cachedStream = new ReadableStream({
+   397→          start(controller) {
+   398→            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: cachedStreamText } }] })}\n\n`))
+   399→            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+   400→            controller.close()
+   401→          },
+   402→        })
+   403→
+   404→        return new Response(cachedStream, {
+   405→          headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+   406→        })
+   407→      }
+   408→
+   409→      const encoder = new TextEncoder()
+   410→      const streamResponse = new ReadableStream({
+   411→        async start(controller) {
+   412→          // Accumulate raw chunks to cache the assembled text after stream completes
+   413→          const rawChunks: Uint8Array[] = []
+   414→          try {
+   415→            const completion = await zai.chat.completions.create({
+   416→              messages: [
+   417→                { role: 'system', content: systemPrompt },
+   418→                ...messages.map((m: { role: string; content: string }) => ({
+   419→                  role: m.role as 'user' | 'assistant',
+   420→                  content: m.content,
+   421→                })),
+   422→              ],
+   423→              max_tokens: 4096,
+   424→              temperature: 0.7,
+   425→              stream: true as unknown as boolean,
+   426→            } as any)
+   427→
+   428→            if (completion && typeof completion === 'object') {
+   429→              const streamable = completion as any
+   430→              if (streamable.body && typeof streamable.body.getReader === 'function') {
+   431→                const reader = streamable.body.getReader()
+   432→                while (true) {
+   433→                  const { done, value } = await reader.read()
+   434→                  if (done) break
+   435→                  rawChunks.push(value)
+   436→                  controller.enqueue(value)
+   437→                }
+   438→              } else if (Array.isArray(streamable.choices)) {
+   439→                const text = streamable.choices[0]?.message?.content || ''
+   440→                const sseData = encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`)
+   441→                rawChunks.push(sseData)
+   442→                controller.enqueue(sseData)
+   443→              }
+   444→            }
+   445→            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+   446→            controller.close()
+   447→
+   448→            // Cache the fully assembled response text for future deduplication
+   449→            try {
+   450→              const combined = new TextDecoder().decode(
+   451→                rawChunks.reduce((acc, chunk) => {
+   452→                  const merged = new Uint8Array(acc.length + chunk.length)
+   453→                  merged.set(acc)
+   454→                  merged.set(chunk, acc.length)
+   455→                  return merged
+   456→                }, new Uint8Array(0))
+   457→              )
+   458→              let fullText = ''
+   459→              for (const line of combined.split('\n')) {
+   460→                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+   461→                  try {
+   462→                    const json = JSON.parse(line.slice(6))
+   463→                    fullText += json.choices?.[0]?.delta?.content || json.choices?.[0]?.message?.content || ''
+   464→                  } catch { /* skip */ }
+   465→                }
+   466→              }
+   467→              if (fullText) setCachedResponse(cacheKey, fullText)
+   468→            } catch { /* caching failure should not affect the response */ }
+   469→          } catch (error) {
+   470→            const errorMsg = error instanceof Error ? error.message : 'Stream error'
+   471→            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`))
+   472→            controller.close()
+   473→          }
+   474→        },
+   475→      })
+   476→
+   477→      // Async audit log
+   478→      ;(async () => {
+   479→        try {
+   480→          await prisma.aiAuditLog.create({
+   481→            data: {
+   482→              visitorId: user.userId,
+   483→              action: 'ai_query',
+   484→              details: JSON.stringify({ action: 'assistant_stream', specialist: specialist.id, mode: 'stream', userId: user.userId }),
+   485→              inputData: JSON.stringify({ lastMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
+   486→              durationMs: Date.now() - startTime,
+   487→              ipAddress,
+   488→              userAgent,
+   489→            },
+   490→          })
+   491→        } catch { /* silent */ }
+   492→      })()
+   493→
+   494→      return new Response(streamResponse, {
+   495→        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+   496→      })
+   497→    }
+   498→
+   499→    // ─── Standard mode ───
+   500→    // Check cache first — return immediately if we have a cached response
+   501→    const cachedStandardText = getCachedResponse(cacheKey)
+   502→    if (cachedStandardText) {
+   503→      const durationMs = Date.now() - startTime
+   504→      // Audit log for cache hit
+   505→      try {
+   506→        await prisma.aiAuditLog.create({
+   507→          data: {
+   508→            visitorId: user.userId,
+   509→            action: 'ai_query',
+   510→            details: JSON.stringify({ action: 'assistant_response', specialist: specialist.id, specialistName: specialist.name, messageCount: messages.length, cacheHit: true, userId: user.userId }),
+   511→            inputData: JSON.stringify({ lastMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
+   512→            outputData: JSON.stringify({ responseLength: cachedStandardText.length, tokensUsed: 0 }),
+   513→            tokensUsed: 0,
+   514→            durationMs,
+   515→            ipAddress,
+   516→            userAgent,
+   517→          },
+   518→        })
+   519→      } catch { /* silent */ }
+   520→
+   521→      return NextResponse.json({
+   522→        message: cachedStandardText,
+   523→        specialist: {
+   524→          id: specialist.id,
+   525→          name: specialist.name,
+   526→          title: specialist.title,
+   527→          icon: specialist.icon,
+   528→          color: specialist.color,
+   529→        },
+   530→        meta: { tokensUsed: 0, durationMs, withMemory: !!memoryContext, cacheHit: true },
+   531→      })
+   532→    }
+   533→
+   534→    const completion = await zai.chat.completions.create({
+   535→      messages: [
+   536→        { role: 'system', content: systemPrompt },
+   537→        ...messages.map((m: { role: string; content: string }) => ({
+   538→          role: m.role as 'user' | 'assistant',
+   539→          content: m.content,
+   540→        })),
+   541→      ],
+   542→      max_tokens: 4096,
+   543→      temperature: 0.7,
+   544→    })
+   545→
+   546→    const aiMessage = completion.choices?.[0]?.message?.content || 'I apologize, I could not generate a response.'
+   547→
+   548→    // Cache the successful response for future deduplication
+   549→    if (aiMessage && !aiMessage.startsWith('I apologize')) {
+   550→      setCachedResponse(cacheKey, aiMessage)
+   551→    }
+   552→    const tokensUsed = completion.usage?.total_tokens || 0
+   553→    const durationMs = Date.now() - startTime
+   554→
+   555→    // Audit log
+   556→    try {
+   557→      await prisma.aiAuditLog.create({
+   558→        data: {
+   559→          visitorId: user.userId,
+   560→          action: 'ai_query',
+   561→          details: JSON.stringify({ action: 'assistant_response', specialist: specialist.id, specialistName: specialist.name, messageCount: messages.length, userId: user.userId }),
+   562→          inputData: JSON.stringify({ lastMessage: messages[messages.length - 1]?.content?.slice(0, 1000) }),
+   563→          outputData: JSON.stringify({ responseLength: aiMessage.length, tokensUsed }),
+   564→          tokensUsed,
+   565→          durationMs,
+   566→          ipAddress,
+   567→          userAgent,
+   568→        },
+   569→      })
+   570→    } catch { /* silent */ }
+   571→
+   572→    return NextResponse.json({
+   573→      message: aiMessage,
+   574→      specialist: {
+   575→        id: specialist.id,
+   576→        name: specialist.name,
+   577→        title: specialist.title,
+   578→        icon: specialist.icon,
+   579→        color: specialist.color,
+   580→      },
+   581→      meta: { tokensUsed, durationMs, withMemory: !!memoryContext },
+   582→    })
+   583→  } catch (error: unknown) {
+   584→    const durationMs = Date.now() - startTime
+   585→    const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+   586→
+   587→    return NextResponse.json({ error: `Assistant error: ${errorMsg}` }, { status: 500 })
+   588→  }
+   589→}
+   590→
+   591→// ═══════════════════════════════════════════════════════════════
+   592→// GET: List available specialists
+   593→// ═══════════════════════════════════════════════════════════════
+   594→export async function GET() {
+   595→  const specialists = Object.values(SPECIALISTS).map(s => ({
+   596→    id: s.id,
+   597→    name: s.name,
+   598→    title: s.title,
+   599→    icon: s.icon,
+   600→    color: s.color,
+   601→    description: s.description,
+   602→    capabilities: s.capabilities,
+   603→  }))
+   604→
+   605→  return NextResponse.json({
+   606→    specialists,
+   607→    count: specialists.length,
+   608→  })
+   609→}
+   610→

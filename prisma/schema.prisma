@@ -1273,3 +1273,19 @@ model OAuthAccount {
   @@unique([provider, providerId])
   @@index([userId])
 }
+
+// ═══ User Feedback ═══
+
+model Feedback {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5
+  category  String   // "bug" | "feature" | "general" | "uiux"
+  message   String
+  email     String?
+  page      String   @default("unknown")
+  userAgent String   @default("unknown")
+  createdAt DateTime @default(now())
+
+  @@index([category])
+  @@index([createdAt])
+}
