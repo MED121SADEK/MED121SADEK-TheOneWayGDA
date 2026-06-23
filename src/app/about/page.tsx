@@ -135,7 +135,7 @@ export default function AboutPage() {
                 <div className="flex flex-col md:flex-row">
                   <div className="md:w-1/3 flex-shrink-0">
                     <div className="aspect-square md:aspect-auto md:h-full relative">
-                      <Image src="/images/founder.png" alt="Mohammed Essadek — Founder & CEO" fill className="object-cover object-top" priority />
+                      <Image src="/images/mohammed.png" alt="Mohammed Essadek — Founder & CEO" fill className="object-cover object-top" priority />
                     </div>
                   </div>
                   <CardContent className="p-6 md:p-8 flex flex-col justify-center">
