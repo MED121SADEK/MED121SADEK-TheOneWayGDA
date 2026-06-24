@@ -1,3 +1,0 @@
-module.exports=[181236,a=>{"use strict";function b({children:a}){return a}a.s(["default",()=>b,"metadata",0,{title:"Security",description:"TheOneWayGDA security practices — AES-256 encryption, TLS 1.3, zero-knowledge architecture, SOC 2, GDPR, HIPAA compliance, audit logging, penetration testing, and comprehensive data protection.",openGraph:{title:"TheOneWayGDA — Security",description:"TheOneWayGDA security practices — encryption, compliance, audit logging, and data protection."}}])}];
-
-//# sourceMappingURL=src_app_security_layout_tsx_2e0bd62b._.js.map

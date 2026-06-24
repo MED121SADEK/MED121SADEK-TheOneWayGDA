@@ -1,3 +1,0 @@
-module.exports=[493092,(e,o,d)=>{}];
-
-//# sourceMappingURL=_next-internal_server_app_api_teams_route_actions_bedf26b6.js.map

@@ -1,1 +1,0 @@
-{"version":1,"functions":{"/_middleware":{"runtime":"nodejs","matchers":[{"regexp":"(?!.*)","originalSource":"/admin/:path*"},{"regexp":"(?!.*)","originalSource":"/api/:path*"},{"regexp":"(?!.*)","originalSource":"/((?!_next/static|_next/image|favicon.ico|icons|images|manifest.json|robots.txt|sitemap.xml).*)"}]},"/api/notifications/stream":{},"/api/og":{}}}

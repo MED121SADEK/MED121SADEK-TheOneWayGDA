@@ -1,3 +1,0 @@
-module.exports=[442627,a=>{"use strict";function b({children:a}){return a}a.s(["default",()=>b,"metadata",0,{title:"Terms of Service",description:"TheOneWayGDA terms of service — terms and conditions governing the use of our AI model comparison platform, including account terms, acceptable use, intellectual property, and liability.",openGraph:{title:"TheOneWayGDA — Terms of Service",description:"TheOneWayGDA terms of service — terms and conditions for using our AI platform."}}])}];
-
-//# sourceMappingURL=src_app_terms_layout_tsx_d2ae0ce8._.js.map

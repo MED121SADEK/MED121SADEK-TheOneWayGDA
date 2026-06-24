@@ -1,3 +1,0 @@
-module.exports=[861080,a=>{"use strict";function b({children:a}){return a}a.s(["default",()=>b,"metadata",0,{title:"Privacy Policy",description:"TheOneWayGDA privacy policy — how we collect, use, and protect your data. Learn about GDPR, CCPA compliance, data minimization, consent management, and your rights including data portability and erasure.",openGraph:{title:"TheOneWayGDA — Privacy Policy",description:"TheOneWayGDA privacy policy — how we protect your data and respect your privacy."}}])}];
-
-//# sourceMappingURL=src_app_privacy_layout_tsx_3d7f1cef._.js.map

@@ -41,6 +41,9 @@ next-env.d.ts
 # ---------- Vercel ----------
 .vercel
 
+# ---------- Netlify ----------
+.netlify/
+
 # ---------- Database (SQLite / Prisma) ----------
 *.db
 *.db-journal

@@ -1,5 +1,5 @@
 [build]
-  command = "npx prisma generate && npx next build && cp -r public/images .next/static/images"
+  command = "npx prisma generate && npx next build"
   publish = ".next"
 
 [[plugins]]
