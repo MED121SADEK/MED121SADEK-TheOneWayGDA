@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
+import { queryCache } from '@/lib/neon-cache'
 
 // GET /api/community/posts — List posts (feed)
 export async function GET(request: NextRequest) {
@@ -13,6 +14,9 @@ export async function GET(request: NextRequest) {
     const tag = searchParams.get('tag')
     const search = searchParams.get('search')
     const author = searchParams.get('author')
+
+    // Skip cache for authenticated/admin or search queries
+    const useCache = !search && !author
 
     const skip = (page - 1) * limit
 
@@ -39,23 +43,27 @@ export async function GET(request: NextRequest) {
       ? { createdAt: 'desc' }
       : { createdAt: 'desc' }
 
-    const [posts, total] = await Promise.all([
-      db.communityPost.findMany({
-        where,
-        orderBy,
-        skip,
-        take: limit,
-      }),
-      db.communityPost.count({ where }),
-    ])
+    // Use Neon query cache for public feed reads
+    const cacheKey = `feed:${type}:${sort}:${tag || 'all'}:${page}:${limit}`
+    const result = await queryCache.get(
+      cacheKey,
+      async () => {
+        const [posts, total] = await Promise.all([
+          db.communityPost.findMany({ where, orderBy, skip, take: limit }),
+          db.communityPost.count({ where }),
+        ])
+        return { posts, total, pages: Math.ceil(total / limit) }
+      },
+      { ttl: sort === 'featured' ? 120 : 30 }
+    )
 
     return NextResponse.json({
-      posts,
+      posts: result.posts,
       pagination: {
         page,
         limit,
-        total,
-        pages: Math.ceil(total / limit),
+        total: result.total,
+        pages: result.pages,
       },
     })
   } catch (error) {
