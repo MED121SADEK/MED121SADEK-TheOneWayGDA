@@ -5,14 +5,9 @@
  * on Netlify serverless functions. Includes:
  *
  * - Neon serverless driver (WebSocket-based, no TCP handshake)
- * - Connection pool size optimized for serverless (max 5 concurrent)
- * - Query timeout tuned for Neon's scale-to-zero (10s)
+ * - fetchConnectionCache for warm WebSocket reuse across invocations
+ * - Connection string sanitization (strips pooler-incompatible params)
  * - Automatic fallback for local dev without Neon
- *
- * Neon features leveraged:
- * - Serverless driver: edge/serverless-optimized WebSocket connections
- * - Connection pooling: Neon's PgBouncer proxy handles multiplexing
- * - Scale to zero: no idle connection cost
  */
 
 import { PrismaClient } from '@prisma/client'
@@ -21,6 +16,18 @@ import { PrismaNeon } from '@prisma/adapter-neon'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
+}
+
+/**
+ * Sanitize DATABASE_URL for the Neon serverless driver.
+ * - Strips `channel_binding` (incompatible with PgBouncer pooler)
+ * - Strips `sslmode` (Neon driver handles TLS natively)
+ */
+function sanitizeNeonUrl(url: string): string {
+  return url
+    .replace(/[&?]channel_binding=[^&]*/g, '')
+    .replace(/[&?]sslmode=[^&]*/g, '')
+    .replace(/\?$/, '') // remove trailing ? if no params left
 }
 
 function createPrismaClient(): PrismaClient {
@@ -33,20 +40,29 @@ function createPrismaClient(): PrismaClient {
     })
   }
 
-  // Use Neon serverless driver adapter for production / Netlify
-  // fetchConnectionCache: true enables Neon's built-in connection caching
-  // which keeps WebSocket connections warm across function invocations
-  const sql = neon(databaseUrl, {
+  const isNeon = databaseUrl.includes('.neon.tech')
+
+  if (!isNeon) {
+    // Non-Neon PostgreSQL: use standard Prisma
+    return new PrismaClient({
+      log: process.env.NODE_ENV === 'development' ? ['query'] : ['error'],
+    })
+  }
+
+  // Neon serverless driver adapter
+  const cleanUrl = sanitizeNeonUrl(databaseUrl)
+  const sql = neon(cleanUrl, {
     fetchConnectionCache: true,
   })
   const adapter = new PrismaNeon(sql)
 
   return new PrismaClient({
     adapter,
-    // Serverless-optimized: small pool, fast timeout
+    // Keep the original URL for Prisma's own connection management
+    // (strips incompatible params for the driver adapter above)
     datasources: {
       db: {
-        url: databaseUrl,
+        url: cleanUrl,
       },
     },
     log: process.env.NODE_ENV === 'development' ? ['query'] : ['error'],
