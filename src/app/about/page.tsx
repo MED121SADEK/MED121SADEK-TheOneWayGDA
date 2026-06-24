@@ -133,9 +133,9 @@ export default function AboutPage() {
             <motion.div variants={fadeUp} custom={2}>
               <Card className="card-premium border-primary/20 bg-card/50 backdrop-blur-sm overflow-hidden">
                 <div className="flex flex-col md:flex-row">
-                  <div className="md:w-1/3 flex-shrink-0">
-                    <div className="aspect-square md:aspect-auto md:h-full relative">
-                      <Image src="/images/mohammed.png" alt="Mohammed Essadek — Founder & CEO" fill className="object-cover object-top" priority />
+                  <div className="md:w-1/3 flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-primary/10 to-accent/10">
+                    <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center">
+                      <span className="text-4xl md:text-5xl font-bold text-primary">ME</span>
                     </div>
                   </div>
                   <CardContent className="p-6 md:p-8 flex flex-col justify-center">
