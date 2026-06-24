@@ -13,7 +13,11 @@
     "db:reset": "prisma migrate reset",
     "postinstall": "prisma generate",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:branch:create": "npx tsx scripts/neon-branch.ts create",
+    "db:branch:ls": "npx tsx scripts/neon-branch.ts ls",
+    "db:branch:delete": "npx tsx scripts/neon-branch.ts delete",
+    "db:branch:reset": "npx tsx scripts/neon-branch.ts reset"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
