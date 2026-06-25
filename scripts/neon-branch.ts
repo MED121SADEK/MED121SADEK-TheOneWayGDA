@@ -16,7 +16,7 @@
 
 import { execSync } from 'child_process'
 
-const NEON_PROJECT_ID = 'ep-lively-field-asna6sfe'
+const NEON_PROJECT_ID = 'ep-bitter-forest-asu3umbs'
 const DEV_BRANCH_NAME = 'dev'
 const API_BASE = 'https://console.neon.tech/api/v2'
 
