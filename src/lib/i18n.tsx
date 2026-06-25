@@ -3151,12 +3151,12 @@ const I18nContext = createContext<{
   locale: Locale
   setLocale: (l: Locale) => void
   dir: 'ltr' | 'rtl'
-  t: (key: string) => string
+  t: (key: string, fallback?: string) => string
 }>({
   locale: 'en',
   setLocale: () => {},
   dir: 'ltr',
-  t: (key: string) => key,
+  t: (key: string, fallback?: string) => fallback ?? key,
 })
 
 function getInitialLocale(): Locale {
@@ -3179,8 +3179,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('oneway-locale', l)
   }, [])
 
-  const t = useCallback((key: string): string => {
-    return translations[locale]?.[key] ?? translations.en?.[key] ?? key
+  const t = useCallback((key: string, fallback?: string): string => {
+    return translations[locale]?.[key] ?? translations.en?.[key] ?? fallback ?? key
   }, [locale])
 
   const dir = locale === 'ar' ? 'rtl' : 'ltr'

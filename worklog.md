@@ -97,3 +97,26 @@ Stage Summary:
 - Notifications go to msad41855@gmail.com (Resend registered email)
 - To send to outlook.fr: verify theonewaygda.com domain on resend.com/domains, then set RESEND_SENDER
 - For production: copy RESEND_API_KEY and ADMIN_EMAIL to production .env
+
+---
+Task ID: 6
+Agent: main
+Task: Fix all TypeScript compilation errors (internal error fix)
+
+Work Log:
+- Ran `npx tsc --noEmit` and found ~38 TypeScript errors across 9 files
+- Fixed `src/lib/db.ts`: Replaced `PrismaNeon(sql)` (NeonQueryFunction incompatible with PoolConfig) with `PrismaNeonHTTP(databaseUrl, {})`
+- Fixed `src/lib/email.ts`: Changed custom transport `send` callback types from `Record<string, unknown>` to `any` to match nodemailer's `MailMessage` type; fixed missing 2nd arg in error callback
+- Fixed `src/app/api/admin/test-email/route.ts`: Same transport type fix as email.ts
+- Fixed `src/app/api/admin/access-log/route.ts`: Removed `mode: 'insensitive'` for Neon compat; added `_count: { id: true }` to groupBy queries
+- Added `AccessLog` model to Prisma schema (id, email, name, path, method, userAgent, ipAddress, country, language, referrer, duration, createdAt)
+- Added `preferredLanguage` (String, default "en") and `proficientLanguages` (String?, JSON) fields to User model in Prisma schema
+- Ran `npx prisma generate` to regenerate client with new models/fields
+- Fixed `src/lib/i18n.tsx`: Updated `t` function signature to accept optional `fallback?: string` parameter; updated `I18nContext` type definition to match
+- Fixed `src/app/auth/login/page.tsx`: Added `useEffect` to import; replaced `React.useEffect` with `useEffect`
+- Fixed `src/app/admin/access-log/page.tsx`: Updated `getFlag` to accept `string | null | undefined`; wrapped ExternalLink in span for title prop; null-coalesced SelectItem value props
+
+Stage Summary:
+- All 38 TypeScript errors resolved — `npx tsc --noEmit` passes cleanly
+- Schema changes: Added AccessLog model + 2 language fields to User (migration needed before deploy)
+- i18n `t()` function now supports fallback: `t('key', 'default text')`

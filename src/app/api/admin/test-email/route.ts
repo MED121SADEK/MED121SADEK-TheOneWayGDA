@@ -28,7 +28,7 @@ function buildTransporter() {
     return nodemailer.createTransport({
       name: 'resend',
       version: '1.0.0',
-      send: async (mail: Record<string, unknown>, callback: (err: Error | null, info: unknown) => void) => {
+      send: async (mail: any, callback: (err: Error | null, info: any) => void) => {
         try {
           const { from, to, subject, html, text } = mail as { from: string; to: string | string[]; subject: string; html?: string; text?: string }
           const result = await resend.emails.send({
@@ -39,8 +39,8 @@ function buildTransporter() {
             text: text as string,
           })
           callback(null, result)
-        } catch (err) {
-          callback(err instanceof Error ? err : new Error(String(err)))
+        } catch (err: any) {
+          callback(err instanceof Error ? err : new Error(String(err)), null)
         }
       },
     })

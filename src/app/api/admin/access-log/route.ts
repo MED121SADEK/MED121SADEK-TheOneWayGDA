@@ -45,8 +45,8 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       where.OR = [
-        { email: { contains: search, mode: 'insensitive' as const } },
-        { name: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search } },
+        { name: { contains: search } },
         { ipAddress: { contains: search } },
       ]
     }
@@ -75,10 +75,10 @@ export async function GET(request: NextRequest) {
       db.accessLog.groupBy({ by: ['email'], where: { email: { not: null } } })
         .then(r => r.length),
       // Top 10 most visited paths
-      db.accessLog.groupBy({ by: ['path'] })
+      db.accessLog.groupBy({ by: ['path'], _count: { id: true } })
         .then(r => r.sort((a, b) => b._count.id - a._count.id).slice(0, 10)),
       // Top 10 countries
-      db.accessLog.groupBy({ by: ['country'], where: { country: { not: null } } })
+      db.accessLog.groupBy({ by: ['country'], where: { country: { not: null } }, _count: { id: true } })
         .then(r => r.sort((a, b) => b._count.id - a._count.id).slice(0, 10)),
     ])
 

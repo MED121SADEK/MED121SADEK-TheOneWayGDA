@@ -67,7 +67,7 @@ const COUNTRY_FLAGS: Record<string, string> = {
   PL: '\u{1F1F5}\u{1F1F1}', SG: '\u{1F1F8}\u{1F1EC}', ID: '\u{1F1EE}\u{1F1E9}',
 }
 
-function getFlag(code: string | null): string {
+function getFlag(code: string | null | undefined): string {
   if (!code) return '\u{1F30D}'
   return COUNTRY_FLAGS[code.toUpperCase()] || '\u{1F30D}'
 }
@@ -526,7 +526,7 @@ export default function AccessLogPage() {
                         <SelectContent>
                           <SelectItem value="__all__">All Pages</SelectItem>
                           {summary.topPaths.map(p => (
-                            <SelectItem key={p.path} value={p.path}>
+                            <SelectItem key={p.path ?? 'unknown'} value={p.path ?? ''}>
                               {p.path} ({p.count})
                             </SelectItem>
                           ))}
@@ -606,7 +606,7 @@ export default function AccessLogPage() {
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs font-mono text-primary truncate max-w-[200px]">{log.path}</span>
                             {log.referrer && !log.referrer.includes('theonewaygda') && (
-                              <ExternalLink className="size-3 text-muted-foreground/40 flex-shrink-0" title={log.referrer} />
+                              <span className="size-3 text-muted-foreground/40 flex-shrink-0 inline-flex items-center" title={log.referrer}><ExternalLink className="size-3" /></span>
                             )}
                           </div>
                           {log.language && (

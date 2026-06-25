@@ -338,6 +338,30 @@ model UserPreference {
   @@index([visitorId])
 }
 
+// ═══ Access Log (page visit tracking) ═══
+
+model AccessLog {
+  id        String    @id @default(cuid())
+  email     String?
+  name      String?
+  path      String
+  method    String    @default("GET")
+  userAgent String?
+  ipAddress String?
+  country   String?
+  language  String?
+  referrer  String?
+  duration  Int?      // seconds spent on page
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+  @@index([path])
+  @@index([country])
+  @@index([createdAt])
+}
+
+// ═══ AI Audit Log ═══
+
 model AiAuditLog {
   id          String   @id @default(cuid())
   visitorId   String?
@@ -624,9 +648,11 @@ model User {
   company         String?
   location        String?
   website         String?
-  skills          String?   // JSON: ["statistics", "python", ...]
-  preferences     String?   // JSON: {theme, language, notifications...}
-  isOnboarded     Boolean   @default(false)
+  skills            String?   // JSON: ["statistics", "python", ...]
+  preferences       String?   // JSON: {theme, language, notifications...}
+  preferredLanguage String    @default("en")
+  proficientLanguages String? // JSON: ["en", "fr", "ar", ...]
+  isOnboarded       Boolean   @default(false)
   resetToken      String?
   resetTokenExpiry DateTime?
   createdAt       DateTime  @default(now())
