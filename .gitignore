@@ -1,111 +1,60 @@
 # ============================================
-# The One-Way — AI Model Comparison Platform
-# .gitignore
+# TheOneWayGDA — .gitignore
 # ============================================
 
-# ---------- Dependencies ----------
+# Dependencies
 node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
 
-# ---------- Next.js ----------
-/.next/
-/out/
+# Next.js
+.next/
+out/
 
-# ---------- Production ----------
-/build
+# Testing
+coverage/
 
-# ---------- Testing ----------
-/coverage
-/__tests__/coverage
-.nyc_output
-
-# ---------- TypeScript ----------
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
 
-# ---------- Environment Variables ----------
+# Environment Variables
 .env
 .env.local
-.env.production
-.env.development.local
-.env.test.local
-.env.production.local
-.env*.local
+.env.*.local
+.env.vercel
 
-# ---------- Vercel ----------
+# Vercel
 .vercel
 
-# ---------- Netlify ----------
-.netlify/
-
-# ---------- Database (SQLite / Prisma) ----------
+# Database
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
 db/
-prisma/migrations/migration_lock.toml
 
-# ---------- Logs ----------
+# Logs
 *.log
 logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-dev.log
-dev.out.log
-server.log
 
-# ---------- OS / Editor Files ----------
+# OS / Editor
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-*.pem
-*.swp
-*.swo
-*~
 .idea/
 .vscode/
-*.code-workspace
-*.sublime-project
-*.sublime-workspace
 
-# ---------- AI / Internal Config ----------
+# AI / Internal
 .claude
 .z-ai-config
-prompt
+tool-results/
 skills/
+agent-ctx/
+examples/
+mini-services/
+download/
+upload/
 
-# ---------- Debug / Temp ----------
-test
-local-*
-.cache/
-tmp/
-temp/
+# Temp / Debug
 *.bak
 *.tmp
-
-# ---------- Caddy ----------
-Caddyfile
-
-# ---------- Docker (optional) ----------
-docker-compose.override.yml
-
-# ---------- Search indexing ----------
-.csearchindex
-
-# ---------- Lock files (keep package-lock, ignore others) ----------
-yarn.lock
-pnpm-lock.yaml
-tool-results/
+*.pid
+.cache/
+tmp/
